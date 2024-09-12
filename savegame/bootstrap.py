@@ -26,7 +26,7 @@ WIN_PYTHON_PATH = os.path.join(VENV_PATH, r'Scripts\pythonw.exe')
 CRONTAB_SCHEDULE = '*/2 * * * *'
 
 
-def _setup_venv_linux():
+def _setup_linux_venv():
     if not os.path.isfile(LINUX_VENV_ACTIVATE_PATH):
         subprocess.check_call(['virtualenv', VENV_PATH])
     subprocess.check_call(f'. {LINUX_VENV_ACTIVATE_PATH}; '
@@ -34,7 +34,7 @@ def _setup_venv_linux():
         shell=True, cwd=ROOT_PATH)
 
 
-def _setup_crontab():
+def _setup_linux_crontab():
     res = subprocess.run(['crontab', '-l'],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     current_crontab = res.stdout if res.returncode == 0 else ''
@@ -59,11 +59,11 @@ def _setup_crontab():
 
 
 def bootstrap_linux():
-    _setup_venv_linux()
-    _setup_crontab()
+    _setup_linux_venv()
+    _setup_linux_crontab()
 
 
-def _setup_venv_windows():
+def _setup_win_venv():
     if not os.path.isfile(WIN_VENV_ACTIVATE_PATH):
         subprocess.check_call(['pip', 'install', 'virtualenv'])
         subprocess.check_call(['virtualenv', VENV_PATH])
@@ -72,7 +72,7 @@ def _setup_venv_windows():
         shell=True, cwd=ROOT_PATH)
 
 
-# def _setup_windows_service():
+# def _setup_win_service():
 #     """
 #     requires pywin32
 #     pywin32 issue:
@@ -86,7 +86,7 @@ def _setup_venv_windows():
 #     python service.py stop
 #     python service.py remove
 #     """
-#     WIN_SVC_FILENAME = 'service_windows.py'
+#     WIN_SVC_FILENAME = 'service_win.py'
 
 #     if ctypes.windll.shell32.IsUserAnAdmin() == 0:
 #         raise Exception('must run as admin')
@@ -107,7 +107,7 @@ def _setup_venv_windows():
 #         shell=True, cwd=ROOT_PATH)
 
 
-def _setup_windows_task(task_name, cmd):
+def _setup_win_task(task_name, cmd):
     subprocess.check_call(['schtasks', '/create',
         '/tn', task_name,
         '/tr', cmd,
@@ -120,11 +120,11 @@ def _setup_windows_task(task_name, cmd):
     ])
 
 
-def bootstrap_windows():
+def bootstrap_win():
     if ctypes.windll.shell32.IsUserAnAdmin() == 0:
         raise Exception('must run as admin')
-    _setup_venv_windows()
-    _setup_windows_task(task_name=NAME,
+    _setup_win_venv()
+    _setup_win_task(task_name=NAME,
         cmd=f'{WIN_PYTHON_PATH} {SCRIPT_PATH} --daemon')
 
 
@@ -132,7 +132,7 @@ def main():
     if not os.path.exists(ROOT_VENV_PATH):
         os.makedirs(ROOT_VENV_PATH)
     if os.name == 'nt':
-        bootstrap_windows()
+        bootstrap_win()
     else:
         bootstrap_linux()
 
