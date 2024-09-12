@@ -28,7 +28,7 @@ FILE = os.path.realpath(__file__)
 NAME = os.path.splitext(os.path.basename(FILE))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 MAX_LOG_FILE_SIZE = 100 * 1024
-IS_NT = os.name == 'nt'
+IS_WIN = os.name == 'nt'
 RE_SPECIAL = re.compile(r'\W+')
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 2 * 24 * 3600
@@ -67,8 +67,8 @@ try:
 except ImportError:
     raise Exception('missing user_settings.py')
 
-is_windows_path = lambda x: not x.startswith('/')
-is_supported_path = lambda x: IS_NT == is_windows_path(x)
+is_win_path = lambda x: not x.startswith('/')
+is_supported_path = lambda x: IS_WIN == is_win_path(x)
 get_target_name = lambda x: RE_SPECIAL.sub('_', str(x)).strip('_')
 
 
@@ -102,7 +102,7 @@ def _match_any_pattern(path, patterns):
 
 def _notify(title, body, on_click=None):
     try:
-        if IS_NT:
+        if IS_WIN:
             from win11toast import notify
             notify(title=title, body=body, on_click=on_click)
         else:
