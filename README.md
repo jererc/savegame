@@ -1,0 +1,6 @@
+savegame
+========
+
+```
+python bootstrap.py
+```
