@@ -9,7 +9,7 @@ SCRIPT_PATH = os.path.join(ROOT_PATH, 'savegame.py')
 ROOT_VENV_PATH = os.path.expanduser(os.path.join('~', 'venv'))
 VENV_PATH = os.path.join(ROOT_VENV_PATH, NAME)
 LINUX_VENV_ACTIVATE_PATH = os.path.join(VENV_PATH, 'bin/activate')
-WINDOWS_VENV_ACTIVATE_PATH = os.path.join(VENV_PATH, r'Scripts\activate')
+WIN_VENV_ACTIVATE_PATH = os.path.join(VENV_PATH, r'Scripts\activate')
 LINUX_PYTHON_MODULES = [
     'dateutils',
     'google-api-python-client',
@@ -18,11 +18,11 @@ LINUX_PYTHON_MODULES = [
     'psutil',
     'selenium',
 ]
-WINDOWS_PYTHON_MODULES = LINUX_PYTHON_MODULES + [
+WIN_PYTHON_MODULES = LINUX_PYTHON_MODULES + [
     'win11toast'
 ]
 LINUX_PYTHON_PATH = os.path.join(VENV_PATH, 'bin/python')
-WINDOWS_PYTHON_PATH = os.path.join(VENV_PATH, r'Scripts\pythonw.exe')
+WIN_PYTHON_PATH = os.path.join(VENV_PATH, r'Scripts\pythonw.exe')
 CRONTAB_SCHEDULE = '*/2 * * * *'
 
 
@@ -64,11 +64,11 @@ def bootstrap_linux():
 
 
 def _setup_venv_windows():
-    if not os.path.isfile(WINDOWS_VENV_ACTIVATE_PATH):
+    if not os.path.isfile(WIN_VENV_ACTIVATE_PATH):
         subprocess.check_call(['pip', 'install', 'virtualenv'])
         subprocess.check_call(['virtualenv', VENV_PATH])
-    subprocess.check_call(f'{WINDOWS_VENV_ACTIVATE_PATH} && '
-        f'pip install {" ".join(WINDOWS_PYTHON_MODULES)}',
+    subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
+        f'pip install {" ".join(WIN_PYTHON_MODULES)}',
         shell=True, cwd=ROOT_PATH)
 
 
@@ -91,18 +91,18 @@ def _setup_venv_windows():
 #     if ctypes.windll.shell32.IsUserAnAdmin() == 0:
 #         raise Exception('must run as admin')
 #     pywin32_script = os.path.join(VENV_PATH, r'Scripts\pywin32_postinstall.py')
-#     subprocess.check_call(f'{WINDOWS_VENV_ACTIVATE_PATH} && '
+#     subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
 #         f'python {pywin32_script} -install',
 #         shell=True, cwd=ROOT_PATH)
-#     venv_cmd_prefix = f'{WINDOWS_VENV_ACTIVATE_PATH} && '
+#     venv_cmd_prefix = f'{WIN_VENV_ACTIVATE_PATH} && '
 #     username = os.getlogin()
 #     password = input(f'{username} password: ')
 #     subprocess.check_call(
-#         f'{WINDOWS_VENV_ACTIVATE_PATH} && '
+#         f'{WIN_VENV_ACTIVATE_PATH} && '
 #         f'python {WIN_SVC_FILENAME} --username .\\{username} --password {password} '
 #         '--startup auto install',
 #         shell=True, cwd=ROOT_PATH)
-#     subprocess.check_call(f'{WINDOWS_VENV_ACTIVATE_PATH} && '
+#     subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
 #         f'python {WIN_SVC_FILENAME} start',
 #         shell=True, cwd=ROOT_PATH)
 
@@ -125,7 +125,7 @@ def bootstrap_windows():
         raise Exception('must run as admin')
     _setup_venv_windows()
     _setup_windows_task(task_name=NAME,
-        cmd=f'{WINDOWS_PYTHON_PATH} {SCRIPT_PATH} --daemon')
+        cmd=f'{WIN_PYTHON_PATH} {SCRIPT_PATH} --daemon')
 
 
 def main():
