@@ -33,10 +33,10 @@ RE_SPECIAL = re.compile(r'\W+')
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 2 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
-SVC_IDLE_CPU_THRESHOLD = 1
-SVC_LOOP_DELAY = 10
-SVC_RUN_DELTA = 30 * 60
-SVC_FORCE_DELTA = 90 * 60
+IDLE_CPU_THRESHOLD = 1
+RUN_DELTA = 30 * 60
+FORCE_RUN_DELTA = 90 * 60
+DAEMON_LOOP_DELAY = 10
 GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(FILE),
     'google_cloud_auth.pyw')
 
@@ -462,14 +462,14 @@ def savegame():
 
 
 def _is_idle():
-    return psutil.cpu_percent(interval=3) < SVC_IDLE_CPU_THRESHOLD
+    return psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
 
 
 def _must_run(last_run_ts):
     now_ts = time.time()
-    if now_ts > last_run_ts + SVC_FORCE_DELTA:
+    if now_ts > last_run_ts + FORCE_RUN_DELTA:
         return True
-    if now_ts > last_run_ts + SVC_RUN_DELTA and _is_idle():
+    if now_ts > last_run_ts + RUN_DELTA and _is_idle():
         return True
     return False
 
@@ -489,7 +489,7 @@ class Daemon(object):
                 logger.exception('wtf')
             finally:
                 logger.debug('sleeping')
-                time.sleep(SVC_LOOP_DELAY)
+                time.sleep(DAEMON_LOOP_DELAY)
 
 
 class RunIfRequired(object):
