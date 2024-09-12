@@ -1,6 +1,0 @@
-savegame
-========
-
-```
-python bootstrap.py
-```
