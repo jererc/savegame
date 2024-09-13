@@ -1,6 +1,8 @@
 import argparse
+import atexit
 from copy import deepcopy
 from fnmatch import fnmatch
+import functools
 from glob import glob
 import hashlib
 import json
@@ -10,6 +12,7 @@ import os
 import pathlib
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import time
@@ -29,6 +32,7 @@ NAME = os.path.splitext(os.path.basename(FILE))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 MAX_LOG_FILE_SIZE = 100 * 1024
 IS_WIN = os.name == 'nt'
+IS_POSIX = os.name == 'posix'
 RE_SPECIAL = re.compile(r'\W+')
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 2 * 24 * 3600
@@ -37,6 +41,7 @@ IDLE_CPU_THRESHOLD = 1
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 DAEMON_LOOP_DELAY = 10
+LOCK_FILE = os.path.join(WORK_PATH, 'lock')
 GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(FILE),
     'google_cloud_auth.pyw')
 
@@ -474,11 +479,48 @@ def _must_run(last_run_ts):
     return False
 
 
+def with_lockfile(lockfile_path):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if IS_POSIX and os.path.exists(lockfile_path):
+                logger.error(f'Lock file {lockfile_path} exists. '
+                    'Another process may be running.')
+                raise RuntimeError(f'Lock file {lockfile_path} exists. '
+                    'Another process may be running.')
+
+            def remove_lockfile():
+                if os.path.exists(lockfile_path):
+                    os.remove(lockfile_path)
+
+            atexit.register(remove_lockfile)
+
+            def handle_signal(signum, frame):
+                remove_lockfile()
+                raise SystemExit(f'Program terminated by signal {signum}')
+
+            if IS_POSIX:
+                signal.signal(signal.SIGINT, handle_signal)
+                signal.signal(signal.SIGTERM, handle_signal)
+
+            try:
+                with open(lockfile_path, 'w') as lockfile:
+                    lockfile.write('locked')
+                result = func(*args, **kwargs)
+            finally:
+                remove_lockfile()
+            return result
+
+        return wrapper
+    return decorator
+
+
 class Daemon(object):
 
     last_run_ts = 0
 
 
+    @with_lockfile(LOCK_FILE)
     def run(self):
         while True:
             try:
@@ -510,6 +552,7 @@ class Task(object):
             fd.write(str(int(time.time())))
 
 
+    @with_lockfile(LOCK_FILE)
     def run(self):
         if _must_run(self._get_last_run_ts()):
             savegame()
