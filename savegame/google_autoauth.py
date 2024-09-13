@@ -12,12 +12,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-WIN_CHROME_DATA_DIR = os.path.expanduser(
-    r'~\AppData\Local\Google\Chrome\User Data')
-LINUX_CHROME_DATA_DIR = os.path.expanduser(
-    '~/.config/google-chrome')
 IS_WIN = os.name == 'nt'
-DATA_DIR = WIN_CHROME_DATA_DIR if IS_WIN else LINUX_CHROME_DATA_DIR
+DATA_DIR = os.path.expanduser(r'~\AppData\Local\Google\Chrome\User Data'
+    if IS_WIN else '~/.config/google-chrome')
 DEFAULT_PROFILE_DIR = 'selenium'
 
 logger = logging.getLogger(__name__)
@@ -36,15 +33,16 @@ class GoogleAutoauth(object):
     def _get_driver(self):
         if not os.path.exists(DATA_DIR):
             raise Exception(f'chrome data dir {DATA_DIR} does not exist')
-        subprocess.call('taskkill /IM chrome.exe' if IS_WIN else 'pkill chrome',
-            shell=True)
+        subprocess.call('taskkill /IM chrome.exe'
+            if IS_WIN else 'pkill chrome', shell=True)
         options = Options()
         options.add_argument(f'--user-data-dir={DATA_DIR}')
         options.add_argument(f'--profile-directory={self.profile_dir}')
         options.add_argument('--start-maximized')
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option('useAutomationExtension', False)
-        options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        options.add_experimental_option('excludeSwitches',
+            ['enable-automation'])
         options.add_experimental_option('detach', True)
         driver = webdriver.Chrome(options=options)
         driver.implicitly_wait(1)
