@@ -492,7 +492,7 @@ class Daemon(object):
                 time.sleep(DAEMON_LOOP_DELAY)
 
 
-class RunIfRequired(object):
+class Task(object):
 
     last_run_file = os.path.join(WORK_PATH, 'last_run')
 
@@ -520,12 +520,12 @@ def main():
     _makedirs(WORK_PATH)
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--daemon', action='store_true')
-    parser.add_argument('-r', '--if-required', action='store_true')
+    parser.add_argument('-t', '--task', action='store_true')
     args = parser.parse_args()
     if args.daemon:
         Daemon().run()
-    elif args.if_required:
-        RunIfRequired().run()
+    elif args.task:
+        Task().run()
     else:
         savegame()
 

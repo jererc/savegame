@@ -38,7 +38,7 @@ def _setup_linux_crontab():
     res = subprocess.run(['crontab', '-l'],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     current_crontab = res.stdout if res.returncode == 0 else ''
-    job_command = f'{LINUX_PYTHON_PATH} {SCRIPT_PATH} --if-required'
+    job_command = f'{LINUX_PYTHON_PATH} {SCRIPT_PATH} --task'
     new_job = f'{CRONTAB_SCHEDULE} {job_command}\n'
     updated_crontab = ''
     job_found = False
