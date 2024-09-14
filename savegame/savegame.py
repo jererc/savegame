@@ -24,9 +24,7 @@ from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
 SAVES = []
-HOSTNAME = socket.gethostname()
-USERNAME = os.getlogin()
-TARGET_PREFIX = f'{HOSTNAME}-{USERNAME}'
+TARGET_PREFIX = f'{socket.gethostname()}'
 FILE = os.path.realpath(__file__)
 NAME = os.path.splitext(os.path.basename(FILE))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
