@@ -15,7 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 IS_WIN = os.name == 'nt'
 DATA_DIR = os.path.expanduser(r'~\AppData\Local\Google\Chrome\User Data'
     if IS_WIN else '~/.config/google-chrome')
-DEFAULT_PROFILE_DIR = 'selenium'
+PROFILE_DIR = 'selenium'
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +23,21 @@ logger = logging.getLogger(__name__)
 class GoogleAutoauth(object):
 
     def __init__(self, client_secrets_file, scopes,
-            profile_dir=DEFAULT_PROFILE_DIR):
+            data_dir=DATA_DIR, profile_dir=PROFILE_DIR):
         self.client_secrets_file = client_secrets_file
         self.scopes = scopes
+        self.data_dir = data_dir
         self.profile_dir = profile_dir
         self.driver = self._get_driver()
 
 
     def _get_driver(self):
-        if not os.path.exists(DATA_DIR):
-            raise Exception(f'chrome data dir {DATA_DIR} does not exist')
+        if not os.path.exists(self.data_dir):
+            raise Exception(f'chrome data dir {self.data_dir} does not exist')
         subprocess.call('taskkill /IM chrome.exe'
             if IS_WIN else 'pkill chrome', shell=True)
         options = Options()
-        options.add_argument(f'--user-data-dir={DATA_DIR}')
+        options.add_argument(f'--user-data-dir={self.data_dir}')
         options.add_argument(f'--profile-directory={self.profile_dir}')
         options.add_argument('--start-maximized')
         options.add_argument('--disable-blink-features=AutomationControlled')
