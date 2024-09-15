@@ -45,6 +45,32 @@ class SavegameTestCase(BaseSavegameTestCase):
         pprint(savegame.MetaManager().meta)
 
 
+class GoogleDriveTestCase(BaseSavegameTestCase):
+
+
+    def test_1(self):
+        creds_file = os.path.realpath(os.path.expanduser(
+            '~/data/credentials_oauth.json'))
+        google_cloud.GoogleCloud(oauth_creds_file=creds_file
+            ).get_oauth_creds(interact=True)
+        dst_path = os.path.join(savegame.WORK_PATH, 'dst')
+
+        os.makedirs(dst_path)
+        with open(os.path.join(dst_path, 'old_file.docx'), 'w') as fd:
+            fd.write('old content')
+
+        savegame.SAVES = [
+            {
+                'src_type': 'google_drive',
+                'dst_path': dst_path,
+                'gc_oauth_creds_file': creds_file,
+                'retention_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        pprint(savegame.MetaManager().meta)
+
+
 class GoogleContactsTestCase(BaseSavegameTestCase):
 
 

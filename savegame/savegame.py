@@ -1,6 +1,7 @@
 import argparse
 import atexit
 from copy import deepcopy
+from datetime import datetime, timezone
 from fnmatch import fnmatch
 import functools
 from glob import glob
@@ -74,6 +75,8 @@ logger.addHandler(get_file_logging_handler(WORK_PATH))
 is_win_path = lambda x: not x.startswith('/')
 is_supported_path = lambda x: IS_WIN == is_win_path(x)
 get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
+get_file_mtime = lambda x: datetime.fromtimestamp(os.stat(x).st_mtime,
+    tz=timezone.utc) if os.path.exists(x) else None
 
 
 def _get_path_size(path):
@@ -378,19 +381,38 @@ class SaveItem(object):
 
 
     def _save_google_drive(self, src, dst):
-        files = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file).import_files(dst)
-        if files:
-            logger.info(f'saved {len(files)} files from google drive')
+        gc = GoogleCloud(service_creds_file=self.gc_service_creds_file,
+            oauth_creds_file=self.gc_oauth_creds_file)
+        paths = set()
+        for file_data in gc.iterate_files():
+            dst_file = os.path.join(dst, file_data['filename'])
+            paths.add(dst_file)
+            mtime = get_file_mtime(dst_file)
+            if mtime and mtime > file_data['modified_time']:
+                continue
+            try:
+                content = gc.fetch_file_content(file_id=file_data['id'],
+                    mime_type=file_data['mime_type'])
+            except Exception as exc:
+                logger.error('failed to save google drive file '
+                    f'{file_data["name"]}: {exc}')
+                continue
+            with open(dst_file, 'wb') as fd:
+                fd.write(content)
+
+        for dst_path in self._iterate_dst_paths(dst):
+            if dst_path not in paths and self._needs_purge(dst_path):
+                _remove_path(dst_path)
+
         return {
-            'file_count': len(files)
+            'file_count': len(paths)
         }
 
 
     def _save_google_contacts(self, src, dst):
         dst_file = os.path.join(dst, 'google_contacts.json')
         contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file).import_contacts()
+            oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
         with open(dst_file, 'w') as fd:
             fd.write(json.dumps(contacts, sort_keys=True, indent=4))
         logger.info(f'saved {len(contacts)} google contacts')
@@ -412,11 +434,11 @@ class SaveItem(object):
             dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
             _makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
-            file = f'{os.path.join(dst_path, get_filename(name))}.html'
+            dst_file = f'{os.path.join(dst_path, get_filename(name))}.html'
             self._save_bookmark_as_html_file(title=name, url=bookmark['url'],
-                file=file)
+                file=dst_file)
             paths.add(dst_path)
-            paths.add(file)
+            paths.add(dst_file)
 
         for dst_path in self._iterate_dst_paths(dst):
             if dst_path not in paths and self._needs_purge(dst_path):

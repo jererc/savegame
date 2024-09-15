@@ -1,6 +1,7 @@
 import logging
 import os
 
+from dateutil.parser import parse as parse_dt
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
@@ -138,7 +139,7 @@ class GoogleCloud(object):
                 .list(
                     q='trashed=false',
                     spaces='drive',
-                    fields='nextPageToken, files(id, name, mimeType, parents)',
+                    fields='nextPageToken, files(id, name, mimeType, modifiedTime, parents)',
                     pageToken=page_token,
                 )
                 .execute()
@@ -152,32 +153,30 @@ class GoogleCloud(object):
         return files
 
 
-    def _import_file(self, file, dst_path):
-        mime_data = MIME_TYPE_MAP[file['mimeType']]
-        drive_service = self._get_drive_service()
-        dst_file = os.path.join(dst_path,
-            '{}-{}{}'.format(file['name'], file['id'], mime_data['ext']))
-        try:
-            content = drive_service.files().export(fileId=file['id'],
-                mimeType=mime_data['mime_type']).execute()
-        except HttpError as exc:
-            logger.error('failed to export "%s": %s',
-                file['name'], exc.error_details)
-            return None
-        with open(dst_file, 'wb') as fd:
-            fd.write(content)
-        return dst_file
-
-
-    def import_files(self, dst_path):
-        files = []
-        mime_types = set(MIME_TYPE_MAP.keys())
+    def iterate_files(self):
         for file in self._list_files():
-            if file['mimeType'] in mime_types:
-                dst_file = self._import_file(file, dst_path)
-                if dst_file:
-                    files.append(dst_file)
-        return files
+            try:
+                mime_data = MIME_TYPE_MAP[file['mimeType']]
+            except Exception:
+                continue
+            yield {
+                'id': file['id'],
+                'name': file['name'],
+                'filename': f'{file["name"]}-{file["id"]}{mime_data["ext"]}',
+                'modified_time': parse_dt(file['modifiedTime']),
+                'mime_type': mime_data['mime_type'],
+            }
+
+
+    def fetch_file_content(self, file_id, mime_type):
+        try:
+            return self._get_drive_service().files().export(fileId=file_id,
+                mimeType=mime_type).execute()
+        except HttpError as exc:
+            logger.error(f'failed to export file id {file_id}: {exc}')
+            if exc.error_details[0]['reason'] == 'exportSizeLimitExceeded':
+                return b''
+            raise
 
 
     #
@@ -190,7 +189,7 @@ class GoogleCloud(object):
         return build('people', 'v1', credentials=self.oauth_creds)
 
 
-    def _list_contacts(self):
+    def list_contacts(self):
         """
         https://developers.google.com/people/api/rest/?apix=true
         """
@@ -215,7 +214,3 @@ class GoogleCloud(object):
             if page_token is None:
                 break
         return contacts
-
-
-    def import_contacts(self):
-        return self._list_contacts()
