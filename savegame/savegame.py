@@ -73,6 +73,7 @@ logger.addHandler(get_file_logging_handler(WORK_PATH))
 
 is_win_path = lambda x: not x.startswith('/')
 is_supported_path = lambda x: IS_WIN == is_win_path(x)
+get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
 
 
 def _get_path_size(path):
@@ -386,25 +387,36 @@ class SaveItem(object):
 
     def _save_google_contacts(self, src, dst):
         dst_file = os.path.join(dst, 'google_contacts.json')
-        data = GoogleCloud(service_creds_file=self.gc_service_creds_file,
+        contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
             oauth_creds_file=self.gc_oauth_creds_file).import_contacts()
         with open(dst_file, 'w') as fd:
-            fd.write(json.dumps(data, sort_keys=True, indent=4))
-        logger.info(f'saved {len(data)} google contacts')
+            fd.write(json.dumps(contacts, sort_keys=True, indent=4))
+        logger.info(f'saved {len(contacts)} google contacts')
         return {}
 
 
+    def _save_bookmark_as_html_file(self, title, url, path):
+        if not path.endswith('.html'):
+            path = f'{path}.html'
+        _makedirs(os.path.dirname(path))
+        data = f'<html><body><a href="{url}">{title}</a></body></html>'
+        with open(path, 'w', encoding='utf-8') as fd:
+            fd.write(data)
+
+
     def _save_google_bookmarks(self, src, dst):
-        dst_file = os.path.join(dst, 'google_bookmarks.json')
-        data = google_chrome.get_bookmarks()
-        with open(dst_file, 'w') as fd:
-            fd.write(json.dumps(data, sort_keys=True, indent=4))
-        logger.info(f'saved {len(data)} google bookmarks')
+        bookmarks = google_chrome.get_bookmarks()
+        for bookmark in bookmarks:
+            dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
+            name = bookmark['name'] or bookmark['url']
+            self._save_bookmark_as_html_file(title=name, url=bookmark['url'],
+                path=os.path.join(dst_path, get_filename(name)))
+        logger.info(f'saved {len(bookmarks)} google bookmarks')
         return {}
 
 
     def _get_dst(self, src):
-        target_name = RE_SPECIAL.sub('_', str(src)).strip('_')
+        target_name = get_filename(str(src))
         src_size = _get_path_size(src)
         for index in range(1, self.max_target_versions + 1):
             suffix = '' if index == 1 else f'-{index}'
