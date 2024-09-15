@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 
@@ -33,7 +32,6 @@ MIME_TYPE_MAP = {   # https://developers.google.com/drive/api/guides/ref-export-
     },
 
 }
-CONTACTS_FILE = 'google_contacts.json'
 
 logger = logging.getLogger(__name__)
 get_file = lambda x: x if (x and os.path.exists(x)) else None
@@ -219,9 +217,5 @@ class GoogleCloud(object):
         return contacts
 
 
-    def import_contacts(self, dst_path):
-        dst_file = os.path.join(dst_path, CONTACTS_FILE)
-        contacts = self._list_contacts()
-        with open(dst_file, 'w') as fd:
-            fd.write(json.dumps(contacts, sort_keys=True, indent=4))
-        return dst_file
+    def import_contacts(self):
+        return self._list_contacts()

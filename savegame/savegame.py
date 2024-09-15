@@ -66,6 +66,7 @@ def get_file_logging_handler(log_path):
     return file_handler
 
 
+_makedirs(WORK_PATH)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logger.addHandler(get_file_logging_handler(WORK_PATH))
@@ -384,19 +385,21 @@ class SaveItem(object):
 
 
     def _save_google_contacts(self, src, dst):
-        file = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file).import_contacts(dst)
-        if file:
-            logger.info('saved google contacts')
+        dst_file = os.path.join(dst, 'google_contacts.json')
+        data = GoogleCloud(service_creds_file=self.gc_service_creds_file,
+            oauth_creds_file=self.gc_oauth_creds_file).import_contacts()
+        with open(dst_file, 'w') as fd:
+            fd.write(json.dumps(data, sort_keys=True, indent=4))
+        logger.info(f'saved {len(data)} google contacts')
         return {}
 
 
-    def _save_chrome_bookmarks(self, src, dst):
-        dst_file = os.path.join(dst, 'chrome_bookmarks.json')
+    def _save_google_bookmarks(self, src, dst):
+        dst_file = os.path.join(dst, 'google_bookmarks.json')
         data = google_chrome.get_bookmarks()
         with open(dst_file, 'w') as fd:
             fd.write(json.dumps(data, sort_keys=True, indent=4))
-        logger.info(f'saved {len(data)} chrome bookmarks')
+        logger.info(f'saved {len(data)} google bookmarks')
         return {}
 
 
@@ -438,12 +441,18 @@ class SaveItem(object):
             _notify(title=f'{NAME} error', body=message)
 
 
+    def _check_dst(self):
+        dst_parent = os.path.dirname(self.dst_path)
+        if not os.path.exists(dst_parent):
+            raise Exception(f'destination parent {dst_parent} does not exist')
+        _makedirs(self.dst_path)
+
+
     def save(self):
         if not is_supported_path(self.dst_path):
             logger.debug(f'destination {self.dst_path} is not supported')
             return
-        if not os.path.exists(self.dst_path):
-            raise Exception(f'destination {self.dst_path} does not exist')
+        self._check_dst()
         callable_ = getattr(self, f'_save_{self.src_type}')
         for args in self._iterate_save_args():
             meta = self.meta_manager.get(args['dst'])
@@ -452,6 +461,7 @@ class SaveItem(object):
             started_ts = time.time()
             updated_ts = None
             retry_delta = 0
+            res = None
             try:
                 res = callable_(**args)
             except Exception as exc:
@@ -584,7 +594,6 @@ class Task(object):
 
 
 def main():
-    _makedirs(WORK_PATH)
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--daemon', action='store_true')
     parser.add_argument('-t', '--task', action='store_true')

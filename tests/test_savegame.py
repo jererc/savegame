@@ -10,21 +10,25 @@ MODULE_PATH = os.path.join(REPO_PATH, 'savegame')
 sys.path.append(MODULE_PATH)
 import savegame
 import user_settings
+import google_cloud
 
 
-class SavegameTestCase(unittest.TestCase):
+class BaseSavegameTestCase(unittest.TestCase):
 
 
     def setUp(self):
         assert savegame.WORK_PATH, user_settings.WORK_PATH
         shutil.rmtree(user_settings.WORK_PATH)
+        os.makedirs(user_settings.WORK_PATH)
+
+
+
+class SavegameTestCase(BaseSavegameTestCase):
 
 
     def test_1(self):
         src_path = MODULE_PATH
         dst_path = os.path.join(savegame.WORK_PATH, 'dst')
-        if not os.path.exists(dst_path):
-            os.makedirs(dst_path)
         savegame.SAVES = [
             {
                 'src_paths': [
@@ -41,21 +45,34 @@ class SavegameTestCase(unittest.TestCase):
         pprint(savegame.MetaManager().meta)
 
 
-class ChromeBookmarksTestCase(unittest.TestCase):
+class GoogleContactsTestCase(BaseSavegameTestCase):
 
 
-    def setUp(self):
-        assert savegame.WORK_PATH, user_settings.WORK_PATH
-        shutil.rmtree(user_settings.WORK_PATH)
+    def test_1(self):
+        creds_file = os.path.realpath(os.path.expanduser(
+            '~/data/credentials_oauth.json'))
+        google_cloud.GoogleCloud(oauth_creds_file=creds_file
+            ).get_oauth_creds(interact=True)
+        dst_path = os.path.join(savegame.WORK_PATH, 'dst')
+        savegame.SAVES = [
+            {
+                'src_type': 'google_contacts',
+                'dst_path': dst_path,
+                'gc_oauth_creds_file': creds_file,
+            },
+        ]
+        savegame.savegame()
+        pprint(savegame.MetaManager().meta)
+
+
+class GoogleBookmarksTestCase(BaseSavegameTestCase):
 
 
     def test_1(self):
         dst_path = os.path.join(savegame.WORK_PATH, 'dst')
-        if not os.path.exists(dst_path):
-            os.makedirs(dst_path)
         savegame.SAVES = [
             {
-                'src_type': 'chrome_bookmarks',
+                'src_type': 'google_bookmarks',
                 'dst_path': dst_path,
             },
         ]
