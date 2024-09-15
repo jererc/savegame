@@ -12,7 +12,7 @@ import savegame
 import user_settings
 
 
-class TestCase(unittest.TestCase):
+class SavegameTestCase(unittest.TestCase):
 
 
     def setUp(self):
