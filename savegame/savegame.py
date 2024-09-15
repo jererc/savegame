@@ -39,9 +39,13 @@ IDLE_CPU_THRESHOLD = 1
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 DAEMON_LOOP_DELAY = 10
-LOCK_FILE = os.path.join(WORK_PATH, 'lock')
 GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(FILE),
     'google_cloud_auth.pyw')
+
+try:
+    from user_settings import *
+except ImportError:
+    pass
 
 
 def _makedirs(path):
@@ -65,14 +69,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logger.addHandler(get_file_logging_handler(WORK_PATH))
 
-try:
-    from user_settings import *
-except ImportError:
-    raise Exception('missing user_settings.py')
-
 is_win_path = lambda x: not x.startswith('/')
 is_supported_path = lambda x: IS_WIN == is_win_path(x)
-get_target_name = lambda x: RE_SPECIAL.sub('_', str(x)).strip('_')
 
 
 def _get_path_size(path):
@@ -272,19 +270,6 @@ class SaveItem(object):
         return ', '.join([p for p, i, e in self.src_and_filters])
 
 
-    def _get_dst(self, src):
-        target_name = get_target_name(src)
-        src_size = _get_path_size(src)
-        for index in range(1, self.max_target_versions + 1):
-            suffix = '' if index == 1 else f'-{index}'
-            dst = os.path.join(self.dst_path,
-                f'{TARGET_PREFIX}-{target_name}{suffix}')
-            size = _get_path_size(dst)
-            if not size or src_size / size > self.min_size_ratio:
-                break
-        return dst
-
-
     def _check_meta(self, meta):
         if not meta:
             return True
@@ -295,15 +280,19 @@ class SaveItem(object):
 
 
     def _update_meta(self, src, dst, started_ts, updated_ts=None,
-            retry_delta=0):
+            retry_delta=0, extra_meta=None):
         now_ts = time.time()
-        self.meta_manager.set(dst, {
+        meta = {
             'source': str(src),
             'started_ts': started_ts,
             'updated_ts': now_ts if updated_ts is None else updated_ts,
             'next_ts': now_ts + retry_delta,
             'min_delta': self.min_delta,
-        })
+            'duration': time.time() - started_ts,
+        }
+        if extra_meta:
+            meta.update(extra_meta)
+        self.meta_manager.set(dst, meta)
 
 
     def _iterate_src_files(self, src):
@@ -332,8 +321,10 @@ class SaveItem(object):
         now_ts = time.time()
         purge_delta = self.purge_removed_days * 24 * 3600
         needs_purge = lambda x: now_ts - os.stat(x).st_mtime > purge_delta
+        file_count = 0
         removed_count = 0
         synced_count = 0
+        size = 0
         _makedirs(dst)
 
         if src.is_file():
@@ -354,6 +345,8 @@ class SaveItem(object):
             if is_excluded(src_file):
                 logger.debug(f'excluded {src_file}')
                 continue
+            file_count += 1
+            size += os.path.getsize(src_file)
             dst_file = os.path.join(dst, os.path.relpath(src_file, src))
             src_hash = self.file_hash_manager.get(src_file, use_cache=False)
             dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
@@ -373,6 +366,10 @@ class SaveItem(object):
             logger.info(f'removed {removed_count} files from {dst}')
         if synced_count:
             logger.info(f'synced {synced_count} files from {src}')
+        return {
+            'file_count': file_count,
+            'size_MB': size / 1024 / 1024,
+        }
 
 
     def _save_google_drive(self, src, dst):
@@ -380,6 +377,9 @@ class SaveItem(object):
             oauth_creds_file=self.gc_oauth_creds_file).import_files(dst)
         if files:
             logger.info(f'saved {len(files)} files from google drive')
+        return {
+            'file_count': len(files)
+        }
 
 
     def _save_google_contacts(self, src, dst):
@@ -387,6 +387,20 @@ class SaveItem(object):
             oauth_creds_file=self.gc_oauth_creds_file).import_contacts(dst)
         if file:
             logger.info('saved google contacts')
+        return {}
+
+
+    def _get_dst(self, src):
+        target_name = RE_SPECIAL.sub('_', str(src)).strip('_')
+        src_size = _get_path_size(src)
+        for index in range(1, self.max_target_versions + 1):
+            suffix = '' if index == 1 else f'-{index}'
+            dst = os.path.join(self.dst_path,
+                f'{TARGET_PREFIX}-{target_name}{suffix}')
+            size = _get_path_size(dst)
+            if not size or src_size / size > self.min_size_ratio:
+                break
+        return dst
 
 
     def _iterate_save_args(self):
@@ -429,7 +443,7 @@ class SaveItem(object):
             updated_ts = None
             retry_delta = 0
             try:
-                callable_(**args)
+                res = callable_(**args)
             except Exception as exc:
                 updated_ts = meta.get('updated_ts', 0)
                 retry_delta = RETRY_DELTA
@@ -438,7 +452,7 @@ class SaveItem(object):
                     exc=exc)
             self._update_meta(args['src'], args['dst'],
                 started_ts=started_ts, updated_ts=updated_ts,
-                retry_delta=retry_delta)
+                retry_delta=retry_delta, extra_meta=res)
 
 
 def _process_save(save: dict):
@@ -477,7 +491,9 @@ def _must_run(last_run_ts):
     return False
 
 
-def with_lockfile(lockfile_path):
+def with_lockfile():
+    lockfile_path = os.path.join(WORK_PATH, 'lock')
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -518,7 +534,7 @@ class Daemon(object):
     last_run_ts = 0
 
 
-    @with_lockfile(LOCK_FILE)
+    @with_lockfile()
     def run(self):
         while True:
             try:
@@ -550,7 +566,7 @@ class Task(object):
             fd.write(str(int(time.time())))
 
 
-    @with_lockfile(LOCK_FILE)
+    @with_lockfile()
     def run(self):
         if _must_run(self._get_last_run_ts()):
             savegame()
