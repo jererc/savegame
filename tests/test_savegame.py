@@ -25,7 +25,6 @@ class SavegameTestCase(unittest.TestCase):
         dst_path = os.path.join(savegame.WORK_PATH, 'dst')
         if not os.path.exists(dst_path):
             os.makedirs(dst_path)
-
         savegame.SAVES = [
             {
                 'src_paths': [
@@ -35,6 +34,28 @@ class SavegameTestCase(unittest.TestCase):
                         ['*/__pycache__*'],
                     ],
                 ],
+                'dst_path': dst_path,
+            },
+        ]
+        savegame.savegame()
+        pprint(savegame.MetaManager().meta)
+
+
+class ChromeBookmarksTestCase(unittest.TestCase):
+
+
+    def setUp(self):
+        assert savegame.WORK_PATH, user_settings.WORK_PATH
+        shutil.rmtree(user_settings.WORK_PATH)
+
+
+    def test_1(self):
+        dst_path = os.path.join(savegame.WORK_PATH, 'dst')
+        if not os.path.exists(dst_path):
+            os.makedirs(dst_path)
+        savegame.SAVES = [
+            {
+                'src_type': 'chrome_bookmarks',
                 'dst_path': dst_path,
             },
         ]

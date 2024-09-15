@@ -20,6 +20,7 @@ import zlib
 
 import psutil
 
+import google_chrome
 from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
@@ -387,6 +388,15 @@ class SaveItem(object):
             oauth_creds_file=self.gc_oauth_creds_file).import_contacts(dst)
         if file:
             logger.info('saved google contacts')
+        return {}
+
+
+    def _save_chrome_bookmarks(self, src, dst):
+        dst_file = os.path.join(dst, 'chrome_bookmarks.json')
+        data = google_chrome.get_bookmarks()
+        with open(dst_file, 'w') as fd:
+            fd.write(json.dumps(data, sort_keys=True, indent=4))
+        logger.info(f'saved {len(data)} chrome bookmarks')
         return {}
 
 
