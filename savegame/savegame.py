@@ -248,7 +248,7 @@ class SaveItem(object):
             min_delta: int = 0,
             min_size_ratio: float = .5,
             max_target_versions: int = 4,
-            purge_removed_days: int = 7,
+            retention_delta: int = 7,
             gc_service_creds_file: str = None,
             gc_oauth_creds_file: str = None,
             ):
@@ -258,7 +258,7 @@ class SaveItem(object):
         self.min_delta = min_delta
         self.min_size_ratio = min_size_ratio
         self.max_target_versions = max_target_versions
-        self.purge_removed_days = purge_removed_days
+        self.retention_delta = retention_delta
         self.gc_service_creds_file = gc_service_creds_file
         self.gc_oauth_creds_file = gc_oauth_creds_file
         self.src_and_filters = [s if isinstance(s, (list, tuple))
@@ -310,6 +310,10 @@ class SaveItem(object):
                 yield os.path.join(root, item)
 
 
+    def _needs_purge(self, path):
+        return time.time() - os.stat(path).st_mtime > self.retention_delta
+
+
     def _save_local(self, src, dst, inclusions, exclusions):
 
         def is_excluded(path):
@@ -321,9 +325,7 @@ class SaveItem(object):
                 return True
             return False
 
-        now_ts = time.time()
-        purge_delta = self.purge_removed_days * 24 * 3600
-        needs_purge = lambda x: now_ts - os.stat(x).st_mtime > purge_delta
+        started_ts = time.time()
         file_count = 0
         removed_count = 0
         synced_count = 0
@@ -338,7 +340,7 @@ class SaveItem(object):
 
         for dst_path in self._iterate_dst_paths(dst):
             src_path = os.path.join(src, os.path.relpath(dst_path, dst))
-            if (not os.path.exists(src_path) and needs_purge(dst_path)) \
+            if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
                     or is_excluded(src_path):
                 _remove_path(dst_path)
                 removed_count += 1
@@ -364,7 +366,7 @@ class SaveItem(object):
             except Exception:
                 logger.exception(f'failed to sync {src_file}')
 
-        logger.debug(f'synced {src} in {time.time() - now_ts:.02f} seconds')
+        logger.debug(f'synced {src} in {time.time() - started_ts:.02f} seconds')
         if removed_count:
             logger.info(f'removed {removed_count} files from {dst}')
         if synced_count:
@@ -392,27 +394,38 @@ class SaveItem(object):
         with open(dst_file, 'w') as fd:
             fd.write(json.dumps(contacts, sort_keys=True, indent=4))
         logger.info(f'saved {len(contacts)} google contacts')
-        return {}
+        return {
+            'file_count': 1,
+        }
 
 
-    def _save_bookmark_as_html_file(self, title, url, path):
-        if not path.endswith('.html'):
-            path = f'{path}.html'
-        _makedirs(os.path.dirname(path))
+    def _save_bookmark_as_html_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        with open(path, 'w', encoding='utf-8') as fd:
+        with open(file, 'w', encoding='utf-8') as fd:
             fd.write(data)
 
 
     def _save_google_bookmarks(self, src, dst):
         bookmarks = google_chrome.get_bookmarks()
+        paths = set()
         for bookmark in bookmarks:
             dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
+            _makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
+            file = f'{os.path.join(dst_path, get_filename(name))}.html'
             self._save_bookmark_as_html_file(title=name, url=bookmark['url'],
-                path=os.path.join(dst_path, get_filename(name)))
+                file=file)
+            paths.add(dst_path)
+            paths.add(file)
+
+        for dst_path in self._iterate_dst_paths(dst):
+            if dst_path not in paths and self._needs_purge(dst_path):
+                _remove_path(dst_path)
+
         logger.info(f'saved {len(bookmarks)} google bookmarks')
-        return {}
+        return {
+            'file_count': len(bookmarks),
+        }
 
 
     def _get_dst(self, src):

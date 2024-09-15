@@ -70,10 +70,17 @@ class GoogleBookmarksTestCase(BaseSavegameTestCase):
 
     def test_1(self):
         dst_path = os.path.join(savegame.WORK_PATH, 'dst')
+
+        old_dir = os.path.join(dst_path, 'old_dir')
+        os.makedirs(old_dir)
+        with open(os.path.join(old_dir, 'old_file.html'), 'w') as fd:
+            fd.write('old content')
+
         savegame.SAVES = [
             {
                 'src_type': 'google_bookmarks',
                 'dst_path': dst_path,
+                'retention_delta': 0,
             },
         ]
         savegame.savegame()
