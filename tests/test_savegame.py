@@ -87,7 +87,8 @@ class SavegameTestCase(BaseSavegameTestCase):
             },
             LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
         ]
-        savegame.savegame()
+        for i in range(2):
+            savegame.savegame()
         _print_dst_files()
 
         shutil.rmtree(src_root)
@@ -103,6 +104,27 @@ class SavegameTestCase(BaseSavegameTestCase):
         for i in range(2):
             savegame.restoregame(from_hostname=dst_hostname,
                 from_username=from_username, overwrite=False)
+
+
+    @unittest.skipIf(os.name != 'nt', 'not windows')
+    def test_glob_and_empty_dirs_win(self):
+        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
+        makedirs(dst_root)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        r'C:\Users\Public\Documents\*',
+                        [],
+                        [r'*\desktop.ini'],
+                    ],
+                ],
+                'dst_path': dst_root,
+            },
+        ]
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
 
 
     def test_savegame(self):

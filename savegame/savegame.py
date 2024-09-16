@@ -369,14 +369,16 @@ class SaveItem(object):
         removed_count = 0
         synced_count = 0
         size = 0
-        makedirs(dst)
 
         if src.is_file():
             src_files = [str(src)]
             src = src.parent
         else:
             src_files = list(_walk_files(src))
+        if not src_files:
+            return
 
+        makedirs(dst)
         for dst_path in _walk_files_and_dirs(dst):
             if os.path.basename(dst_path) == REF_FILE:
                 continue
