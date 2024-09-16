@@ -11,6 +11,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import pathlib
+from pprint import pprint
 import re
 import shutil
 import signal
@@ -26,14 +27,7 @@ from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
 SAVES = []
-TARGET_PREFIX = f'{socket.gethostname()}'
-FILE = os.path.realpath(__file__)
-NAME = os.path.splitext(os.path.basename(FILE))[0]
-WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 MAX_LOG_FILE_SIZE = 100 * 1024
-IS_WIN = os.name == 'nt'
-IS_POSIX = os.name == 'posix'
-RE_SPECIAL = re.compile(r'\W+')
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 2 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
@@ -41,8 +35,21 @@ IDLE_CPU_THRESHOLD = 1
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 DAEMON_LOOP_DELAY = 10
-GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(FILE),
+DST_PATH = os.path.join(os.path.expanduser('~'), 'OneDrive')
+NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
+WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
+HOSTNAME = socket.gethostname()
+RE_SPECIAL = re.compile(r'\W+')
+GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)),
     'google_cloud_auth.pyw')
+REF_FILE = f'.{NAME}'
+RESERVED_USERNAMES = {
+    'nt': {'Administrator', 'Default', 'Guest', 'Public',
+        'WDAGUtilityAccount', 'HomeGroupUser$'},
+    'posix': {'root', 'nobody', 'bin', 'daemon', 'sys', 'sync', 'games',
+        'www-data', 'mail', 'postfix', 'sshd', 'ftp', 'systemd-network',
+        'systemd-resolve', 'systemd-timesync', 'nfsnobody'},
+}
 
 try:
     from user_settings import *
@@ -50,13 +57,11 @@ except ImportError:
     pass
 
 
-def _makedirs(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
 
 
 def get_file_logging_handler(log_path):
-    _makedirs(log_path)
+    makedirs(log_path)
     log_file = os.path.join(log_path, f'{NAME}.log')
     file_handler = RotatingFileHandler(log_file, mode='a',
         maxBytes=MAX_LOG_FILE_SIZE, backupCount=0, encoding=None, delay=0)
@@ -67,13 +72,11 @@ def get_file_logging_handler(log_path):
     return file_handler
 
 
-_makedirs(WORK_PATH)
+makedirs(WORK_PATH)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logger.addHandler(get_file_logging_handler(WORK_PATH))
 
-is_win_path = lambda x: not x.startswith('/')
-is_supported_path = lambda x: IS_WIN == is_win_path(x)
 get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
 get_file_mtime = lambda x: datetime.fromtimestamp(os.stat(x).st_mtime,
     tz=timezone.utc) if os.path.exists(x) else None
@@ -107,9 +110,21 @@ def _match_any_pattern(path, patterns):
     return False
 
 
+def _walk_files(path):
+    for root, dirs, files in os.walk(path):
+        for file in sorted(files):
+            yield os.path.join(root, file)
+
+
+def _walk_files_and_dirs(path):
+    for root, dirs, files in os.walk(path, topdown=False):
+        for item in sorted(files + dirs):
+            yield os.path.join(root, item)
+
+
 def _notify(title, body, on_click=None):
     try:
-        if IS_WIN:
+        if os.name == 'nt':
             from win11toast import notify
             notify(title=title, body=body, on_click=on_click)
         else:
@@ -123,6 +138,10 @@ def _notify(title, body, on_click=None):
                 raise Exception(res.stdout or res.stderr)
     except Exception as exc:
         logger.error(f'failed to notify: {exc}')
+
+
+class InvalidPath(Exception):
+    pass
 
 
 class FileHashManager(object):
@@ -244,36 +263,41 @@ class MetaManager(object):
 
 class SaveItem(object):
 
+
     def __init__(self,
-            dst_path: str,
-            src_paths: list = None,
-            src_type: str = 'local',
-            min_delta: int = 0,
-            min_size_ratio: float = .5,
-            max_target_versions: int = 4,
-            retention_delta: int = 7,
-            gc_service_creds_file: str = None,
-            gc_oauth_creds_file: str = None,
+            src_paths=None,
+            src_type='local',
+            dst_path=DST_PATH,
+            min_delta=0,
+            min_size_ratio=.5,
+            max_target_versions=4,
+            retention_delta=7,
+            gc_service_creds_file=None,
+            gc_oauth_creds_file=None,
+            restorable=True,
             ):
-        self.dst_path = os.path.expanduser(dst_path)
         self.src_paths = src_paths or []
         self.src_type = src_type
+        self.dst_path = self._get_dst_path(dst_path)
         self.min_delta = min_delta
         self.min_size_ratio = min_size_ratio
         self.max_target_versions = max_target_versions
         self.retention_delta = retention_delta
         self.gc_service_creds_file = gc_service_creds_file
         self.gc_oauth_creds_file = gc_oauth_creds_file
+        self.restorable = restorable
         self.src_and_filters = [s if isinstance(s, (list, tuple))
             else (s, [], []) for s in self.src_paths]
         self.file_hash_manager = FileHashManager()
         self.meta_manager = MetaManager()
 
 
-    def __str__(self):
-        if not self.src_and_filters:
-            return self.src_type
-        return ', '.join([p for p, i, e in self.src_and_filters])
+    def _get_dst_path(self, dst_path):
+        if not os.path.exists(dst_path):
+            raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
+        if dst_path != os.path.expanduser(dst_path):
+            raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
+        return os.path.join(dst_path, NAME, self.src_type)
 
 
     def _check_meta(self, meta):
@@ -301,12 +325,6 @@ class SaveItem(object):
         self.meta_manager.set(dst, meta)
 
 
-    def _iterate_src_files(self, src):
-        for root, dirs, files in os.walk(src):
-            for file in files:
-                yield os.path.join(root, file)
-
-
     def _iterate_dst_paths(self, dst):
         for root, dirs, files in os.walk(dst, topdown=False):
             for item in files + dirs:
@@ -317,40 +335,42 @@ class SaveItem(object):
         return time.time() - os.stat(path).st_mtime > self.retention_delta
 
 
-    def _save_local(self, src, dst, inclusions, exclusions):
-
-        def is_excluded(path):
-            if os.path.isdir(path):
-                return False
-            if inclusions and not _match_any_pattern(path, inclusions):
-                return True
-            if exclusions and _match_any_pattern(path, exclusions):
-                return True
+    def _is_excluded(self, path, inclusions, exclusions, file_only=True):
+        if file_only and os.path.isdir(path):
             return False
+        if inclusions and not _match_any_pattern(path, inclusions):
+            return True
+        if exclusions and _match_any_pattern(path, exclusions):
+            return True
+        return False
 
+
+    def _save_local(self, src, dst, inclusions, exclusions):
         started_ts = time.time()
         file_count = 0
         removed_count = 0
         synced_count = 0
         size = 0
-        _makedirs(dst)
+        makedirs(dst)
 
         if src.is_file():
             src_files = [str(src)]
             src = src.parent
         else:
-            src_files = list(self._iterate_src_files(src))
+            src_files = list(_walk_files(src))
 
-        for dst_path in self._iterate_dst_paths(dst):
+        for dst_path in _walk_files_and_dirs(dst):
+            if os.path.basename(dst_path) == REF_FILE:
+                continue
             src_path = os.path.join(src, os.path.relpath(dst_path, dst))
             if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
-                    or is_excluded(src_path):
+                    or self._is_excluded(src_path, inclusions, exclusions):
                 _remove_path(dst_path)
                 removed_count += 1
                 logger.debug(f'removed {dst_path}')
 
         for src_file in src_files:
-            if is_excluded(src_file):
+            if self._is_excluded(src_file, inclusions, exclusions):
                 logger.debug(f'excluded {src_file}')
                 continue
             file_count += 1
@@ -361,7 +381,7 @@ class SaveItem(object):
             if dst_hash == src_hash:
                 continue
             try:
-                _makedirs(os.path.dirname(dst_file))
+                makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
                 self.file_hash_manager.set(dst_file, src_hash)
                 synced_count += 1
@@ -374,6 +394,12 @@ class SaveItem(object):
             logger.info(f'removed {removed_count} files from {dst}')
         if synced_count:
             logger.info(f'synced {synced_count} files from {src}')
+
+        ref_file = os.path.join(dst, REF_FILE)
+        if not os.path.exists(ref_file):
+            with open(ref_file, 'w') as fd:
+                fd.write(str(src))
+
         return {
             'file_count': file_count,
             'size_MB': size / 1024 / 1024,
@@ -400,7 +426,7 @@ class SaveItem(object):
             with open(dst_file, 'wb') as fd:
                 fd.write(content)
 
-        for dst_path in self._iterate_dst_paths(dst):
+        for dst_path in _walk_files_and_dirs(dst):
             if dst_path not in paths and self._needs_purge(dst_path):
                 _remove_path(dst_path)
 
@@ -432,7 +458,7 @@ class SaveItem(object):
         paths = set()
         for bookmark in bookmarks:
             dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
-            _makedirs(dst_path)
+            makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
             dst_file = f'{os.path.join(dst_path, get_filename(name))}.html'
             self._save_bookmark_as_html_file(title=name, url=bookmark['url'],
@@ -440,7 +466,7 @@ class SaveItem(object):
             paths.add(dst_path)
             paths.add(dst_file)
 
-        for dst_path in self._iterate_dst_paths(dst):
+        for dst_path in _walk_files_and_dirs(dst):
             if dst_path not in paths and self._needs_purge(dst_path):
                 _remove_path(dst_path)
 
@@ -455,8 +481,8 @@ class SaveItem(object):
         src_size = _get_path_size(src)
         for index in range(1, self.max_target_versions + 1):
             suffix = '' if index == 1 else f'-{index}'
-            dst = os.path.join(self.dst_path,
-                f'{TARGET_PREFIX}-{target_name}{suffix}')
+            dst = os.path.join(self.dst_path, HOSTNAME,
+                f'{target_name}{suffix}')
             size = _get_path_size(dst)
             if not size or src_size / size > self.min_size_ratio:
                 break
@@ -467,6 +493,10 @@ class SaveItem(object):
         if self.src_type == 'local':
             for path, inclusions, exclusions in self.src_and_filters:
                 for src in map(pathlib.Path, glob(os.path.expanduser(path))):
+                    if self._is_excluded(src, inclusions, exclusions,
+                            file_only=False):
+                        logger.debug(f'excluded {src}')
+                        continue
                     yield {
                         'src': src,
                         'dst': self._get_dst(src),
@@ -474,9 +504,11 @@ class SaveItem(object):
                         'exclusions': exclusions,
                     }
         else:
+            dst = os.path.join(self.dst_path, self.src_type)
+            makedirs(dst)
             yield {
                 'src': self.src_type,
-                'dst': self.dst_path,
+                'dst': dst,
             }
 
 
@@ -488,18 +520,8 @@ class SaveItem(object):
             _notify(title=f'{NAME} error', body=message)
 
 
-    def _check_dst(self):
-        dst_parent = os.path.dirname(self.dst_path)
-        if not os.path.exists(dst_parent):
-            raise Exception(f'destination parent {dst_parent} does not exist')
-        _makedirs(self.dst_path)
-
-
     def save(self):
-        if not is_supported_path(self.dst_path):
-            logger.debug(f'destination {self.dst_path} is not supported')
-            return
-        self._check_dst()
+        makedirs(self.dst_path)
         callable_ = getattr(self, f'_save_{self.src_type}')
         for args in self._iterate_save_args():
             meta = self.meta_manager.get(args['dst'])
@@ -524,14 +546,15 @@ class SaveItem(object):
 
 def _process_save(save: dict):
     started_ts = time.time()
-    save_item = SaveItem(**save)
     try:
-        save_item.save()
+        SaveItem(**save).save()
+    except InvalidPath as exc:
+        logger.warning(exc)
     except Exception as exc:
-        logger.exception(f'failed to save {save_item}')
+        logger.exception(f'failed to save {save}')
         _notify(title=f'{NAME} exception',
-            body=f'failed to save {save_item}: {exc}')
-    logger.debug(f'processed {save_item} in '
+            body=f'failed to save {save}: {exc}')
+    logger.debug(f'processed {save} in '
         f'{time.time() - started_ts:.02f} seconds')
 
 
@@ -543,6 +566,94 @@ def savegame():
     MetaManager().save()
     MetaManager().check()
     logger.info(f'completed in {time.time() - started_ts:.02f} seconds')
+
+
+class RestoreItem(object):
+
+
+    def __init__(self, dst_path, from_hostname=None, from_username=None,
+            overwrite=False, dry_run=False):
+        self.dst_path = dst_path
+        self.from_hostname = from_hostname or HOSTNAME
+        self.from_username = from_username or os.getlogin()
+        self.overwrite = overwrite
+        self.dry_run = dry_run
+
+
+    def _get_src_path(self, dst_path):
+        ref_file = os.path.join(dst_path, REF_FILE)
+        if not os.path.exists(ref_file):
+            return None
+        with open(ref_file) as fd:
+            src = fd.read()
+        if not src:
+            logger.error(f'invalid ref src in {ref_file}')
+            return None
+        return src
+
+
+    def _replace_username_in_path(self, path):
+        with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
+        home_path = os.path.expanduser('~')
+        home = os.path.dirname(home_path)
+        if not path.startswith(with_end_sep(home)):
+            return path
+        if path.startswith(with_end_sep(home_path)):
+            return path
+        username = path.split(os.sep)[2]
+        if not username or username != self.from_username:
+            return path
+        return path.replace(with_end_sep(os.path.join(home, username)),
+            with_end_sep(home_path), 1)
+
+
+    def _restore_file(self, dst_path, src_path):
+        if not self.overwrite and os.path.exists(src_path):
+            logger.debug(f'skipped {src_path}: already exists')
+            return
+        if self.dry_run:
+            logger.debug(f'to restore: {src_path} from {dst_path}')
+        else:
+            makedirs(os.path.dirname(src_path))
+            shutil.copyfile(dst_path, src_path)
+            logger.info(f'restored {src_path} from {dst_path}')
+
+
+    def restore(self):
+        to_restore = set()
+        for hostname in os.listdir(self.dst_path):
+            if hostname != self.from_hostname:
+                continue
+            for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
+                dst = os.path.join(self.dst_path, hostname, dst_dir)
+                src = self._get_src_path(dst)
+                if src:
+                    to_restore.add((src, dst))
+
+        for src, dst in sorted(to_restore):
+            for dst_path in _walk_files(dst):
+                if os.path.basename(dst_path) == REF_FILE:
+                    continue
+                src_path = os.path.join(src, os.path.relpath(dst_path, dst))
+                src_path = self._replace_username_in_path(src_path)
+                self._restore_file(dst_path, src_path)
+
+
+def restoregame(**kwargs):
+    dst_paths = set()
+    for save in SAVES:
+        try:
+            save_item = SaveItem(**save)
+            if save_item.src_type == 'local' and save_item.restorable:
+                dst_paths.add(save_item.dst_path)
+        except InvalidPath:
+            continue
+
+    for dst_path in dst_paths:
+        try:
+            RestoreItem(dst_path=dst_path, **kwargs).restore()
+        except Exception:
+            logger.exception(f'failed to restore {dst_path}')
 
 
 def _is_idle():
@@ -564,7 +675,7 @@ def with_lockfile():
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if IS_POSIX and os.path.exists(lockfile_path):
+            if os.name == 'posix' and os.path.exists(lockfile_path):
                 logger.error(f'Lock file {lockfile_path} exists. '
                     'Another process may be running.')
                 raise RuntimeError(f'Lock file {lockfile_path} exists. '
@@ -580,7 +691,7 @@ def with_lockfile():
                 remove_lockfile()
                 raise SystemExit(f'Program terminated by signal {signum}')
 
-            if IS_POSIX:
+            if os.name == 'posix':
                 signal.signal(signal.SIGINT, handle_signal)
                 signal.signal(signal.SIGTERM, handle_signal)
 

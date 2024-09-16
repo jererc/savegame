@@ -1,3 +1,4 @@
+import argparse
 import ctypes
 import os
 import subprocess
@@ -129,12 +130,30 @@ def bootstrap_win():
 
 
 def main():
-    if not os.path.exists(ROOT_VENV_PATH):
-        os.makedirs(ROOT_VENV_PATH)
-    if os.name == 'nt':
-        bootstrap_win()
-    else:
-        bootstrap_linux()
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='command')
+    setup_parser = subparsers.add_parser('setup')
+    restore_parser = subparsers.add_parser('restore')
+    restore_parser.add_argument('-f', '--from-hostname')
+    restore_parser.add_argument('-u', '--from-username')
+    restore_parser.add_argument('-o', '--overwrite', action='store_true')
+    restore_parser.add_argument('-d', '--dry-run', action='store_true')
+    args = parser.parse_args()
+
+    if args.command == 'setup':
+        if not os.path.exists(ROOT_VENV_PATH):
+            os.makedirs(ROOT_VENV_PATH)
+        if os.name == 'nt':
+            bootstrap_win()
+        else:
+            bootstrap_linux()
+    elif args.command == 'restore':
+        import savegame
+        savegame.restoregame(from_hostname=args.from_hostname,
+            from_username=args.from_username,
+            overwrite=args.overwrite,
+            dry_run=args.dry_run,
+        )
 
 
 if __name__ == '__main__':
