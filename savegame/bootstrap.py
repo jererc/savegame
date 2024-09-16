@@ -139,7 +139,6 @@ def main():
     restore_parser.add_argument('-o', '--overwrite', action='store_true')
     restore_parser.add_argument('-d', '--dry-run', action='store_true')
     args = parser.parse_args()
-
     if args.command == 'setup':
         if not os.path.exists(ROOT_VENV_PATH):
             os.makedirs(ROOT_VENV_PATH)
@@ -148,6 +147,7 @@ def main():
         else:
             bootstrap_linux()
     elif args.command == 'restore':
+        # TODO: make sure the source is synced
         import savegame
         savegame.restoregame(from_hostname=args.from_hostname,
             from_username=args.from_username,

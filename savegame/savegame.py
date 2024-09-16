@@ -88,6 +88,8 @@ def _get_path_size(path):
     res = 0
     for root, dirs, files in os.walk(path, topdown=False):
         for filename in files:
+            if filename == REF_FILE:
+                continue
             file = os.path.join(root, filename)
             try:
                 res += os.path.getsize(file)
@@ -345,6 +347,22 @@ class SaveItem(object):
         return False
 
 
+    def _text_file_exists(self, file, data):
+        if os.path.exists(file):
+            with open(file) as fd:
+                return fd.read() == data
+        return False
+
+
+    def _save_ref_file(self, src, dst):
+        file = os.path.join(dst, REF_FILE)
+        data = str(src)
+        if not self._text_file_exists(file, data):
+            logger.info(f'created ref file {file}')
+            with open(file, 'w') as fd:
+                fd.write(data)
+
+
     def _save_local(self, src, dst, inclusions, exclusions):
         started_ts = time.time()
         file_count = 0
@@ -389,17 +407,12 @@ class SaveItem(object):
             except Exception:
                 logger.exception(f'failed to sync {src_file}')
 
+        self._save_ref_file(src, dst)
         logger.debug(f'synced {src} in {time.time() - started_ts:.02f} seconds')
         if removed_count:
             logger.info(f'removed {removed_count} files from {dst}')
         if synced_count:
             logger.info(f'synced {synced_count} files from {src}')
-
-        ref_file = os.path.join(dst, REF_FILE)
-        if not os.path.exists(ref_file):
-            with open(ref_file, 'w') as fd:
-                fd.write(str(src))
-
         return {
             'file_count': file_count,
             'size_MB': size / 1024 / 1024,
@@ -415,10 +428,13 @@ class SaveItem(object):
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
+                logger.debug(f'skipped saving google drive file {dst_file}: '
+                    'already exists')
                 continue
             try:
                 content = gc.fetch_file_content(file_id=file_data['id'],
                     mime_type=file_data['mime_type'])
+                logger.debug(f'saved google drive file {dst_file}')
             except Exception as exc:
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
@@ -436,12 +452,17 @@ class SaveItem(object):
 
 
     def _save_google_contacts(self, src, dst):
-        dst_file = os.path.join(dst, 'google_contacts.json')
+        file = os.path.join(dst, 'google_contacts.json')
         contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
             oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
-        with open(dst_file, 'w') as fd:
-            fd.write(json.dumps(contacts, sort_keys=True, indent=4))
-        logger.info(f'saved {len(contacts)} google contacts')
+        data = json.dumps(contacts, sort_keys=True, indent=4)
+        if self._text_file_exists(file, data):
+            logger.debug(f'skipped saving google contacts file {file}: '
+                'already exists')
+        else:
+            with open(file, 'w', encoding='utf-8') as fd:
+                fd.write(data)
+            logger.info(f'saved {len(contacts)} google contacts')
         return {
             'file_count': 1,
         }
@@ -449,8 +470,13 @@ class SaveItem(object):
 
     def _save_bookmark_as_html_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        with open(file, 'w', encoding='utf-8') as fd:
-            fd.write(data)
+        if self._text_file_exists(file, data):
+            logger.debug(f'skipped saving google bookmark {file}: '
+                'already exists')
+        else:
+            with open(file, 'w', encoding='utf-8') as fd:
+                fd.write(data)
+            logger.debug(f'saved google bookmark {file}')
 
 
     def _save_google_bookmarks(self, src, dst):
@@ -470,7 +496,6 @@ class SaveItem(object):
             if dst_path not in paths and self._needs_purge(dst_path):
                 _remove_path(dst_path)
 
-        logger.info(f'saved {len(bookmarks)} google bookmarks')
         return {
             'file_count': len(bookmarks),
         }

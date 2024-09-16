@@ -13,6 +13,7 @@ import savegame
 import user_settings
 import google_cloud
 
+
 LINUX_SAVE = {
     'src_paths': [
         '/home/jererc/.gitconfig',
@@ -43,6 +44,13 @@ def _walk_files_and_dirs(path):
             yield os.path.join(root, item)
 
 
+def _print_dst_files():
+    meta = savegame.MetaManager().meta
+    pprint(meta)
+    for dst in sorted(meta.keys()):
+        pprint(sorted(list(_walk_files_and_dirs(dst))))
+
+
 class BaseSavegameTestCase(unittest.TestCase):
 
 
@@ -52,10 +60,10 @@ class BaseSavegameTestCase(unittest.TestCase):
         makedirs(user_settings.WORK_PATH)
 
 
-class SavegameExclusionTestCase(BaseSavegameTestCase):
+class SavegameTestCase(BaseSavegameTestCase):
 
 
-    def test_1(self):
+    def test_glob_and_exclusions(self):
         src_root = os.path.join(savegame.WORK_PATH, 'src_root')
         dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
         for s in range(3):
@@ -65,9 +73,7 @@ class SavegameExclusionTestCase(BaseSavegameTestCase):
                 for f in range(3):
                     with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
                         fd.write(f'data_{s}-{d}-{f}')
-
         makedirs(dst_root)
-
         savegame.SAVES = [
             {
                 'src_paths': [
@@ -82,6 +88,7 @@ class SavegameExclusionTestCase(BaseSavegameTestCase):
             LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
         ]
         savegame.savegame()
+        _print_dst_files()
 
         shutil.rmtree(src_root)
         dst_hostname = 'oldhost'
@@ -98,20 +105,30 @@ class SavegameExclusionTestCase(BaseSavegameTestCase):
                 from_username=from_username, overwrite=False)
 
 
-class RealSavegameTestCase(BaseSavegameTestCase):
-
-
-    def test_1(self):
-        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.savegame()
-
-
-class RealRestoregameTestCase(BaseSavegameTestCase):
-
-
-    def test_1(self):
-        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.restoregame(dry_run=True)
+    def test_savegame(self):
+        src_root = os.path.join(savegame.WORK_PATH, 'src_root')
+        for s in range(2):
+            for d in range(2):
+                src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
+                makedirs(src_d)
+                for f in range(2):
+                    with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
+                        fd.write(f'data_{s}-{d}-{f}')
+        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
+        makedirs(dst_root)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(src_root, 'src0'),
+                    os.path.join(src_root, 'src1'),
+                ],
+                'dst_path': dst_root,
+            },
+            LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
+        ]
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
 
 
 class RestoregamePathUsernameTestCase(BaseSavegameTestCase):
@@ -175,6 +192,7 @@ class RestoregameTestCase(BaseSavegameTestCase):
             LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
         ]
         savegame.savegame()
+        _print_dst_files()
 
         shutil.rmtree(src_root)
         dst_hostname = 'oldhost'
@@ -191,7 +209,30 @@ class RestoregameTestCase(BaseSavegameTestCase):
                 from_username=from_username, overwrite=False)
 
 
-class GoogleDriveTestCase(BaseSavegameTestCase):
+
+#
+# Integration
+#
+
+
+class SavegameIntegrationTestCase(BaseSavegameTestCase):
+
+
+    def test_1(self):
+        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
+        savegame.savegame()
+
+
+class RestoregameIntegrationTestCase(BaseSavegameTestCase):
+
+
+    def test_1(self):
+        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
+        savegame.restoregame(dry_run=True)
+
+
+
+class GoogleDriveIntegrationTestCase(BaseSavegameTestCase):
 
 
     def test_1(self):
@@ -212,15 +253,12 @@ class GoogleDriveTestCase(BaseSavegameTestCase):
                 'retention_delta': 0,
             },
         ]
-        savegame.savegame()
-        pprint(savegame.MetaManager().meta)
-        meta = savegame.MetaManager().meta
-        pprint(meta)
-        res = sorted(list(_walk_files_and_dirs(list(meta.keys())[0])))
-        pprint(res)
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
 
 
-class GoogleContactsTestCase(BaseSavegameTestCase):
+class GoogleContactsIntegrationTestCase(BaseSavegameTestCase):
 
 
     def test_1(self):
@@ -237,15 +275,12 @@ class GoogleContactsTestCase(BaseSavegameTestCase):
                 'gc_oauth_creds_file': creds_file,
             },
         ]
-        savegame.savegame()
-        pprint(savegame.MetaManager().meta)
-        meta = savegame.MetaManager().meta
-        pprint(meta)
-        res = sorted(list(_walk_files_and_dirs(list(meta.keys())[0])))
-        pprint(res)
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
 
 
-class GoogleBookmarksTestCase(BaseSavegameTestCase):
+class GoogleBookmarksIntegrationTestCase(BaseSavegameTestCase):
 
 
     def test_1(self):
@@ -263,11 +298,9 @@ class GoogleBookmarksTestCase(BaseSavegameTestCase):
                 'retention_delta': 0,
             },
         ]
-        savegame.savegame()
-        meta = savegame.MetaManager().meta
-        pprint(meta)
-        res = sorted(list(_walk_files_and_dirs(list(meta.keys())[0])))
-        pprint(res)
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
 
 
 if __name__ == '__main__':
