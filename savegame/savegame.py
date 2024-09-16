@@ -376,6 +376,7 @@ class SaveItem(object):
         else:
             src_files = list(_walk_files(src))
         if not src_files:
+            logger.debug(f'skipped empty src path {src}')
             return
 
         makedirs(dst)

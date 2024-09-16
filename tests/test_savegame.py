@@ -91,20 +91,6 @@ class SavegameTestCase(BaseSavegameTestCase):
             savegame.savegame()
         _print_dst_files()
 
-        shutil.rmtree(src_root)
-        dst_hostname = 'oldhost'
-        for base_dir in os.listdir(os.path.join(dst_root)):
-            for src_type in os.listdir(os.path.join(dst_root, base_dir)):
-                for hostname in os.listdir(os.path.join(dst_root, base_dir, src_type)):
-                    os.rename(os.path.join(dst_root, base_dir, src_type, hostname),
-                        os.path.join(dst_root, base_dir, src_type, dst_hostname))
-                    print(f'renamed host to {dst_hostname}')
-
-        from_username = None
-        for i in range(2):
-            savegame.restoregame(from_hostname=dst_hostname,
-                from_username=from_username, overwrite=False)
-
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_glob_and_empty_dirs_win(self):
@@ -192,8 +178,11 @@ class RestoregamePathUsernameTestCase(BaseSavegameTestCase):
 class RestoregameTestCase(BaseSavegameTestCase):
 
 
-    def test_1(self):
+    def test_from_hostname(self):
         src_root = os.path.join(savegame.WORK_PATH, 'src_root')
+        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
+        makedirs(dst_root)
+
         for s in range(2):
             for d in range(2):
                 src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
@@ -201,8 +190,6 @@ class RestoregameTestCase(BaseSavegameTestCase):
                 for f in range(2):
                     with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
                         fd.write(f'data_{s}-{d}-{f}')
-        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
-        makedirs(dst_root)
         savegame.SAVES = [
             {
                 'src_paths': [
@@ -214,21 +201,44 @@ class RestoregameTestCase(BaseSavegameTestCase):
             LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
         ]
         savegame.savegame()
-        _print_dst_files()
-
         shutil.rmtree(src_root)
-        dst_hostname = 'oldhost'
+
+        other_hostname = 'oldhost'
         for base_dir in os.listdir(os.path.join(dst_root)):
             for src_type in os.listdir(os.path.join(dst_root, base_dir)):
                 for hostname in os.listdir(os.path.join(dst_root, base_dir, src_type)):
                     os.rename(os.path.join(dst_root, base_dir, src_type, hostname),
-                        os.path.join(dst_root, base_dir, src_type, dst_hostname))
-                    print(f'renamed host to {dst_hostname}')
+                        os.path.join(dst_root, base_dir, src_type, other_hostname))
+
+        for s in range(2, 4):
+            for d in range(2, 4):
+                src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
+                makedirs(src_d)
+                for f in range(2, 4):
+                    with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
+                        fd.write(f'data_{s}-{d}-{f}')
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(src_root, 'src2'),
+                    os.path.join(src_root, 'src3'),
+                ],
+                'dst_path': dst_root,
+            },
+            LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
+        ]
+        savegame.savegame()
+        shutil.rmtree(src_root)
+
+        pprint(sorted(list(_walk_files_and_dirs(dst_root))))
 
         from_username = None
         for i in range(2):
-            savegame.restoregame(from_hostname=dst_hostname,
-                from_username=from_username, overwrite=False)
+            savegame.restoregame(
+                # from_hostname=other_hostname,
+                from_username=from_username,
+                overwrite=False,
+            )
 
 
 
