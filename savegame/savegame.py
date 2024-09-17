@@ -10,7 +10,6 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
-import pathlib
 from pprint import pprint
 import re
 import shutil
@@ -66,12 +65,6 @@ def _setup_logging(logger, path):
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
 
-    if not sys.stdout.isatty():
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setFormatter(formatter)
-        stdout_handler.setLevel(logging.DEBUG)
-        logger.addHandler(stdout_handler)
-
     makedirs(path)
     file_handler = RotatingFileHandler(os.path.join(path, f'{NAME}.log'),
         mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0, encoding=None,
@@ -79,6 +72,12 @@ def _setup_logging(logger, path):
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
+
+    if sys.stdout and not sys.stdout.isatty():
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setFormatter(formatter)
+        stdout_handler.setLevel(logging.DEBUG)
+        logger.addHandler(stdout_handler)
 
 
 logger = logging.getLogger(__name__)
@@ -322,7 +321,7 @@ class SaveItem(object):
             retry_delta=0, extra_meta=None):
         now_ts = time.time()
         meta = {
-            'source': str(src),
+            'source': src,
             'started_ts': started_ts,
             'updated_ts': now_ts if updated_ts is None else updated_ts,
             'next_ts': now_ts + retry_delta,
@@ -377,9 +376,9 @@ class SaveItem(object):
         synced_count = 0
         size = 0
 
-        if src.is_file():
-            src_files = [str(src)]
-            src = src.parent
+        if os.path.isfile(src):
+            src_files = [src]
+            src = os.path.dirname(src)
         else:
             src_files = list(_walk_files(src))
             if not src_files:
@@ -512,7 +511,7 @@ class SaveItem(object):
 
 
     def _get_dst(self, src):
-        target_name = get_filename(str(src))
+        target_name = get_filename(src)
         src_size = _get_path_size(src)
         for index in range(1, self.max_target_versions + 1):
             suffix = '' if index == 1 else f'-{index}'
@@ -527,7 +526,7 @@ class SaveItem(object):
     def _iterate_save_args(self):
         if self.src_type == 'local':
             for path, inclusions, exclusions in self.src_and_filters:
-                for src in map(pathlib.Path, glob(os.path.expanduser(path))):
+                for src in glob(os.path.expanduser(path)):
                     if self._is_excluded(src, inclusions, exclusions,
                             file_only=False):
                         logger.debug(f'excluded {src}')
@@ -563,9 +562,9 @@ class SaveItem(object):
             if not self._check_meta(meta):
                 continue
             started_ts = time.time()
+            res = None
             updated_ts = None
             retry_delta = 0
-            res = None
             try:
                 res = callable_(**args)
             except Exception as exc:
