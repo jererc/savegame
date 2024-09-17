@@ -733,14 +733,14 @@ class RestoreHandler(object):
 
     def _generate_report(self):
         report = {k: sorted(v) for k, v in self.report.items()}
-        logger.info(f'report:\n{to_json(report)}')
+        logger.debug(f'report:\n{to_json(report)}')
 
         if self.restore_item_args.get('dry_run'):
             keys = 'skipped', 'to_restore'
         else:
             keys = 'skipped', 'failed', 'restored'
         summary = {f'{k}_count': len(self.report.get(k, [])) for k in keys}
-        logger.info(f'summary:\n{to_json(summary)}')
+        logger.debug(f'summary:\n{to_json(summary)}')
 
 
     def restore(self):
@@ -757,7 +757,7 @@ class RestoreHandler(object):
 
 def list_hostnames(**kwargs):
     hostnames = RestoreHandler(**kwargs).list_hostnames()
-    logger.info(f'available hostnames: {sorted(hostnames)}')
+    logger.debug(f'available hostnames: {sorted(hostnames)}')
 
 
 def restoregame(**kwargs):
@@ -863,13 +863,13 @@ def _parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command')
     save_parser = subparsers.add_parser('save')
-    save_parser.add_argument('-d', '--daemon', action='store_true')
-    save_parser.add_argument('-t', '--task', action='store_true')
+    save_parser.add_argument('--daemon', action='store_true')
+    save_parser.add_argument('--task', action='store_true')
     restore_parser = subparsers.add_parser('restore')
-    restore_parser.add_argument('-f', '--from-hostname')
-    restore_parser.add_argument('-u', '--from-username')
-    restore_parser.add_argument('-o', '--overwrite', action='store_true')
-    restore_parser.add_argument('-d', '--dry-run', action='store_true')
+    restore_parser.add_argument('--from-hostname')
+    restore_parser.add_argument('--from-username')
+    restore_parser.add_argument('--overwrite', action='store_true')
+    restore_parser.add_argument('--dry-run', action='store_true')
     hostnames_parser = subparsers.add_parser('hostnames')
     return parser.parse_args()
 
