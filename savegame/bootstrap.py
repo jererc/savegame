@@ -5,9 +5,9 @@ import subprocess
 import sys
 
 
-NAME = 'savegame'
 ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_PATH = os.path.join(ROOT_PATH, 'savegame.py')
+NAME = os.path.splitext(os.path.basename(SCRIPT_PATH))[0]
 ROOT_VENV_PATH = os.path.expanduser(os.path.join('~', 'venv'))
 VENV_PATH = os.path.join(ROOT_VENV_PATH, NAME)
 LINUX_VENV_ACTIVATE_PATH = os.path.join(VENV_PATH, 'bin/activate')

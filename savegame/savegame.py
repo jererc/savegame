@@ -705,11 +705,6 @@ class RestoreHandler(object):
 
 
     def _iterate_restore_items(self):
-        for save in self._iterate_save_items():
-            yield RestoreItem(dst_path=save.dst_path, **self.restore_item_args)
-
-
-    def _iterate_restore_items(self):
         dst_paths = set()
         for save_item in self._iterate_save_items():
             dst_paths.add(save_item.dst_path)
