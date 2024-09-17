@@ -1,7 +1,9 @@
+from glob import glob
 import logging
 import os
 from pprint import pprint
 import shutil
+import socket
 import sys
 import unittest
 
@@ -14,6 +16,8 @@ import user_settings
 import google_cloud
 
 
+HOSTNAME = socket.gethostname()
+USERNAME = os.getlogin()
 LINUX_SAVE = {
     'src_paths': [
         '/home/jererc/.gitconfig',
@@ -38,6 +42,13 @@ savegame.logger.setLevel(logging.DEBUG)
 makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
 
 
+def _remove_path(path):
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    elif os.path.isfile(path):
+        os.remove(path)
+
+
 def _walk_files_and_dirs(path):
     for root, dirs, files in os.walk(path, topdown=False):
         for item in sorted(files + dirs):
@@ -56,7 +67,11 @@ class BaseSavegameTestCase(unittest.TestCase):
 
     def setUp(self):
         assert savegame.WORK_PATH, user_settings.WORK_PATH
-        shutil.rmtree(user_settings.WORK_PATH)
+
+        for path in glob(os.path.join(savegame.WORK_PATH, '*')):
+            if os.path.splitext(path)[1] == '.log':
+                continue
+            _remove_path(path)
         makedirs(user_settings.WORK_PATH)
 
 
@@ -139,7 +154,7 @@ class SavegameTestCase(BaseSavegameTestCase):
         _print_dst_files()
 
 
-class RestoregamePathUsernameTestCase(BaseSavegameTestCase):
+class RestoregamePathUsernameTestCase(unittest.TestCase):
 
 
     def setUp(self):
@@ -178,68 +193,128 @@ class RestoregamePathUsernameTestCase(BaseSavegameTestCase):
 class RestoregameTestCase(BaseSavegameTestCase):
 
 
-    def test_from_hostname(self):
-        src_root = os.path.join(savegame.WORK_PATH, 'src_root')
-        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
-        makedirs(dst_root)
+    def setUp(self):
+        super().setUp()
+        self.src_root = os.path.join(savegame.WORK_PATH, 'src_root')
+        self.dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
+        makedirs(self.dst_root)
 
-        for s in range(2):
-            for d in range(2):
-                src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
+
+    def _generate_src_data(self, index_start, count=2):
+        for s in range(index_start, index_start + count):
+            for d in range(index_start, index_start + count):
+                src_d = os.path.join(self.src_root, f'src{s}', f'dir{d}')
                 makedirs(src_d)
-                for f in range(2):
+                for f in range(index_start, index_start + count):
                     with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
                         fd.write(f'data_{s}-{d}-{f}')
+
+
+    def _switch_dst_data_hostname(self, from_hostname, to_hostname):
+        for base_dir in os.listdir(os.path.join(self.dst_root)):
+            for src_type in os.listdir(os.path.join(self.dst_root, base_dir)):
+                for hostname in os.listdir(os.path.join(self.dst_root, base_dir, src_type)):
+                    if hostname != from_hostname:
+                        continue
+                    os.rename(os.path.join(self.dst_root, base_dir, src_type, hostname),
+                        os.path.join(self.dst_root, base_dir, src_type, to_hostname))
+
+
+    def _switch_dst_data_username(self, from_username, to_username):
+
+        def switch_ref_path(file):
+            with open(file) as fd:
+                data = fd.read()
+            username_str = f'{os.sep}{from_username}{os.sep}'
+            if username_str not in data:
+                return
+            with open(file, 'w') as fd:
+                fd.write(data.replace(username_str,
+                    f'{os.sep}{to_username}{os.sep}'))
+
+        for item in _walk_files_and_dirs(self.dst_root):
+            if os.path.basename(item) == savegame.REF_FILE:
+                switch_ref_path(item)
+
+
+    def _get_src_paths(self, index_start, data_item_count=2):
+        return [os.path.join(self.src_root, f'src{i}')
+            for i in range(index_start, index_start + data_item_count)]
+
+
+    def _savegame(self, index_start, data_item_count=2):
+        self._generate_src_data(index_start=index_start, count=data_item_count)
         savegame.SAVES = [
             {
-                'src_paths': [
-                    os.path.join(src_root, 'src0'),
-                    os.path.join(src_root, 'src1'),
-                ],
-                'dst_path': dst_root,
+                'src_paths': self._get_src_paths(index_start, data_item_count),
+                'dst_path': self.dst_root,
             },
             LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
         ]
         savegame.savegame()
-        shutil.rmtree(src_root)
+        _remove_path(self.src_root)
 
-        other_hostname = 'oldhost'
-        for base_dir in os.listdir(os.path.join(dst_root)):
-            for src_type in os.listdir(os.path.join(dst_root, base_dir)):
-                for hostname in os.listdir(os.path.join(dst_root, base_dir, src_type)):
-                    os.rename(os.path.join(dst_root, base_dir, src_type, hostname),
-                        os.path.join(dst_root, base_dir, src_type, other_hostname))
 
-        for s in range(2, 4):
-            for d in range(2, 4):
-                src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
-                makedirs(src_d)
-                for f in range(2, 4):
-                    with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
-                        fd.write(f'data_{s}-{d}-{f}')
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    os.path.join(src_root, 'src2'),
-                    os.path.join(src_root, 'src3'),
-                ],
-                'dst_path': dst_root,
-            },
-            LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
-        ]
-        savegame.savegame()
-        shutil.rmtree(src_root)
-
-        pprint(sorted(list(_walk_files_and_dirs(dst_root))))
-
-        from_username = None
+    def _restoregame(self, from_hostname=None, from_username=None):
         for i in range(2):
-            savegame.restoregame(
-                # from_hostname=other_hostname,
-                from_username=from_username,
-                overwrite=False,
-            )
+            savegame.restoregame(from_hostname=from_hostname,
+                from_username=from_username, overwrite=False)
+        print('src data:')
+        src_files = list(_walk_files_and_dirs(self.src_root))
+        pprint(sorted(src_files))
+        _remove_path(self.src_root)
+        return {r for r in src_files if os.path.basename(r).startswith('src')}
 
+
+    def test_from_hostname(self):
+        hostname2 = 'hostname2'
+        hostname3 = 'hostname3'
+
+        self._savegame(index_start=1)
+        self._switch_dst_data_hostname(from_hostname=HOSTNAME, to_hostname=hostname2)
+        self._savegame(index_start=3)
+        self._switch_dst_data_hostname(from_hostname=HOSTNAME, to_hostname=hostname3)
+        self._savegame(index_start=5)
+
+        print('dst data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+
+        src_paths = self._restoregame(from_hostname=None)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
+        src_paths = self._restoregame(from_hostname=hostname2)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
+        src_paths = self._restoregame(from_hostname=hostname3)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=3)))
+        src_paths = self._restoregame(from_hostname='unknown')
+        self.assertEqual(src_paths, set())
+        savegame.list_hostnames()
+
+
+    def test_from_username(self):
+        username2 = 'username2'
+        username3 = 'username3'
+
+        self._savegame(index_start=1)
+        self._switch_dst_data_username(from_username=USERNAME, to_username=username2)
+        self._savegame(index_start=3)
+        self._switch_dst_data_username(from_username=USERNAME, to_username=username3)
+        self._savegame(index_start=5)
+
+        print('src data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.src_root))))
+        print('dst data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+
+        src_paths = self._restoregame(from_username=None)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
+        src_paths = self._restoregame(from_username=username2)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)
+            + self._get_src_paths(index_start=1)))
+        src_paths = self._restoregame(from_username=username3)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)
+            + self._get_src_paths(index_start=3)))
+        src_paths = self._restoregame(from_username='unknown')
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
 
 
 #

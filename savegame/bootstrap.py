@@ -2,6 +2,7 @@ import argparse
 import ctypes
 import os
 import subprocess
+import sys
 
 
 NAME = 'savegame'
@@ -28,23 +29,42 @@ CRONTAB_SCHEDULE = '*/2 * * * *'
 
 
 def _setup_linux_venv():
-    if not os.path.isfile(LINUX_VENV_ACTIVATE_PATH):
-        subprocess.check_call(['virtualenv', VENV_PATH])
+    if os.path.exists(LINUX_VENV_ACTIVATE_PATH):
+        return
+    subprocess.check_call(['virtualenv', VENV_PATH])
     subprocess.check_call(f'. {LINUX_VENV_ACTIVATE_PATH}; '
         f'pip install {" ".join(LINUX_PYTHON_MODULES)}',
         shell=True, cwd=ROOT_PATH)
 
 
-def _setup_linux_crontab():
+def _setup_win_venv():
+    if os.path.exists(WIN_VENV_ACTIVATE_PATH):
+        return
+    subprocess.check_call(['pip', 'install', 'virtualenv'])
+    subprocess.check_call(['virtualenv', VENV_PATH])
+    subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
+        f'pip install {" ".join(WIN_PYTHON_MODULES)}',
+        shell=True, cwd=ROOT_PATH)
+
+
+def setup_venv():
+    if not os.path.exists(ROOT_VENV_PATH):
+        os.makedirs(ROOT_VENV_PATH)
+    if os.name == 'nt':
+        _setup_win_venv()
+    else:
+        _setup_linux_venv()
+
+
+def _setup_linux_crontab(cmd):
     res = subprocess.run(['crontab', '-l'],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     current_crontab = res.stdout if res.returncode == 0 else ''
-    job_command = f'{LINUX_PYTHON_PATH} {SCRIPT_PATH} --task'
-    new_job = f'{CRONTAB_SCHEDULE} {job_command}\n'
+    new_job = f'{CRONTAB_SCHEDULE} {cmd}\n'
     updated_crontab = ''
     job_found = False
     for line in current_crontab.splitlines():
-        if job_command in line:
+        if cmd in line:
             updated_crontab += new_job
             job_found = True
         else:
@@ -57,55 +77,6 @@ def _setup_linux_crontab():
         print('Crontab updated successfully')
     else:
         print('Failed to update crontab')
-
-
-def bootstrap_linux():
-    _setup_linux_venv()
-    _setup_linux_crontab()
-
-
-def _setup_win_venv():
-    if not os.path.isfile(WIN_VENV_ACTIVATE_PATH):
-        subprocess.check_call(['pip', 'install', 'virtualenv'])
-        subprocess.check_call(['virtualenv', VENV_PATH])
-    subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
-        f'pip install {" ".join(WIN_PYTHON_MODULES)}',
-        shell=True, cwd=ROOT_PATH)
-
-
-# def _setup_win_service():
-#     """
-#     requires pywin32
-#     pywin32 issue:
-#     ModuleNotFoundError: No module named 'servicemanager'
-
-#     install the service and set the log on user:
-#     python service.py --username .\\jerer --password 123 --startup auto install
-#     python service.py start
-
-#     stop and uninstall the service:
-#     python service.py stop
-#     python service.py remove
-#     """
-#     WIN_SVC_FILENAME = 'service_win.py'
-
-#     if ctypes.windll.shell32.IsUserAnAdmin() == 0:
-#         raise Exception('must run as admin')
-#     pywin32_script = os.path.join(VENV_PATH, r'Scripts\pywin32_postinstall.py')
-#     subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
-#         f'python {pywin32_script} -install',
-#         shell=True, cwd=ROOT_PATH)
-#     venv_cmd_prefix = f'{WIN_VENV_ACTIVATE_PATH} && '
-#     username = os.getlogin()
-#     password = input(f'{username} password: ')
-#     subprocess.check_call(
-#         f'{WIN_VENV_ACTIVATE_PATH} && '
-#         f'python {WIN_SVC_FILENAME} --username .\\{username} --password {password} '
-#         '--startup auto install',
-#         shell=True, cwd=ROOT_PATH)
-#     subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
-#         f'python {WIN_SVC_FILENAME} start',
-#         shell=True, cwd=ROOT_PATH)
 
 
 def _setup_win_task(task_name, cmd):
@@ -121,39 +92,48 @@ def _setup_win_task(task_name, cmd):
     ])
 
 
-def bootstrap_win():
-    if ctypes.windll.shell32.IsUserAnAdmin() == 0:
-        raise Exception('must run as admin')
-    _setup_win_venv()
-    _setup_win_task(task_name=NAME,
-        cmd=f'{WIN_PYTHON_PATH} {SCRIPT_PATH} --daemon')
+def setup_savegame():
+    if os.name == 'nt':
+        if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+            raise Exception('must run as admin')
+        _setup_win_task(task_name=NAME,
+            cmd=f'{WIN_PYTHON_PATH} {SCRIPT_PATH} save --daemon')
+    else:
+        _setup_linux_crontab(
+            cmd=f'{LINUX_PYTHON_PATH} {SCRIPT_PATH} save --task')
 
 
-def main():
+def run_savegame_cmd():
+    python_path = WIN_PYTHON_PATH if os.name == 'nt' else LINUX_PYTHON_PATH
+    cmd = [python_path, SCRIPT_PATH] + sys.argv[1:]
+    res = subprocess.run(cmd, cwd=ROOT_PATH,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if res.returncode == 0:
+        sys.stdout.write(res.stdout)
+    else:
+        sys.stdout.write(res.stderr or res.stdout)
+
+
+def _parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command')
     setup_parser = subparsers.add_parser('setup')
+    hostnames_parser = subparsers.add_parser('hostnames')
     restore_parser = subparsers.add_parser('restore')
     restore_parser.add_argument('-f', '--from-hostname')
     restore_parser.add_argument('-u', '--from-username')
     restore_parser.add_argument('-o', '--overwrite', action='store_true')
     restore_parser.add_argument('-d', '--dry-run', action='store_true')
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    args = _parse_args()
+    setup_venv()
     if args.command == 'setup':
-        if not os.path.exists(ROOT_VENV_PATH):
-            os.makedirs(ROOT_VENV_PATH)
-        if os.name == 'nt':
-            bootstrap_win()
-        else:
-            bootstrap_linux()
-    elif args.command == 'restore':
-        # TODO: make sure the source is synced
-        import savegame
-        savegame.restoregame(from_hostname=args.from_hostname,
-            from_username=args.from_username,
-            overwrite=args.overwrite,
-            dry_run=args.dry_run,
-        )
+        setup_savegame()
+    else:
+        run_savegame_cmd()
 
 
 if __name__ == '__main__':

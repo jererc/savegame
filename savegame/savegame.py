@@ -17,6 +17,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import time
 import zlib
 
@@ -60,23 +61,29 @@ except ImportError:
 makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
 
 
-def get_file_logging_handler(log_path):
-    makedirs(log_path)
-    log_file = os.path.join(log_path, f'{NAME}.log')
-    file_handler = RotatingFileHandler(log_file, mode='a',
-        maxBytes=MAX_LOG_FILE_SIZE, backupCount=0, encoding=None, delay=0)
-    log_formatter = logging.Formatter(
+def _setup_logging(logger, path):
+    logging.basicConfig(level=logging.DEBUG)
+    formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-    file_handler.setFormatter(log_formatter)
+
+    if not sys.stdout.isatty():
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setFormatter(formatter)
+        stdout_handler.setLevel(logging.DEBUG)
+        logger.addHandler(stdout_handler)
+
+    makedirs(path)
+    file_handler = RotatingFileHandler(os.path.join(path, f'{NAME}.log'),
+        mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0, encoding=None,
+        delay=0)
+    file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
-    return file_handler
+    logger.addHandler(file_handler)
 
 
-makedirs(WORK_PATH)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
-logger.addHandler(get_file_logging_handler(WORK_PATH))
-
+makedirs(WORK_PATH)
+_setup_logging(logger, WORK_PATH)
 get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
 get_file_mtime = lambda x: datetime.fromtimestamp(os.stat(x).st_mtime,
     tz=timezone.utc) if os.path.exists(x) else None
@@ -375,9 +382,9 @@ class SaveItem(object):
             src = src.parent
         else:
             src_files = list(_walk_files(src))
-        if not src_files:
-            logger.debug(f'skipped empty src path {src}')
-            return
+            if not src_files:
+                logger.debug(f'skipped empty src path {src}')
+                return
 
         makedirs(dst)
         for dst_path in _walk_files_and_dirs(dst):
@@ -620,7 +627,7 @@ class RestoreItem(object):
         return src
 
 
-    def _replace_username_in_path(self, path):
+    def _get_valid_src_path(self, path):
         with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
         home_path = os.path.expanduser('~')
         home = os.path.dirname(home_path)
@@ -630,7 +637,8 @@ class RestoreItem(object):
             return path
         username = path.split(os.sep)[2]
         if not username or username != self.from_username:
-            return path
+            logger.debug(f'skipped {path}: the path username does not match {self.from_username}')
+            return None
         return path.replace(with_end_sep(os.path.join(home, username)),
             with_end_sep(home_path), 1)
 
@@ -639,17 +647,21 @@ class RestoreItem(object):
         if not self.overwrite and os.path.exists(src_path):
             logger.debug(f'skipped {src_path}: already exists')
             return
-        if self.dry_run:
-            logger.debug(f'to restore: {src_path} from {dst_path}')
-        else:
+        logger.debug(f'restoring {src_path} from {dst_path}')
+        if not self.dry_run:
             makedirs(os.path.dirname(src_path))
             shutil.copyfile(dst_path, src_path)
             logger.info(f'restored {src_path} from {dst_path}')
 
 
+    def list_hostnames(self):
+        return sorted(os.listdir(self.dst_path))
+
+
     def restore(self):
         to_restore = set()
-        for hostname in os.listdir(self.dst_path):
+        hostnames = self.list_hostnames()
+        for hostname in hostnames:
             if hostname != self.from_hostname:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
@@ -658,30 +670,76 @@ class RestoreItem(object):
                 if src:
                     to_restore.add((src, dst))
 
+        if not to_restore:
+            logger.info(f'nothing to restore from path {self.dst_path} '
+                f'and hostname {self.from_hostname} (available hostnames: {hostnames})')
+            return
+
         for src, dst in sorted(to_restore):
             for dst_path in _walk_files(dst):
                 if os.path.basename(dst_path) == REF_FILE:
                     continue
                 src_path = os.path.join(src, os.path.relpath(dst_path, dst))
-                src_path = self._replace_username_in_path(src_path)
-                self._restore_file(dst_path, src_path)
+                src_path = self._get_valid_src_path(src_path)
+                if src_path:
+                    self._restore_file(dst_path, src_path)
+
+
+class RestoreHandler(object):
+
+
+    def __init__(self, **restore_item_args):
+        self.restore_item_args = restore_item_args
+
+
+    def _iterate_save_items(self):
+        if not SAVES:
+            logger.info('missing saves')
+            return
+        for save in SAVES:
+            try:
+                save_item = SaveItem(**save)
+                if save_item.src_type == 'local' and save_item.restorable:
+                    yield save_item
+            except InvalidPath:
+                continue
+
+
+    def _iterate_restore_items(self):
+        for save in self._iterate_save_items():
+            yield RestoreItem(dst_path=save.dst_path, **self.restore_item_args)
+
+
+    def _iterate_restore_items(self):
+        dst_paths = set()
+        for save_item in self._iterate_save_items():
+            dst_paths.add(save_item.dst_path)
+        for dst_path in dst_paths:
+            yield RestoreItem(dst_path=dst_path, **self.restore_item_args)
+
+
+    def list_hostnames(self):
+        hostnames = set()
+        for restore_item in self._iterate_restore_items():
+            hostnames.update(restore_item.list_hostnames())
+        return hostnames
+
+
+    def restore(self):
+        for restore_item in self._iterate_restore_items():
+            try:
+                restore_item.restore()
+            except Exception:
+                logger.exception(f'failed to restore {restore_item.dst_path}')
+
+
+def list_hostnames(**kwargs):
+    hostnames = RestoreHandler(**kwargs).list_hostnames()
+    logger.info(f'available hostnames: {sorted(hostnames)}')
 
 
 def restoregame(**kwargs):
-    dst_paths = set()
-    for save in SAVES:
-        try:
-            save_item = SaveItem(**save)
-            if save_item.src_type == 'local' and save_item.restorable:
-                dst_paths.add(save_item.dst_path)
-        except InvalidPath:
-            continue
-
-    for dst_path in dst_paths:
-        try:
-            RestoreItem(dst_path=dst_path, **kwargs).restore()
-        except Exception:
-            logger.exception(f'failed to restore {dst_path}')
+    return RestoreHandler(**kwargs).restore()
 
 
 def _is_idle():
@@ -779,17 +837,34 @@ class Task(object):
             self._set_last_run_ts()
 
 
-def main():
+def _parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--daemon', action='store_true')
-    parser.add_argument('-t', '--task', action='store_true')
-    args = parser.parse_args()
-    if args.daemon:
-        Daemon().run()
-    elif args.task:
-        Task().run()
-    else:
-        savegame()
+    subparsers = parser.add_subparsers(dest='command')
+    save_parser = subparsers.add_parser('save')
+    save_parser.add_argument('-d', '--daemon', action='store_true')
+    save_parser.add_argument('-t', '--task', action='store_true')
+    restore_parser = subparsers.add_parser('restore')
+    restore_parser.add_argument('-f', '--from-hostname')
+    restore_parser.add_argument('-u', '--from-username')
+    restore_parser.add_argument('-o', '--overwrite', action='store_true')
+    restore_parser.add_argument('-d', '--dry-run', action='store_true')
+    hostnames_parser = subparsers.add_parser('hostnames')
+    return parser.parse_args()
+
+
+def main():
+    args = _parse_args()
+    if args.command == 'save':
+        if args.daemon:
+            Daemon().run()
+        elif args.task:
+            Task().run()
+        else:
+            savegame()
+    elif args.command == 'restore':
+        restoregame(**{k: v for k, v in vars(args).items() if k != 'command'})
+    elif args.command == 'hostnames':
+        list_hostnames(**{k: v for k, v in vars(args).items() if k != 'command'})
 
 
 if __name__ == '__main__':
