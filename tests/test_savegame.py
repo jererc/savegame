@@ -1,4 +1,5 @@
 from glob import glob
+import json
 import logging
 import os
 from pprint import pprint
@@ -18,25 +19,6 @@ import google_cloud
 
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
-LINUX_SAVE = {
-    'src_paths': [
-        '/home/jererc/.gitconfig',
-        [
-            '/home/jererc/.ssh',
-            [],
-            ['*/id_ed25519'],
-        ],
-        '/home/jererc/.config/sublime-text',
-    ],
-    'dst_path': '/home/jererc/OneDrive/data',
-}
-WIN_SAVE = {
-    'src_paths': [
-        r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Games',
-        r'C:\Users\jerer\AppData\Roaming\Sublime Text 3',
-    ],
-    'dst_path': r'C:\Users\jerer\OneDrive\data',
-}
 
 savegame.logger.setLevel(logging.DEBUG)
 makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
@@ -60,98 +42,6 @@ def _print_dst_files():
     pprint(meta)
     for dst in sorted(meta.keys()):
         pprint(sorted(list(_walk_files_and_dirs(dst))))
-
-
-class BaseSavegameTestCase(unittest.TestCase):
-
-
-    def setUp(self):
-        assert savegame.WORK_PATH, user_settings.WORK_PATH
-
-        for path in glob(os.path.join(savegame.WORK_PATH, '*')):
-            if os.path.splitext(path)[1] == '.log':
-                continue
-            _remove_path(path)
-        makedirs(user_settings.WORK_PATH)
-
-
-class SavegameTestCase(BaseSavegameTestCase):
-
-
-    def test_glob_and_exclusions(self):
-        src_root = os.path.join(savegame.WORK_PATH, 'src_root')
-        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
-        for s in range(3):
-            for d in range(3):
-                src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
-                makedirs(src_d)
-                for f in range(3):
-                    with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
-                        fd.write(f'data_{s}-{d}-{f}')
-        makedirs(dst_root)
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    [
-                        os.path.join(src_root, '*'),
-                        [],
-                        ['*/src0', '*/dir0', '*/file0'],
-                    ],
-                ],
-                'dst_path': dst_root,
-            },
-            LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
-        ]
-        for i in range(2):
-            savegame.savegame()
-        _print_dst_files()
-
-
-    @unittest.skipIf(os.name != 'nt', 'not windows')
-    def test_glob_and_empty_dirs_win(self):
-        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
-        makedirs(dst_root)
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    [
-                        r'C:\Users\Public\Documents\*',
-                        [],
-                        [r'*\desktop.ini'],
-                    ],
-                ],
-                'dst_path': dst_root,
-            },
-        ]
-        for i in range(2):
-            savegame.savegame()
-        _print_dst_files()
-
-
-    def test_savegame(self):
-        src_root = os.path.join(savegame.WORK_PATH, 'src_root')
-        for s in range(2):
-            for d in range(2):
-                src_d = os.path.join(src_root, f'src{s}', f'dir{d}')
-                makedirs(src_d)
-                for f in range(2):
-                    with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
-                        fd.write(f'data_{s}-{d}-{f}')
-        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
-        makedirs(dst_root)
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    os.path.join(src_root, 'src0'),
-                    os.path.join(src_root, 'src1'),
-                ],
-                'dst_path': dst_root,
-            },
-            LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
-        ]
-        for i in range(2):
-            savegame.savegame()
-        _print_dst_files()
 
 
 class RestoregamePathUsernameTestCase(unittest.TestCase):
@@ -190,24 +80,44 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
             f'/home/{self.username}/some_dir')
 
 
-class RestoregameTestCase(BaseSavegameTestCase):
+class BaseTestCase(unittest.TestCase):
 
 
     def setUp(self):
-        super().setUp()
+        assert savegame.WORK_PATH, user_settings.WORK_PATH
+
+        for path in glob(os.path.join(savegame.WORK_PATH, '*')):
+            if os.path.splitext(path)[1] == '.log':
+                continue
+            _remove_path(path)
+        makedirs(user_settings.WORK_PATH)
+
         self.src_root = os.path.join(savegame.WORK_PATH, 'src_root')
         self.dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
         makedirs(self.dst_root)
 
 
-    def _generate_src_data(self, index_start, count=2):
-        for s in range(index_start, index_start + count):
-            for d in range(index_start, index_start + count):
-                src_d = os.path.join(self.src_root, f'src{s}', f'dir{d}')
+    def _generate_src_data(self, index_start, src_count=2, dir_count=2,
+            file_count=2, file_version=1):
+        for s in range(index_start, index_start + src_count):
+            s_name = f'src{s}'
+            for d in range(index_start, index_start + dir_count):
+                d_name = f'dir{d}'
+                src_d = os.path.join(self.src_root, s_name, d_name)
                 makedirs(src_d)
-                for f in range(index_start, index_start + count):
+                for f in range(index_start, index_start + file_count):
                     with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
-                        fd.write(f'data_{s}-{d}-{f}')
+                        content = {
+                            'src': s_name,
+                            'dir': d_name,
+                            'version': file_version,
+                        }
+                        fd.write(json.dumps(content, indent=4, sort_keys=True))
+
+
+    def _get_src_paths(self, index_start=1, src_count=2, **kwargs):
+        return [os.path.join(self.src_root, f'src{i}')
+            for i in range(index_start, index_start + src_count)]
 
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
@@ -237,33 +147,68 @@ class RestoregameTestCase(BaseSavegameTestCase):
                 switch_ref_path(item)
 
 
-    def _get_src_paths(self, index_start, data_item_count=2):
-        return [os.path.join(self.src_root, f'src{i}')
-            for i in range(index_start, index_start + data_item_count)]
+class SavegameTestCase(BaseTestCase):
 
 
-    def _savegame(self, index_start, data_item_count=2):
-        self._generate_src_data(index_start=index_start, count=data_item_count)
+    def test_glob_and_exclusions(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
         savegame.SAVES = [
             {
-                'src_paths': self._get_src_paths(index_start, data_item_count),
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, '*'),
+                        [],
+                        ['*/src0', '*/dir0', '*/file0'],
+                    ],
+                ],
                 'dst_path': self.dst_root,
             },
-            LINUX_SAVE if os.name == 'nt' else WIN_SAVE,
         ]
-        savegame.savegame()
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
+
+
+class RestoregameTestCase(BaseTestCase):
+
+
+    def _savegame(self, **kwargs):
+        self._generate_src_data(**kwargs)
+        savegame.SAVES = [
+            {
+                'src_paths': self._get_src_paths(**kwargs),
+                'dst_path': self.dst_root,
+            },
+        ]
+        for i in range(2):
+            savegame.savegame()
         _remove_path(self.src_root)
 
 
-    def _restoregame(self, from_hostname=None, from_username=None):
+    def _restoregame(self, **kwargs):
         for i in range(2):
-            savegame.restoregame(from_hostname=from_hostname,
-                from_username=from_username, overwrite=False)
+            savegame.restoregame(**kwargs)
         print('src data:')
         src_files = list(_walk_files_and_dirs(self.src_root))
         pprint(sorted(src_files))
         _remove_path(self.src_root)
         return {r for r in src_files if os.path.basename(r).startswith('src')}
+
+
+    def test_multiple_versions(self):
+        hostname2 = 'hostname2'
+        hostname3 = 'hostname3'
+
+        self._savegame(index_start=1, file_count=6, file_version=1)
+        self._savegame(index_start=1, file_count=3, file_version=2)
+        self._savegame(index_start=1, file_count=1, file_version=3)
+
+        print('dst data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+
+        src_paths = self._restoregame(from_hostname=None)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
 
 
     def test_from_hostname(self):
@@ -317,12 +262,54 @@ class RestoregameTestCase(BaseSavegameTestCase):
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
 
 
+
 #
 # Integration
 #
 
+LINUX_SAVE = {
+    'src_paths': [
+        '/home/jererc/.gitconfig',
+        [
+            '/home/jererc/.ssh',
+            [],
+            ['*/id_ed25519'],
+        ],
+        '/home/jererc/.config/sublime-text',
+    ],
+    'dst_path': '/home/jererc/OneDrive/data',
+}
+WIN_SAVE = {
+    'src_paths': [
+        r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Games',
+        r'C:\Users\jerer\AppData\Roaming\Sublime Text 3',
+    ],
+    'dst_path': r'C:\Users\jerer\OneDrive\data',
+}
 
-class SavegameIntegrationTestCase(BaseSavegameTestCase):
+
+class SavegameIntegrationTestCase(BaseTestCase):
+
+
+    @unittest.skipIf(os.name != 'nt', 'not windows')
+    def test_glob_and_empty_dirs_win(self):
+        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
+        makedirs(dst_root)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        r'C:\Users\Public\Documents\*',
+                        [],
+                        [r'*\desktop.ini'],
+                    ],
+                ],
+                'dst_path': dst_root,
+            },
+        ]
+        for i in range(2):
+            savegame.savegame()
+        _print_dst_files()
 
 
     def test_1(self):
@@ -330,7 +317,7 @@ class SavegameIntegrationTestCase(BaseSavegameTestCase):
         savegame.savegame()
 
 
-class RestoregameIntegrationTestCase(BaseSavegameTestCase):
+class RestoregameIntegrationTestCase(BaseTestCase):
 
 
     def test_1(self):
@@ -339,7 +326,7 @@ class RestoregameIntegrationTestCase(BaseSavegameTestCase):
 
 
 
-class GoogleDriveIntegrationTestCase(BaseSavegameTestCase):
+class GoogleDriveIntegrationTestCase(BaseTestCase):
 
 
     def test_1(self):
@@ -365,7 +352,7 @@ class GoogleDriveIntegrationTestCase(BaseSavegameTestCase):
         _print_dst_files()
 
 
-class GoogleContactsIntegrationTestCase(BaseSavegameTestCase):
+class GoogleContactsIntegrationTestCase(BaseTestCase):
 
 
     def test_1(self):
@@ -387,7 +374,7 @@ class GoogleContactsIntegrationTestCase(BaseSavegameTestCase):
         _print_dst_files()
 
 
-class GoogleBookmarksIntegrationTestCase(BaseSavegameTestCase):
+class GoogleBookmarksIntegrationTestCase(BaseTestCase):
 
 
     def test_1(self):
