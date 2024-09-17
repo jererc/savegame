@@ -1,5 +1,6 @@
 import argparse
 import atexit
+from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from fnmatch import fnmatch
@@ -43,13 +44,10 @@ RE_SPECIAL = re.compile(r'\W+')
 GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)),
     'google_cloud_auth.pyw')
 REF_FILE = f'.{NAME}'
-RESERVED_USERNAMES = {
-    'nt': {'Administrator', 'Default', 'Guest', 'Public',
-        'WDAGUtilityAccount', 'HomeGroupUser$'},
-    'posix': {'root', 'nobody', 'bin', 'daemon', 'sys', 'sync', 'games',
-        'www-data', 'mail', 'postfix', 'sshd', 'ftp', 'systemd-network',
-        'systemd-resolve', 'systemd-timesync', 'nfsnobody'},
-}
+SHARED_USERNAMES = {
+    'nt': {'Public'},
+    'posix': {'shared'},
+}.get(os.name, set())
 
 try:
     from user_settings import *
@@ -86,6 +84,7 @@ _setup_logging(logger, WORK_PATH)
 get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
 get_file_mtime = lambda x: datetime.fromtimestamp(os.stat(x).st_mtime,
     tz=timezone.utc) if os.path.exists(x) else None
+to_json = lambda x: json.dumps(x, indent=4, sort_keys=True)
 
 
 def _get_path_size(path):
@@ -246,7 +245,7 @@ class MetaManager(object):
                 except KeyError:
                     pass
         with open(self.meta_file, 'w') as fd:
-            fd.write(json.dumps(self.meta, sort_keys=True, indent=4))
+            fd.write(to_json(self.meta))
         logger.debug(f'saved {len(self.meta)} meta items'
             f' in {time.time() - started_ts:.2f} seconds')
 
@@ -464,7 +463,7 @@ class SaveItem(object):
         file = os.path.join(dst, 'google_contacts.json')
         contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
             oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
-        data = json.dumps(contacts, sort_keys=True, indent=4)
+        data = to_json(contacts)
         if self._text_file_exists(file, data):
             logger.debug(f'skipped saving google contacts file {file}: '
                 'already exists')
@@ -612,6 +611,7 @@ class RestoreItem(object):
         self.from_username = from_username or os.getlogin()
         self.overwrite = overwrite
         self.dry_run = dry_run
+        self.report = defaultdict(set)
 
 
     def _get_src_path(self, dst_path):
@@ -635,22 +635,33 @@ class RestoreItem(object):
         if path.startswith(with_end_sep(home_path)):
             return path
         username = path.split(os.sep)[2]
-        if not username or username != self.from_username:
-            logger.debug(f'skipped {path}: the path username does not match {self.from_username}')
-            return None
-        return path.replace(with_end_sep(os.path.join(home, username)),
-            with_end_sep(home_path), 1)
+        if username in SHARED_USERNAMES:
+            return path
+        if username == self.from_username:
+            return path.replace(with_end_sep(os.path.join(home, username)),
+                with_end_sep(home_path), 1)
+        logger.debug(f'skipped {path}: the path username does not match {self.from_username}')
+        return None
 
 
     def _restore_file(self, dst_path, src_path):
         if not self.overwrite and os.path.exists(src_path):
+            self.report['skipped'].add(src_path)
             logger.debug(f'skipped {src_path}: already exists')
             return
-        logger.debug(f'restoring {src_path} from {dst_path}')
-        if not self.dry_run:
-            makedirs(os.path.dirname(src_path))
-            shutil.copyfile(dst_path, src_path)
-            logger.info(f'restored {src_path} from {dst_path}')
+        if self.dry_run:
+            self.report['to_restore'].add(src_path)
+            logger.debug(f'to restore: {src_path} from {dst_path}')
+        else:
+            try:
+                makedirs(os.path.dirname(src_path))
+                shutil.copyfile(dst_path, src_path)
+                self.report['restored'].add(src_path)
+                logger.info(f'restored {src_path} from {dst_path}')
+            except Exception as exc:
+                self.report['failed'].add(src_path)
+                logger.error(f'failed to restore {src_path} '
+                    f'from {dst_path}: {exc}')
 
 
     def list_hostnames(self):
@@ -689,6 +700,7 @@ class RestoreHandler(object):
 
     def __init__(self, **restore_item_args):
         self.restore_item_args = restore_item_args
+        self.report = defaultdict(set)
 
 
     def _iterate_save_items(self):
@@ -719,12 +731,28 @@ class RestoreHandler(object):
         return hostnames
 
 
+    def _generate_report(self):
+        report = {k: sorted(v) for k, v in self.report.items()}
+        logger.info(f'report:\n{to_json(report)}')
+
+        if self.restore_item_args.get('dry_run'):
+            keys = 'skipped', 'to_restore'
+        else:
+            keys = 'skipped', 'failed', 'restored'
+        summary = {f'{k}_count': len(self.report.get(k, [])) for k in keys}
+        logger.info(f'summary:\n{to_json(summary)}')
+
+
     def restore(self):
         for restore_item in self._iterate_restore_items():
             try:
                 restore_item.restore()
             except Exception:
                 logger.exception(f'failed to restore {restore_item.dst_path}')
+            for k, v in restore_item.report.items():
+                self.report[k].update(set(v))
+
+        self._generate_report()
 
 
 def list_hostnames(**kwargs):

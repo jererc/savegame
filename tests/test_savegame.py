@@ -235,6 +235,30 @@ class RestoregameTestCase(BaseTestCase):
         savegame.list_hostnames()
 
 
+    def test_shared_username_path(self):
+        username2 = 'Public' if os.name == 'nt' else 'shared'
+        username3 = 'username3'
+
+        self._savegame(index_start=1)
+        self._switch_dst_data_username(from_username=USERNAME, to_username=username2)
+        self._savegame(index_start=3)
+        self._switch_dst_data_username(from_username=USERNAME, to_username=username3)
+        self._savegame(index_start=5)
+
+        print('src data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.src_root))))
+        print('dst data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+
+        src_paths = self._restoregame(from_username=None)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
+            + self._get_src_paths(index_start=5)))
+        src_paths = self._restoregame(from_username=username3)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
+            + self._get_src_paths(index_start=3)
+            + self._get_src_paths(index_start=5)))
+
+
     def test_from_username(self):
         username2 = 'username2'
         username3 = 'username3'
