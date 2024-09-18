@@ -227,6 +227,23 @@ class RestoregameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
 
 
+    def test_overwrite(self):
+        hostname2 = 'hostname2'
+        hostname3 = 'hostname3'
+
+        self._savegame(index_start=1, file_count=6, file_version=1)
+        self._savegame(index_start=1, file_count=3, file_version=2)
+        self._savegame(index_start=1, file_count=1, file_version=3)
+
+        print('dst data:')
+        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+
+        src_paths = self._restoregame(overwrite=False)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
+        src_paths = self._restoregame(overwrite=True)
+        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
+
+
     def test_from_hostname(self):
         hostname2 = 'hostname2'
         hostname3 = 'hostname3'

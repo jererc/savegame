@@ -676,6 +676,16 @@ class RestoreItem(object):
             logger.debug(f'to restore: {src_path} from {dst_path}')
         else:
             try:
+                if os.path.exists(src_path):
+                    src_path_bak = f'{src_path}.{NAME}bak'
+                    if os.path.exists(src_path_bak):
+                        os.remove(src_path)
+                    else:
+                        os.rename(src_path, src_path_bak)
+                        logger.warning(f'renamed existing src file '
+                            f'{src_path} to {src_path_bak}')
+                    self.report[src]['overwritten'].add(src_path)
+
                 makedirs(os.path.dirname(src_path))
                 shutil.copyfile(dst_path, src_path)
                 self.report[src]['restored'].add(src_path)
