@@ -7,6 +7,7 @@ from fnmatch import fnmatch
 import functools
 from glob import glob
 import hashlib
+import inspect
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -34,6 +35,7 @@ OLD_DELTA = 2 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
 IDLE_CPU_THRESHOLD = 1
 RUN_DELTA = 30 * 60
+RETENTION_DELTA = 7 * 24 * 3600
 FORCE_RUN_DELTA = 90 * 60
 DAEMON_LOOP_DELAY = 10
 DST_PATH = os.path.join(os.path.expanduser('~'), 'OneDrive')
@@ -146,6 +148,23 @@ def _notify(title, body, on_click=None):
         logger.error(f'failed to notify: {exc}')
 
 
+def _text_file_exists(file, data):
+    if os.path.exists(file):
+        with open(file) as fd:
+            return fd.read() == data
+    return False
+
+
+def _is_path_excluded(path, inclusions, exclusions, file_only=True):
+    if file_only and os.path.isdir(path):
+        return False
+    if inclusions and not _match_any_pattern(path, inclusions):
+        return True
+    if exclusions and _match_any_pattern(path, exclusions):
+        return True
+    return False
+
+
 class InvalidPath(Exception):
     pass
 
@@ -253,13 +272,33 @@ class MetaManager:
                     body=f'{meta["source"]} has not been saved recently')
 
 
-class GoogleDriveMixin:
-    def _save_google_drive(self, src, dst):
-        gc = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file)
+class BaseSaver:
+    src_type = None
+
+    def __init__(self, src, dst, inclusions=None, exclusions=None,
+            creds_file=None, retention_delta=RETENTION_DELTA):
+        self.src = src
+        self.dst = dst
+        self.inclusions = inclusions
+        self.exclusions = exclusions
+        self.retention_delta = retention_delta
+        self.creds_file = creds_file
+        self.file_hash_manager = FileHashManager()
+        self.report = defaultdict(lambda: defaultdict(set))
+        self.meta = None
+
+    def _needs_purge(self, path):
+        return time.time() - os.stat(path).st_mtime > self.retention_delta
+
+
+class GoogleDriveSaver(BaseSaver):
+    src_type = 'google_drive'
+
+    def run(self):
+        gc = GoogleCloud(oauth_creds_file=self.creds_file)
         paths = set()
         for file_data in gc.iterate_files():
-            dst_file = os.path.join(dst, file_data['filename'])
+            dst_file = os.path.join(self.dst, file_data['filename'])
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
@@ -280,22 +319,24 @@ class GoogleDriveMixin:
             with open(dst_file, 'wb') as fd:
                 fd.write(content)
 
-        for dst_path in _walk_files_and_dirs(dst):
+        for dst_path in _walk_files_and_dirs(self.dst):
             if dst_path not in paths and self._needs_purge(dst_path):
                 _remove_path(dst_path)
 
-        return {
+        self.meta = {
             'file_count': len(paths)
         }
 
 
-class GoogleContactsMixin:
-    def _save_google_contacts(self, src, dst):
-        file = os.path.join(dst, 'google_contacts.json')
-        contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
+class GoogleContactsSaver(BaseSaver):
+    src_type = 'google_contacts'
+
+    def run(self):
+        gc = GoogleCloud(oauth_creds_file=self.creds_file)
+        contacts = gc.list_contacts()
         data = to_json(contacts)
-        if self._text_file_exists(file, data):
+        file = os.path.join(self.dst, f'{self.src_type}.json')
+        if _text_file_exists(file, data):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google contacts file {file}: '
                 'already exists')
@@ -304,15 +345,17 @@ class GoogleContactsMixin:
                 fd.write(data)
             self.report[self.src_type]['saved'].add(file)
             logger.info(f'saved {len(contacts)} google contacts')
-        return {
+        self.meta = {
             'file_count': 1,
         }
 
 
-class GoogleBookmarksMixin:
+class GoogleBookmarksSaver(BaseSaver):
+    src_type = 'google_bookmarks'
+
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        if self._text_file_exists(file, data):
+        if _text_file_exists(file, data):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google bookmark {file}: '
                 'already exists')
@@ -322,11 +365,11 @@ class GoogleBookmarksMixin:
             self.report[self.src_type]['saved'].add(file)
             logger.debug(f'saved google bookmark {file}')
 
-    def _save_google_bookmarks(self, src, dst):
+    def run(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
         for bookmark in bookmarks:
-            dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
+            dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
             dst_file = f'{os.path.join(dst_path, get_filename(name))}.html'
@@ -335,16 +378,82 @@ class GoogleBookmarksMixin:
             paths.add(dst_path)
             paths.add(dst_file)
 
-        for dst_path in _walk_files_and_dirs(dst):
+        for dst_path in _walk_files_and_dirs(self.dst):
             if dst_path not in paths and self._needs_purge(dst_path):
                 _remove_path(dst_path)
 
-        return {
+        self.meta = {
             'file_count': len(bookmarks),
         }
 
 
-class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
+class LocalSaver(BaseSaver):
+    src_type = 'local'
+
+    def _generate_ref_file(self, src, dst):
+        file = os.path.join(dst, REF_FILE)
+        data = str(src)
+        if not _text_file_exists(file, data):
+            logger.info(f'created ref file {file}')
+            with open(file, 'w') as fd:
+                fd.write(data)
+
+    def run(self):
+        src = self.src
+        size = 0
+        started_ts = time.time()
+
+        if os.path.isfile(src):
+            src_files = [src]
+            src = os.path.dirname(src)
+        else:
+            src_files = list(_walk_files(src))
+            if not src_files:
+                logger.debug(f'skipped empty src path {src}')
+                return
+
+        makedirs(self.dst)
+        for dst_path in _walk_files_and_dirs(self.dst):
+            if os.path.basename(dst_path) == REF_FILE:
+                continue
+            src_path = os.path.join(src, os.path.relpath(dst_path,
+                self.dst))
+            if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
+                    or _is_path_excluded(src_path, self.inclusions, self.exclusions):
+                _remove_path(dst_path)
+                self.report[src]['removed'].add(dst_path)
+                logger.debug(f'removed {dst_path}')
+
+        for src_file in src_files:
+            if _is_path_excluded(src_file, self.inclusions, self.exclusions):
+                self.report[src]['excluded'].add(src_file)
+                logger.debug(f'excluded {src_file}')
+                continue
+            self.report[src]['files'].add(src_file)
+            size += os.path.getsize(src_file)
+            dst_file = os.path.join(self.dst, os.path.relpath(src_file, src))
+            src_hash = self.file_hash_manager.get(src_file, use_cache=False)
+            dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
+            if dst_hash == src_hash:
+                continue
+            try:
+                makedirs(os.path.dirname(dst_file))
+                shutil.copyfile(src_file, dst_file)
+                self.file_hash_manager.set(dst_file, src_hash)
+                self.report[src]['saved'].add(dst_file)
+                logger.debug(f'saved {src_file}')
+            except Exception:
+                logger.exception(f'failed to save {src_file}')
+
+        self._generate_ref_file(src, self.dst)
+        logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
+        self.meta = {
+            'file_count': len(self.report[src]['files']),
+            'size_MB': size / 1024 / 1024,
+        }
+
+
+class SaveItem:
     def __init__(self,
             src_paths=None,
             src_type='local',
@@ -352,9 +461,8 @@ class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
             min_delta=0,
             min_size_ratio=.5,
             max_target_versions=4,
-            retention_delta=7,
-            gc_service_creds_file=None,
-            gc_oauth_creds_file=None,
+            retention_delta=RETENTION_DELTA,
+            creds_file=None,
             restorable=True,
             ):
         self.src_paths = src_paths or []
@@ -364,12 +472,10 @@ class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
         self.min_size_ratio = min_size_ratio
         self.max_target_versions = max_target_versions
         self.retention_delta = retention_delta
-        self.gc_service_creds_file = gc_service_creds_file
-        self.gc_oauth_creds_file = gc_oauth_creds_file
+        self.creds_file = creds_file
         self.restorable = restorable
         self.src_and_filters = [s if isinstance(s, (list, tuple))
             else (s, [], []) for s in self.src_paths]
-        self.file_hash_manager = FileHashManager()
         self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
@@ -403,89 +509,6 @@ class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
             meta.update(extra_meta)
         self.meta_manager.set(dst, meta)
 
-    def _iterate_dst_paths(self, dst):
-        for root, dirs, files in os.walk(dst, topdown=False):
-            for item in files + dirs:
-                yield os.path.join(root, item)
-
-    def _needs_purge(self, path):
-        return time.time() - os.stat(path).st_mtime > self.retention_delta
-
-    def _is_excluded(self, path, inclusions, exclusions, file_only=True):
-        if file_only and os.path.isdir(path):
-            return False
-        if inclusions and not _match_any_pattern(path, inclusions):
-            return True
-        if exclusions and _match_any_pattern(path, exclusions):
-            return True
-        return False
-
-    def _text_file_exists(self, file, data):
-        if os.path.exists(file):
-            with open(file) as fd:
-                return fd.read() == data
-        return False
-
-    def _generate_ref_file(self, src, dst):
-        file = os.path.join(dst, REF_FILE)
-        data = str(src)
-        if not self._text_file_exists(file, data):
-            logger.info(f'created ref file {file}')
-            with open(file, 'w') as fd:
-                fd.write(data)
-
-    def _save_local(self, src, dst, inclusions, exclusions):
-        started_ts = time.time()
-        size = 0
-
-        if os.path.isfile(src):
-            src_files = [src]
-            src = os.path.dirname(src)
-        else:
-            src_files = list(_walk_files(src))
-            if not src_files:
-                logger.debug(f'skipped empty src path {src}')
-                return
-
-        makedirs(dst)
-        for dst_path in _walk_files_and_dirs(dst):
-            if os.path.basename(dst_path) == REF_FILE:
-                continue
-            src_path = os.path.join(src, os.path.relpath(dst_path, dst))
-            if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
-                    or self._is_excluded(src_path, inclusions, exclusions):
-                _remove_path(dst_path)
-                self.report[src]['removed'].add(dst_path)
-                logger.debug(f'removed {dst_path}')
-
-        for src_file in src_files:
-            if self._is_excluded(src_file, inclusions, exclusions):
-                self.report[src]['excluded'].add(src_file)
-                logger.debug(f'excluded {src_file}')
-                continue
-            self.report[src]['files'].add(src_file)
-            size += os.path.getsize(src_file)
-            dst_file = os.path.join(dst, os.path.relpath(src_file, src))
-            src_hash = self.file_hash_manager.get(src_file, use_cache=False)
-            dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
-            if dst_hash == src_hash:
-                continue
-            try:
-                makedirs(os.path.dirname(dst_file))
-                shutil.copyfile(src_file, dst_file)
-                self.file_hash_manager.set(dst_file, src_hash)
-                self.report[src]['saved'].add(dst_file)
-                logger.debug(f'saved {src_file}')
-            except Exception:
-                logger.exception(f'failed to save {src_file}')
-
-        self._generate_ref_file(src, dst)
-        logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
-        return {
-            'file_count': len(self.report[src]['files']),
-            'size_MB': size / 1024 / 1024,
-        }
-
     def _get_dst(self, src):
         target_name = get_filename(src)
         src_size = _get_path_size(src)
@@ -498,27 +521,38 @@ class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
                 break
         return dst
 
-    def _iterate_save_args(self):
-        if self.src_type == 'local':
+    def _get_saver_class(self):
+        module = sys.modules[__name__]
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if obj.__module__ == module.__name__:
+                if issubclass(obj, BaseSaver) and obj is not BaseSaver:
+                    if obj.src_type == self.src_type:
+                        return obj
+        raise Exception(f'invalid src_type {self.src_type}')
+
+    def _iterate_savers(self):
+        saver_cls = self._get_saver_class()
+        if saver_cls.src_type == 'local':
             for path, inclusions, exclusions in self.src_and_filters:
                 for src in glob(os.path.expanduser(path)):
-                    if self._is_excluded(src, inclusions, exclusions,
+                    if _is_path_excluded(src, inclusions, exclusions,
                             file_only=False):
                         logger.debug(f'excluded {src}')
                         continue
-                    yield {
-                        'src': src,
-                        'dst': self._get_dst(src),
-                        'inclusions': inclusions,
-                        'exclusions': exclusions,
-                    }
+                    yield saver_cls(src=src,
+                        dst=self._get_dst(src),
+                        inclusions=inclusions,
+                        exclusions=exclusions,
+                        retention_delta=self.retention_delta,
+                    )
         else:
             dst = os.path.join(self.dst_path, self.src_type)
             makedirs(dst)
-            yield {
-                'src': self.src_type,
-                'dst': dst,
-            }
+            yield saver_cls(src=self.src_type,
+                dst=dst,
+                retention_delta=self.retention_delta,
+                creds_file=self.creds_file,
+            )
 
     def _notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
@@ -527,28 +561,34 @@ class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
         else:
             _notify(title=f'{NAME} error', body=message)
 
+    def _update_report(self, saver):
+        for path, data in saver.report.items():
+            for k, v in data.items():
+                self.report[path][k].update(v)
+
+    def _run_saver(self, saver):
+        meta = self.meta_manager.get(saver.dst)
+        if not self._check_meta(meta):
+            return
+        started_ts = time.time()
+        updated_ts = None
+        retry_delta = 0
+        try:
+            saver.run()
+        except Exception as exc:
+            updated_ts = meta.get('updated_ts', 0)
+            retry_delta = RETRY_DELTA
+            logger.exception(f'failed to save {saver.src}')
+            self._notify_error(f'failed to save {saver.src}: {exc}', exc=exc)
+        self._update_report(saver)
+        self._update_meta(saver.src, saver.dst,
+            started_ts=started_ts, updated_ts=updated_ts,
+            retry_delta=retry_delta, extra_meta=saver.meta)
+
     def save(self):
         makedirs(self.dst_path)
-        callable_ = getattr(self, f'_save_{self.src_type}')
-        for args in self._iterate_save_args():
-            meta = self.meta_manager.get(args['dst'])
-            if not self._check_meta(meta):
-                continue
-            started_ts = time.time()
-            res = None
-            updated_ts = None
-            retry_delta = 0
-            try:
-                res = callable_(**args)
-            except Exception as exc:
-                updated_ts = meta.get('updated_ts', 0)
-                retry_delta = RETRY_DELTA
-                logger.exception(f'failed to save {args["src"]}')
-                self._notify_error(f'failed to save {args["src"]}: {exc}',
-                    exc=exc)
-            self._update_meta(args['src'], args['dst'],
-                started_ts=started_ts, updated_ts=updated_ts,
-                retry_delta=retry_delta, extra_meta=res)
+        for saver in self._iterate_savers():
+            self._run_saver(saver)
 
 
 class SaveHandler:

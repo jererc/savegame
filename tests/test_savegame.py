@@ -368,7 +368,7 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
             {
                 'src_type': 'google_drive',
                 'dst_path': dst_path,
-                'gc_oauth_creds_file': creds_file,
+                'creds_file': creds_file,
                 'retention_delta': 0,
             },
         ]
@@ -389,7 +389,7 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
             {
                 'src_type': 'google_contacts',
                 'dst_path': dst_path,
-                'gc_oauth_creds_file': creds_file,
+                'creds_file': creds_file,
             },
         ]
         for i in range(2):
