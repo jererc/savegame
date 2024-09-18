@@ -135,8 +135,9 @@ class Bootstrapper(object):
             sys.stdout.write(res.stderr or res.stdout)
 
 
-    _run_hostnames = _run_savegame_cmd
+    _run_save = _run_savegame_cmd
     _run_restore = _run_savegame_cmd
+    _run_hostnames = _run_savegame_cmd
 
 
     def run(self):

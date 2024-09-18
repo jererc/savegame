@@ -623,10 +623,6 @@ class SaveHandler(object):
             logger.info(f'completed in {time.time() - started_ts:.02f} seconds')
 
 
-def savegame(**kwargs):
-    SaveHandler(**kwargs).run()
-
-
 class RestoreItem(object):
 
 
@@ -780,28 +776,6 @@ class RestoreHandler(object):
         self._generate_report()
 
 
-def list_hostnames(**kwargs):
-    hostnames = RestoreHandler(**kwargs).list_hostnames()
-    logger.info(f'available hostnames: {sorted(hostnames)}')
-
-
-def restoregame(**kwargs):
-    return RestoreHandler(**kwargs).run()
-
-
-def _is_idle():
-    return psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
-
-
-def _must_run(last_run_ts):
-    now_ts = time.time()
-    if now_ts > last_run_ts + FORCE_RUN_DELTA:
-        return True
-    if now_ts > last_run_ts + RUN_DELTA and _is_idle():
-        return True
-    return False
-
-
 def with_lockfile():
     lockfile_path = os.path.join(WORK_PATH, 'lock')
 
@@ -838,6 +812,29 @@ def with_lockfile():
 
         return wrapper
     return decorator
+
+
+def _must_run(last_run_ts):
+    is_idle = lambda: psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
+    now_ts = time.time()
+    if now_ts > last_run_ts + FORCE_RUN_DELTA:
+        return True
+    if now_ts > last_run_ts + RUN_DELTA and is_idle():
+        return True
+    return False
+
+
+def savegame(**kwargs):
+    return SaveHandler(**kwargs).run()
+
+
+def restoregame(**kwargs):
+    return RestoreHandler(**kwargs).run()
+
+
+def list_hostnames(**kwargs):
+    hostnames = RestoreHandler(**kwargs).list_hostnames()
+    logger.info(f'available hostnames: {sorted(hostnames)}')
 
 
 class Daemon(object):
