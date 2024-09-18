@@ -39,6 +39,7 @@ class Bootstrapper(object):
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers(dest='command')
         setup_parser = subparsers.add_parser('setup')
+        save_parser = subparsers.add_parser('save')
         hostnames_parser = subparsers.add_parser('hostnames')
         restore_parser = subparsers.add_parser('restore')
         restore_parser.add_argument('--from-hostname')

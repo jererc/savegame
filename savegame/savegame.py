@@ -409,13 +409,13 @@ class SaveItem(object):
                 makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
                 self.file_hash_manager.set(dst_file, src_hash)
-                self.report[src]['synced'].add(dst_file)
-                logger.debug(f'synced {src_file}')
+                self.report[src]['saved'].add(dst_file)
+                logger.debug(f'saved {src_file}')
             except Exception:
-                logger.exception(f'failed to sync {src_file}')
+                logger.exception(f'failed to save {src_file}')
 
         self._save_ref_file(src, dst)
-        logger.debug(f'synced {src} in {time.time() - started_ts:.02f} seconds')
+        logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
         return {
             'file_count': len(self.report[src]['files']),
             'size_MB': size / 1024 / 1024,
@@ -548,18 +548,6 @@ class SaveItem(object):
             _notify(title=f'{NAME} error', body=message)
 
 
-    def _generate_report(self):
-        summary = defaultdict(int)
-        keys = {'synced', 'removed'}
-        for path, data in self.report.items():
-            path_summary = {k: len(v) for k, v in data.items()
-                if k in keys and v}
-            if path_summary:
-                summary[path] = path_summary
-        if summary:
-            logger.info(f'summary:\n{to_json(summary)}')
-
-
     def save(self):
         makedirs(self.dst_path)
         callable_ = getattr(self, f'_save_{self.src_type}')
@@ -583,31 +571,60 @@ class SaveItem(object):
                 started_ts=started_ts, updated_ts=updated_ts,
                 retry_delta=retry_delta, extra_meta=res)
 
-        self._generate_report()
+
+class SaveHandler(object):
 
 
-def _process_save(save: dict):
-    started_ts = time.time()
-    try:
-        SaveItem(**save).save()
-    except InvalidPath as exc:
-        logger.warning(exc)
-    except Exception as exc:
-        logger.exception(f'failed to save {save}')
-        _notify(title=f'{NAME} exception',
-            body=f'failed to save {save}: {exc}')
-    logger.debug(f'processed {save} in '
-        f'{time.time() - started_ts:.02f} seconds')
+    def __init__(self):
+        self.report = defaultdict(lambda: defaultdict(set))
 
 
-def savegame():
-    started_ts = time.time()
-    for save in SAVES:
-        _process_save(save)
-    FileHashManager().save()
-    MetaManager().save()
-    MetaManager().check()
-    logger.info(f'completed in {time.time() - started_ts:.02f} seconds')
+    def _save(self, save):
+        started_ts = time.time()
+        try:
+            save_item = SaveItem(**save)
+            save_item.save()
+            for path, data in save_item.report.items():
+                for k, v in data.items():
+                    self.report[path][k].update(v)
+        except InvalidPath as exc:
+            logger.warning(exc)
+        except Exception as exc:
+            logger.exception(f'failed to save {save}')
+            _notify(title=f'{NAME} exception',
+                body=f'failed to save {save}: {exc}')
+        finally:
+            logger.debug(f'processed {save} in '
+                f'{time.time() - started_ts:.02f} seconds')
+
+
+    def _generate_report(self):
+        summary = defaultdict(int)
+        keys = {'saved', 'removed'}
+        for path, data in self.report.items():
+            path_summary = {k: len(v) for k, v in data.items()
+                if k in keys and v}
+            if path_summary:
+                summary[path] = path_summary
+        if summary:
+            logger.info(f'summary:\n{to_json(summary)}')
+
+
+    def run(self):
+        started_ts = time.time()
+        try:
+            for save in SAVES:
+                self._save(save)
+            FileHashManager().save()
+            MetaManager().save()
+            MetaManager().check()
+        finally:
+            self._generate_report()
+            logger.info(f'completed in {time.time() - started_ts:.02f} seconds')
+
+
+def savegame(**kwargs):
+    SaveHandler(**kwargs).run()
 
 
 class RestoreItem(object):
@@ -750,15 +767,15 @@ class RestoreHandler(object):
             logger.info(f'summary:\n{to_json(summary)}')
 
 
-    def restore(self):
+    def run(self):
         for restore_item in self._iterate_restore_items():
             try:
                 restore_item.restore()
             except Exception:
                 logger.exception(f'failed to restore {restore_item.dst_path}')
-            for src, data in restore_item.report.items():
+            for path, data in restore_item.report.items():
                 for k, v in data.items():
-                    self.report[src][k].update(v)
+                    self.report[path][k].update(v)
 
         self._generate_report()
 
@@ -769,7 +786,7 @@ def list_hostnames(**kwargs):
 
 
 def restoregame(**kwargs):
-    return RestoreHandler(**kwargs).restore()
+    return RestoreHandler(**kwargs).run()
 
 
 def _is_idle():
