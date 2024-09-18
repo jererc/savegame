@@ -359,17 +359,13 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
             '~/data/credentials_oauth.json'))
         google_cloud.GoogleCloud(oauth_creds_file=creds_file
             ).get_oauth_creds(interact=True)
-        dst_path = os.path.join(savegame.WORK_PATH, 'dst')
-        makedirs(dst_path)
-        with open(os.path.join(dst_path, 'old_file.docx'), 'w') as fd:
-            fd.write('old content')
-
         savegame.SAVES = [
             {
                 'src_type': 'google_drive',
-                'dst_path': dst_path,
+                'dst_path': self.dst_root,
                 'creds_file': creds_file,
                 'retention_delta': 0,
+                'min_delta': 0,
             },
         ]
         for i in range(2):
@@ -383,13 +379,12 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
             '~/data/credentials_oauth.json'))
         google_cloud.GoogleCloud(oauth_creds_file=creds_file
             ).get_oauth_creds(interact=True)
-        dst_path = os.path.join(savegame.WORK_PATH, 'dst')
-        makedirs(dst_path)
         savegame.SAVES = [
             {
                 'src_type': 'google_contacts',
-                'dst_path': dst_path,
+                'dst_path': self.dst_root,
                 'creds_file': creds_file,
+                'min_delta': 0,
             },
         ]
         for i in range(2):
@@ -399,23 +394,17 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
 
 class GoogleBookmarksIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        dst_path = os.path.join(savegame.WORK_PATH, 'dst')
-
-        old_dir = os.path.join(dst_path, 'old_dir')
-        makedirs(old_dir)
-        with open(os.path.join(old_dir, 'old_file.html'), 'w') as fd:
-            fd.write('old content')
-
         savegame.SAVES = [
             {
                 'src_type': 'google_bookmarks',
-                'dst_path': dst_path,
+                'dst_path': self.dst_root,
                 'retention_delta': 0,
+                'min_delta': 0,
             },
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_files()
+            print_dst_files()
 
 
 if __name__ == '__main__':

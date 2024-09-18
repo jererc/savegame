@@ -145,10 +145,14 @@ def notify(title, body, on_click=None):
         logger.error(f'failed to notify: {exc}')
 
 
-def text_file_exists(file, data):
+def text_file_exists(file, data, encoding='utf-8',
+        log_content_changed=False):
     if os.path.exists(file):
-        with open(file) as fd:
-            return fd.read() == data
+        with open(file, encoding=encoding) as fd:
+            res = fd.read() == data
+            if not res and log_content_changed:
+                logger.warning(f'content has changed in {file}')
+            return res
     return False
 
 
@@ -320,9 +324,9 @@ class LocalSaver(AbstractSaver):
     def _generate_ref_file(self, src):
         file = os.path.join(self.dst, REF_FILE)
         data = str(src)
-        if not text_file_exists(file, data):
+        if not text_file_exists(file, data, log_content_changed=True):
             logger.info(f'created ref file {file}')
-            with open(file, 'w') as fd:
+            with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
 
     def run(self):
@@ -443,7 +447,7 @@ class GoogleBookmarksSaver(AbstractSaver):
 
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        if text_file_exists(file, data):
+        if text_file_exists(file, data, log_content_changed=True):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google bookmark {file}: '
                 'already exists')
