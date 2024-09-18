@@ -150,6 +150,18 @@ class BaseTestCase(unittest.TestCase):
 class SavegameTestCase(BaseTestCase):
 
 
+    def _savegame(self, **kwargs):
+        self._generate_src_data(**kwargs)
+        savegame.SAVES = [
+            {
+                'src_paths': self._get_src_paths(**kwargs),
+                'dst_path': self.dst_root,
+            },
+        ]
+        for i in range(2):
+            savegame.savegame()
+
+
     def test_glob_and_exclusions(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
@@ -168,6 +180,10 @@ class SavegameTestCase(BaseTestCase):
         for i in range(2):
             savegame.savegame()
         _print_dst_files()
+
+
+    def test_report(self):
+        self._savegame(index_start=1)
 
 
 class RestoregameTestCase(BaseTestCase):

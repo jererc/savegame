@@ -297,6 +297,7 @@ class SaveItem(object):
             else (s, [], []) for s in self.src_paths]
         self.file_hash_manager = FileHashManager()
         self.meta_manager = MetaManager()
+        self.report = defaultdict(lambda: defaultdict(set))
 
 
     def _get_dst_path(self, dst_path):
@@ -370,9 +371,6 @@ class SaveItem(object):
 
     def _save_local(self, src, dst, inclusions, exclusions):
         started_ts = time.time()
-        file_count = 0
-        removed_count = 0
-        synced_count = 0
         size = 0
 
         if os.path.isfile(src):
@@ -392,14 +390,15 @@ class SaveItem(object):
             if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
                     or self._is_excluded(src_path, inclusions, exclusions):
                 _remove_path(dst_path)
-                removed_count += 1
+                self.report[src]['removed'].add(dst_path)
                 logger.debug(f'removed {dst_path}')
 
         for src_file in src_files:
             if self._is_excluded(src_file, inclusions, exclusions):
+                self.report[src]['excluded'].add(src_file)
                 logger.debug(f'excluded {src_file}')
                 continue
-            file_count += 1
+            self.report[src]['files'].add(src_file)
             size += os.path.getsize(src_file)
             dst_file = os.path.join(dst, os.path.relpath(src_file, src))
             src_hash = self.file_hash_manager.get(src_file, use_cache=False)
@@ -410,19 +409,15 @@ class SaveItem(object):
                 makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
                 self.file_hash_manager.set(dst_file, src_hash)
-                synced_count += 1
+                self.report[src]['synced'].add(dst_file)
                 logger.debug(f'synced {src_file}')
             except Exception:
                 logger.exception(f'failed to sync {src_file}')
 
         self._save_ref_file(src, dst)
         logger.debug(f'synced {src} in {time.time() - started_ts:.02f} seconds')
-        if removed_count:
-            logger.info(f'removed {removed_count} files from {dst}')
-        if synced_count:
-            logger.info(f'synced {synced_count} files from {src}')
         return {
-            'file_count': file_count,
+            'file_count': len(self.report[src]['files']),
             'size_MB': size / 1024 / 1024,
         }
 
@@ -553,6 +548,18 @@ class SaveItem(object):
             _notify(title=f'{NAME} error', body=message)
 
 
+    def _generate_report(self):
+        summary = defaultdict(int)
+        keys = {'synced', 'removed'}
+        for src, data in self.report.items():
+            src_summary = {k: len(v) for k, v in data.items()
+                if k in keys and v}
+            if src_summary:
+                summary[src] = src_summary
+        if summary:
+            logger.info(f'summary:\n{to_json(summary)}')
+
+
     def save(self):
         makedirs(self.dst_path)
         callable_ = getattr(self, f'_save_{self.src_type}')
@@ -575,6 +582,8 @@ class SaveItem(object):
             self._update_meta(args['src'], args['dst'],
                 started_ts=started_ts, updated_ts=updated_ts,
                 retry_delta=retry_delta, extra_meta=res)
+
+        self._generate_report()
 
 
 def _process_save(save: dict):
