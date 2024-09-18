@@ -28,12 +28,10 @@ WIN_PYTHON_PATH = os.path.join(VENV_PATH, r'Scripts\pythonw.exe')
 CRONTAB_SCHEDULE = '*/2 * * * *'
 
 
-class Bootstrapper(object):
-
+class Bootstrapper:
     def __init__(self):
         self.args = self._parse_args()
         self._setup_venv()
-
 
     def _parse_args(self):
         parser = argparse.ArgumentParser()
@@ -48,7 +46,6 @@ class Bootstrapper(object):
         restore_parser.add_argument('--dry-run', action='store_true')
         return parser.parse_args()
 
-
     def _setup_linux_venv(self):
         if os.path.exists(LINUX_VENV_ACTIVATE_PATH):
             return
@@ -56,7 +53,6 @@ class Bootstrapper(object):
         subprocess.check_call(f'. {LINUX_VENV_ACTIVATE_PATH}; '
             f'pip install {" ".join(LINUX_PYTHON_MODULES)}',
             shell=True, cwd=ROOT_PATH)
-
 
     def _setup_win_venv(self):
         if os.path.exists(WIN_VENV_ACTIVATE_PATH):
@@ -67,7 +63,6 @@ class Bootstrapper(object):
             f'pip install {" ".join(WIN_PYTHON_MODULES)}',
             shell=True, cwd=ROOT_PATH)
 
-
     def _setup_venv(self):
         if not os.path.exists(ROOT_VENV_PATH):
             os.makedirs(ROOT_VENV_PATH)
@@ -75,7 +70,6 @@ class Bootstrapper(object):
             self._setup_win_venv()
         else:
             self._setup_linux_venv()
-
 
     def _setup_linux_crontab(self, cmd):
         res = subprocess.run(['crontab', '-l'],
@@ -99,7 +93,6 @@ class Bootstrapper(object):
         else:
             print('Failed to update crontab')
 
-
     def _setup_win_task(self, task_name, cmd):
         subprocess.check_call(['schtasks', '/create',
             '/tn', task_name,
@@ -112,7 +105,6 @@ class Bootstrapper(object):
             '/tn', task_name,
         ])
 
-
     def _run_setup(self):
         if os.name == 'nt':
             if ctypes.windll.shell32.IsUserAnAdmin() == 0:
@@ -122,7 +114,6 @@ class Bootstrapper(object):
         else:
             self._setup_linux_crontab(
                 cmd=f'{LINUX_PYTHON_PATH} {SCRIPT_PATH} save --task')
-
 
     def _run_savegame_cmd(self):
         python_path = WIN_PYTHON_PATH if os.name == 'nt' else LINUX_PYTHON_PATH
@@ -134,15 +125,12 @@ class Bootstrapper(object):
         else:
             sys.stdout.write(res.stderr or res.stdout)
 
-
     _run_save = _run_savegame_cmd
     _run_restore = _run_savegame_cmd
     _run_hostnames = _run_savegame_cmd
 
-
     def run(self):
         getattr(self, f'_run_{self.args.command}')()
-
 
 
 def main():

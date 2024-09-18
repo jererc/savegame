@@ -62,7 +62,6 @@ def _setup_logging(logger, path):
     logging.basicConfig(level=logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-
     if sys.stdout and not sys.stdout.isatty():
         stdout_handler = logging.StreamHandler(sys.stdout)
         stdout_handler.setFormatter(formatter)
@@ -151,18 +150,15 @@ class InvalidPath(Exception):
     pass
 
 
-class FileHashManager(object):
-
+class FileHashManager:
     cache_file = os.path.join(WORK_PATH, 'cache.dat')
     cache = {}
-
 
     def __new__(cls):
         if not hasattr(cls, 'instance'):
             cls.instance = super().__new__(cls)
             cls.instance.load()
         return cls.instance
-
 
     def _generate_hash(self, path):
         hash_obj = hashlib.md5()
@@ -175,10 +171,8 @@ class FileHashManager(object):
                 hash_obj.update(hash_value.encode('utf-8'))
         return hash_obj.hexdigest()
 
-
     def set(self, path, value):
         self.cache[path] = value, int(time.time())
-
 
     def get(self, path, use_cache=False):
         if not os.path.exists(path):
@@ -193,13 +187,11 @@ class FileHashManager(object):
             self.set(path, res)
         return res
 
-
     def load(self):
         if os.path.exists(self.cache_file):
             with open(self.cache_file, 'rb') as fd:
                 self.cache = json.loads(zlib.decompress(fd.read()))
                 logger.debug(f'loaded {len(self.cache)} cached items')
-
 
     def save(self):
         started_ts = time.time()
@@ -216,11 +208,9 @@ class FileHashManager(object):
             f' in {time.time() - started_ts:.2f} seconds')
 
 
-class MetaManager(object):
-
+class MetaManager:
     meta_file = os.path.join(WORK_PATH, 'meta.json')
     meta = {}
-
 
     def __new__(cls):
         if not hasattr(cls, 'instance'):
@@ -228,13 +218,11 @@ class MetaManager(object):
             cls.instance.load()
         return cls.instance
 
-
     def load(self):
         if os.path.exists(self.meta_file):
             with open(self.meta_file) as fd:
                 self.meta = json.loads(fd.read())
                 logger.debug(f'loaded {len(self.meta)} meta items')
-
 
     def save(self):
         started_ts = time.time()
@@ -249,14 +237,11 @@ class MetaManager(object):
         logger.debug(f'saved {len(self.meta)} meta items'
             f' in {time.time() - started_ts:.2f} seconds')
 
-
     def set(self, key, value: dict):
         self.meta[key] = value
 
-
     def get(self, key):
         return self.meta.get(key, {})
-
 
     def check(self):
         now_ts = time.time()
@@ -268,9 +253,91 @@ class MetaManager(object):
                     body=f'{meta["source"]} has not been saved recently')
 
 
-class SaveItem(object):
+class GoogleDriveMixin:
+    def _save_google_drive(self, src, dst):
+        gc = GoogleCloud(service_creds_file=self.gc_service_creds_file,
+            oauth_creds_file=self.gc_oauth_creds_file)
+        paths = set()
+        for file_data in gc.iterate_files():
+            dst_file = os.path.join(dst, file_data['filename'])
+            paths.add(dst_file)
+            mtime = get_file_mtime(dst_file)
+            if mtime and mtime > file_data['modified_time']:
+                logger.debug(f'skipped saving google drive file {dst_file}: '
+                    'already exists')
+                continue
+            try:
+                content = gc.fetch_file_content(file_id=file_data['id'],
+                    mime_type=file_data['mime_type'])
+                logger.debug(f'saved google drive file {dst_file}')
+            except Exception as exc:
+                logger.error('failed to save google drive file '
+                    f'{file_data["name"]}: {exc}')
+                continue
+            with open(dst_file, 'wb') as fd:
+                fd.write(content)
+
+        for dst_path in _walk_files_and_dirs(dst):
+            if dst_path not in paths and self._needs_purge(dst_path):
+                _remove_path(dst_path)
+
+        return {
+            'file_count': len(paths)
+        }
 
 
+class GoogleContactsMixin:
+    def _save_google_contacts(self, src, dst):
+        file = os.path.join(dst, 'google_contacts.json')
+        contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
+            oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
+        data = to_json(contacts)
+        if self._text_file_exists(file, data):
+            logger.debug(f'skipped saving google contacts file {file}: '
+                'already exists')
+        else:
+            with open(file, 'w', encoding='utf-8') as fd:
+                fd.write(data)
+            logger.info(f'saved {len(contacts)} google contacts')
+        return {
+            'file_count': 1,
+        }
+
+
+class GoogleBookmarksMixin:
+    def _create_bookmark_file(self, title, url, file):
+        data = f'<html><body><a href="{url}">{title}</a></body></html>'
+        if self._text_file_exists(file, data):
+            logger.debug(f'skipped saving google bookmark {file}: '
+                'already exists')
+        else:
+            with open(file, 'w', encoding='utf-8') as fd:
+                fd.write(data)
+            logger.debug(f'saved google bookmark {file}')
+
+    def _save_google_bookmarks(self, src, dst):
+        bookmarks = google_chrome.get_bookmarks()
+        paths = set()
+        for bookmark in bookmarks:
+            dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
+            makedirs(dst_path)
+            name = bookmark['name'] or bookmark['url']
+            dst_file = f'{os.path.join(dst_path, get_filename(name))}.html'
+            self._create_bookmark_file(title=name, url=bookmark['url'],
+                file=dst_file)
+            paths.add(dst_path)
+            paths.add(dst_file)
+
+        for dst_path in _walk_files_and_dirs(dst):
+            if dst_path not in paths and self._needs_purge(dst_path):
+                _remove_path(dst_path)
+
+        return {
+            'file_count': len(bookmarks),
+        }
+
+
+class SaveItem(GoogleDriveMixin, GoogleContactsMixin, GoogleBookmarksMixin):
     def __init__(self,
             src_paths=None,
             src_type='local',
@@ -299,14 +366,12 @@ class SaveItem(object):
         self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
-
     def _get_dst_path(self, dst_path):
         if not os.path.exists(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
         if dst_path != os.path.expanduser(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
         return os.path.join(dst_path, NAME, self.src_type)
-
 
     def _check_meta(self, meta):
         if not meta:
@@ -315,7 +380,6 @@ class SaveItem(object):
                 meta['next_ts']):
             return True
         return False
-
 
     def _update_meta(self, src, dst, started_ts, updated_ts=None,
             retry_delta=0, extra_meta=None):
@@ -332,16 +396,13 @@ class SaveItem(object):
             meta.update(extra_meta)
         self.meta_manager.set(dst, meta)
 
-
     def _iterate_dst_paths(self, dst):
         for root, dirs, files in os.walk(dst, topdown=False):
             for item in files + dirs:
                 yield os.path.join(root, item)
 
-
     def _needs_purge(self, path):
         return time.time() - os.stat(path).st_mtime > self.retention_delta
-
 
     def _is_excluded(self, path, inclusions, exclusions, file_only=True):
         if file_only and os.path.isdir(path):
@@ -352,22 +413,19 @@ class SaveItem(object):
             return True
         return False
 
-
     def _text_file_exists(self, file, data):
         if os.path.exists(file):
             with open(file) as fd:
                 return fd.read() == data
         return False
 
-
-    def _save_ref_file(self, src, dst):
+    def _generate_ref_file(self, src, dst):
         file = os.path.join(dst, REF_FILE)
         data = str(src)
         if not self._text_file_exists(file, data):
             logger.info(f'created ref file {file}')
             with open(file, 'w') as fd:
                 fd.write(data)
-
 
     def _save_local(self, src, dst, inclusions, exclusions):
         started_ts = time.time()
@@ -414,95 +472,12 @@ class SaveItem(object):
             except Exception:
                 logger.exception(f'failed to save {src_file}')
 
-        self._save_ref_file(src, dst)
+        self._generate_ref_file(src, dst)
         logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
         return {
             'file_count': len(self.report[src]['files']),
             'size_MB': size / 1024 / 1024,
         }
-
-
-    def _save_google_drive(self, src, dst):
-        gc = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file)
-        paths = set()
-        for file_data in gc.iterate_files():
-            dst_file = os.path.join(dst, file_data['filename'])
-            paths.add(dst_file)
-            mtime = get_file_mtime(dst_file)
-            if mtime and mtime > file_data['modified_time']:
-                logger.debug(f'skipped saving google drive file {dst_file}: '
-                    'already exists')
-                continue
-            try:
-                content = gc.fetch_file_content(file_id=file_data['id'],
-                    mime_type=file_data['mime_type'])
-                logger.debug(f'saved google drive file {dst_file}')
-            except Exception as exc:
-                logger.error('failed to save google drive file '
-                    f'{file_data["name"]}: {exc}')
-                continue
-            with open(dst_file, 'wb') as fd:
-                fd.write(content)
-
-        for dst_path in _walk_files_and_dirs(dst):
-            if dst_path not in paths and self._needs_purge(dst_path):
-                _remove_path(dst_path)
-
-        return {
-            'file_count': len(paths)
-        }
-
-
-    def _save_google_contacts(self, src, dst):
-        file = os.path.join(dst, 'google_contacts.json')
-        contacts = GoogleCloud(service_creds_file=self.gc_service_creds_file,
-            oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
-        data = to_json(contacts)
-        if self._text_file_exists(file, data):
-            logger.debug(f'skipped saving google contacts file {file}: '
-                'already exists')
-        else:
-            with open(file, 'w', encoding='utf-8') as fd:
-                fd.write(data)
-            logger.info(f'saved {len(contacts)} google contacts')
-        return {
-            'file_count': 1,
-        }
-
-
-    def _save_bookmark_as_html_file(self, title, url, file):
-        data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        if self._text_file_exists(file, data):
-            logger.debug(f'skipped saving google bookmark {file}: '
-                'already exists')
-        else:
-            with open(file, 'w', encoding='utf-8') as fd:
-                fd.write(data)
-            logger.debug(f'saved google bookmark {file}')
-
-
-    def _save_google_bookmarks(self, src, dst):
-        bookmarks = google_chrome.get_bookmarks()
-        paths = set()
-        for bookmark in bookmarks:
-            dst_path = os.path.join(dst, *(bookmark['path'].split('/')))
-            makedirs(dst_path)
-            name = bookmark['name'] or bookmark['url']
-            dst_file = f'{os.path.join(dst_path, get_filename(name))}.html'
-            self._save_bookmark_as_html_file(title=name, url=bookmark['url'],
-                file=dst_file)
-            paths.add(dst_path)
-            paths.add(dst_file)
-
-        for dst_path in _walk_files_and_dirs(dst):
-            if dst_path not in paths and self._needs_purge(dst_path):
-                _remove_path(dst_path)
-
-        return {
-            'file_count': len(bookmarks),
-        }
-
 
     def _get_dst(self, src):
         target_name = get_filename(src)
@@ -515,7 +490,6 @@ class SaveItem(object):
             if not size or src_size / size > self.min_size_ratio:
                 break
         return dst
-
 
     def _iterate_save_args(self):
         if self.src_type == 'local':
@@ -539,14 +513,12 @@ class SaveItem(object):
                 'dst': dst,
             }
 
-
     def _notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
             _notify(title=f'{NAME} google auth error', body=message,
                 on_click=GOOGLE_AUTH_WIN_FILE)
         else:
             _notify(title=f'{NAME} error', body=message)
-
 
     def save(self):
         makedirs(self.dst_path)
@@ -572,12 +544,9 @@ class SaveItem(object):
                 retry_delta=retry_delta, extra_meta=res)
 
 
-class SaveHandler(object):
-
-
+class SaveHandler:
     def __init__(self):
         self.report = defaultdict(lambda: defaultdict(set))
-
 
     def _save(self, save):
         started_ts = time.time()
@@ -597,7 +566,6 @@ class SaveHandler(object):
             logger.debug(f'processed {save} in '
                 f'{time.time() - started_ts:.02f} seconds')
 
-
     def _generate_report(self):
         summary = defaultdict(int)
         keys = {'saved', 'removed'}
@@ -608,7 +576,6 @@ class SaveHandler(object):
                 summary[path] = path_summary
         if summary:
             logger.info(f'summary:\n{to_json(summary)}')
-
 
     def run(self):
         started_ts = time.time()
@@ -623,9 +590,7 @@ class SaveHandler(object):
             logger.info(f'completed in {time.time() - started_ts:.02f} seconds')
 
 
-class RestoreItem(object):
-
-
+class RestoreItem:
     def __init__(self, dst_path, from_hostname=None, from_username=None,
             overwrite=False, dry_run=False):
         self.dst_path = dst_path
@@ -634,7 +599,6 @@ class RestoreItem(object):
         self.overwrite = overwrite
         self.dry_run = dry_run
         self.report = defaultdict(lambda: defaultdict(set))
-
 
     def _get_src_path(self, dst_path):
         ref_file = os.path.join(dst_path, REF_FILE)
@@ -646,7 +610,6 @@ class RestoreItem(object):
             logger.error(f'invalid ref src in {ref_file}')
             return None
         return src
-
 
     def _get_valid_src_path(self, path):
         with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
@@ -664,7 +627,6 @@ class RestoreItem(object):
                 with_end_sep(home_path), 1)
         logger.debug(f'skipped {path}: the path username does not match {self.from_username}')
         return None
-
 
     def _restore_file(self, dst_path, src_path, src):
         if not self.overwrite and os.path.exists(src_path):
@@ -695,10 +657,8 @@ class RestoreItem(object):
                 logger.error(f'failed to restore {src_path} '
                     f'from {dst_path}: {exc}')
 
-
     def list_hostnames(self):
         return sorted(os.listdir(self.dst_path))
-
 
     def restore(self):
         to_restore = set()
@@ -727,13 +687,10 @@ class RestoreItem(object):
                     self._restore_file(dst_path, src_path, src)
 
 
-class RestoreHandler(object):
-
-
+class RestoreHandler:
     def __init__(self, **restore_item_args):
         self.restore_item_args = restore_item_args
         self.report = defaultdict(lambda: defaultdict(set))
-
 
     def _iterate_save_items(self):
         if not SAVES:
@@ -747,7 +704,6 @@ class RestoreHandler(object):
             except InvalidPath:
                 continue
 
-
     def _iterate_restore_items(self):
         dst_paths = set()
         for save_item in self._iterate_save_items():
@@ -755,13 +711,11 @@ class RestoreHandler(object):
         for dst_path in dst_paths:
             yield RestoreItem(dst_path=dst_path, **self.restore_item_args)
 
-
     def list_hostnames(self):
         hostnames = set()
         for restore_item in self._iterate_restore_items():
             hostnames.update(restore_item.list_hostnames())
         return hostnames
-
 
     def _generate_report(self):
         summary = defaultdict(int)
@@ -771,7 +725,6 @@ class RestoreHandler(object):
                 summary[path] = path_summary
         if summary:
             logger.info(f'summary:\n{to_json(summary)}')
-
 
     def run(self):
         for restore_item in self._iterate_restore_items():
@@ -847,10 +800,8 @@ def list_hostnames(**kwargs):
     logger.info(f'available hostnames: {sorted(hostnames)}')
 
 
-class Daemon(object):
-
+class Daemon:
     last_run_ts = 0
-
 
     @with_lockfile()
     def run(self):
@@ -866,10 +817,8 @@ class Daemon(object):
                 time.sleep(DAEMON_LOOP_DELAY)
 
 
-class Task(object):
-
+class Task:
     last_run_file = os.path.join(WORK_PATH, 'last_run')
-
 
     def _get_last_run_ts(self):
         try:
@@ -878,11 +827,9 @@ class Task(object):
         except Exception:
             return 0
 
-
     def _set_last_run_ts(self):
         with open(self.last_run_file, 'w') as fd:
             fd.write(str(int(time.time())))
-
 
     @with_lockfile()
     def run(self):

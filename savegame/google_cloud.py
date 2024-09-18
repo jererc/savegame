@@ -42,8 +42,7 @@ class AuthError(Exception):
     pass
 
 
-class GoogleCloud(object):
-
+class GoogleCloud:
     def __init__(self, service_creds_file=None, oauth_creds_file=None,
             creds_file=None):
         self.service_creds_file = get_file(service_creds_file
@@ -54,7 +53,6 @@ class GoogleCloud(object):
         self.service_creds = None
         self.oauth_creds = None
 
-
     def _get_service_creds(self):
         if not self.service_creds_file:
             raise Exception('missing service account credentials')
@@ -63,7 +61,6 @@ class GoogleCloud(object):
         )
         # creds = creds.with_subject(self.user_id)
         return creds
-
 
     def _auth(self):
         try:
@@ -79,7 +76,6 @@ class GoogleCloud(object):
             except Exception:
                 raise Exception('failed to auth')
         return creds
-
 
     def get_oauth_creds(self, interact=False):
         """
@@ -109,7 +105,6 @@ class GoogleCloud(object):
                 fd.write(creds.to_json())
         return creds
 
-
     #
     # Drive
     #
@@ -119,12 +114,10 @@ class GoogleCloud(object):
     #         self.service_creds = self._get_service_creds()
     #     return build('drive', 'v3', credentials=self.service_creds)
 
-
     def _get_drive_service(self):
         if not self.oauth_creds:
             self.oauth_creds = self.get_oauth_creds()
         return build('drive', 'v3', credentials=self.oauth_creds)
-
 
     def _list_files(self):
         """
@@ -152,7 +145,6 @@ class GoogleCloud(object):
                 break
         return files
 
-
     def iterate_files(self):
         for file in self._list_files():
             try:
@@ -167,7 +159,6 @@ class GoogleCloud(object):
                 'mime_type': mime_data['mime_type'],
             }
 
-
     def fetch_file_content(self, file_id, mime_type):
         try:
             return self._get_drive_service().files().export(fileId=file_id,
@@ -178,7 +169,6 @@ class GoogleCloud(object):
                 return b''
             raise
 
-
     #
     # People
     #
@@ -187,7 +177,6 @@ class GoogleCloud(object):
         if not self.oauth_creds:
             self.oauth_creds = self.get_oauth_creds()
         return build('people', 'v1', credentials=self.oauth_creds)
-
 
     def list_contacts(self):
         """

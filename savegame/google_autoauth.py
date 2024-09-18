@@ -20,8 +20,7 @@ PROFILE_DIR = 'selenium'
 logger = logging.getLogger(__name__)
 
 
-class GoogleAutoauth(object):
-
+class GoogleAutoauth:
     def __init__(self, client_secrets_file, scopes,
             data_dir=DATA_DIR, profile_dir=PROFILE_DIR):
         self.client_secrets_file = client_secrets_file
@@ -29,7 +28,6 @@ class GoogleAutoauth(object):
         self.data_dir = data_dir
         self.profile_dir = profile_dir
         self.driver = self._get_driver()
-
 
     def _get_driver(self):
         if not os.path.exists(self.data_dir):
@@ -49,17 +47,14 @@ class GoogleAutoauth(object):
         driver.implicitly_wait(1)
         return driver
 
-
     def _wait_for_element(self, element):
         wait = WebDriverWait(self.driver, timeout=5, poll_frequency=.2,
             ignored_exceptions=[NoSuchElementException,
                 ElementNotInteractableException])
         wait.until(lambda x: element.is_displayed())
 
-
     def _select_user(self):
         self.driver.find_element(By.XPATH, '//div[@data-authuser="0"]').click()
-
 
     def _click_continue(self):
         try:
@@ -68,7 +63,6 @@ class GoogleAutoauth(object):
             return True
         except NoSuchElementException:
             return False
-
 
     def _wait_for_login(self, url, poll_frequency=1, timeout=120):
         self.driver.get(url)
@@ -85,7 +79,6 @@ class GoogleAutoauth(object):
             time.sleep(poll_frequency)
         raise Exception('login timeout')
 
-
     def _fetch_code(self, auth_url):
         self._wait_for_login(auth_url, poll_frequency=1, timeout=120)
         self.driver.find_element(By.XPATH,
@@ -100,7 +93,6 @@ class GoogleAutoauth(object):
         res = el_textarea.get_attribute('innerHTML')
         self.driver.quit()
         return res
-
 
     def acquire_credentials(self):
         """

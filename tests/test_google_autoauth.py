@@ -9,8 +9,6 @@ from google_autoauth import GoogleAutoauth
 
 
 class GoogleAutoauthTestCase(unittest.TestCase):
-
-
     def test_1(self):
         creds_file = os.path.realpath(os.path.expanduser(
             '~/data/credentials_oauth.json'))

@@ -45,12 +45,9 @@ def _print_dst_files():
 
 
 class RestoregamePathUsernameTestCase(unittest.TestCase):
-
-
     def setUp(self):
         self.username = os.getlogin()
         self.other_username = f'not{self.username}'
-
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win(self):
@@ -64,7 +61,6 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
         path = rf'C:\Users\{self.other_username}\some_dir'
         self.assertEqual(obj._replace_username_in_path(path),
             rf'C:\Users\{self.username}\some_dir')
-
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_posix(self):
@@ -81,8 +77,6 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
 
 
 class BaseTestCase(unittest.TestCase):
-
-
     def setUp(self):
         assert savegame.WORK_PATH, user_settings.WORK_PATH
 
@@ -95,7 +89,6 @@ class BaseTestCase(unittest.TestCase):
         self.src_root = os.path.join(savegame.WORK_PATH, 'src_root')
         self.dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
         makedirs(self.dst_root)
-
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
@@ -114,11 +107,9 @@ class BaseTestCase(unittest.TestCase):
                         }
                         fd.write(json.dumps(content, indent=4, sort_keys=True))
 
-
     def _get_src_paths(self, index_start=1, src_count=2, **kwargs):
         return [os.path.join(self.src_root, f'src{i}')
             for i in range(index_start, index_start + src_count)]
-
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
@@ -129,9 +120,7 @@ class BaseTestCase(unittest.TestCase):
                     os.rename(os.path.join(self.dst_root, base_dir, src_type, hostname),
                         os.path.join(self.dst_root, base_dir, src_type, to_hostname))
 
-
     def _switch_dst_data_username(self, from_username, to_username):
-
         def switch_ref_path(file):
             with open(file) as fd:
                 data = fd.read()
@@ -148,8 +137,6 @@ class BaseTestCase(unittest.TestCase):
 
 
 class SavegameTestCase(BaseTestCase):
-
-
     def _savegame(self, **kwargs):
         self._generate_src_data(**kwargs)
         savegame.SAVES = [
@@ -160,7 +147,6 @@ class SavegameTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-
 
     def test_glob_and_exclusions(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
@@ -181,14 +167,11 @@ class SavegameTestCase(BaseTestCase):
             savegame.savegame()
         _print_dst_files()
 
-
     def test_report(self):
         self._savegame(index_start=1)
 
 
 class RestoregameTestCase(BaseTestCase):
-
-
     def _savegame(self, **kwargs):
         self._generate_src_data(**kwargs)
         savegame.SAVES = [
@@ -201,7 +184,6 @@ class RestoregameTestCase(BaseTestCase):
             savegame.savegame()
         _remove_path(self.src_root)
 
-
     def _restoregame(self, **kwargs):
         for i in range(2):
             savegame.restoregame(**kwargs)
@@ -210,7 +192,6 @@ class RestoregameTestCase(BaseTestCase):
         pprint(sorted(src_files))
         _remove_path(self.src_root)
         return {r for r in src_files if os.path.basename(r).startswith('src')}
-
 
     def test_multiple_versions(self):
         hostname2 = 'hostname2'
@@ -225,7 +206,6 @@ class RestoregameTestCase(BaseTestCase):
 
         src_paths = self._restoregame(from_hostname=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
-
 
     def test_overwrite(self):
         hostname2 = 'hostname2'
@@ -242,7 +222,6 @@ class RestoregameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
         src_paths = self._restoregame(overwrite=True)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
-
 
     def test_from_hostname(self):
         hostname2 = 'hostname2'
@@ -267,7 +246,6 @@ class RestoregameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set())
         savegame.list_hostnames()
 
-
     def test_shared_username_path(self):
         username2 = 'Public' if os.name == 'nt' else 'shared'
         username3 = 'username3'
@@ -290,7 +268,6 @@ class RestoregameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
             + self._get_src_paths(index_start=3)
             + self._get_src_paths(index_start=5)))
-
 
     def test_from_username(self):
         username2 = 'username2'
@@ -319,7 +296,6 @@ class RestoregameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
 
 
-
 #
 # Integration
 #
@@ -346,8 +322,6 @@ WIN_SAVE = {
 
 
 class SavegameIntegrationTestCase(BaseTestCase):
-
-
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_glob_and_empty_dirs_win(self):
         dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
@@ -368,24 +342,18 @@ class SavegameIntegrationTestCase(BaseTestCase):
             savegame.savegame()
         _print_dst_files()
 
-
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
         savegame.savegame()
 
 
 class RestoregameIntegrationTestCase(BaseTestCase):
-
-
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
         savegame.restoregame(dry_run=True)
 
 
-
 class GoogleDriveIntegrationTestCase(BaseTestCase):
-
-
     def test_1(self):
         creds_file = os.path.realpath(os.path.expanduser(
             '~/data/credentials_oauth.json'))
@@ -410,8 +378,6 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
-
-
     def test_1(self):
         creds_file = os.path.realpath(os.path.expanduser(
             '~/data/credentials_oauth.json'))
@@ -432,8 +398,6 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
 
 
 class GoogleBookmarksIntegrationTestCase(BaseTestCase):
-
-
     def test_1(self):
         dst_path = os.path.join(savegame.WORK_PATH, 'dst')
 

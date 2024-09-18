@@ -9,8 +9,6 @@ import google_chrome
 
 
 class BookmarksTestCase(unittest.TestCase):
-
-
     def test_1(self):
         res = google_chrome.get_bookmarks()
         pprint(res)
