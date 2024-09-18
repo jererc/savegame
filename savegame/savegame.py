@@ -365,6 +365,7 @@ class GoogleDriveSaver(AbstractSaver):
     def run(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         paths = set()
+        makedirs(self.dst)
         for file_data in gc.iterate_files():
             dst_file = os.path.join(self.dst, file_data['filename'])
             paths.add(dst_file)
@@ -404,6 +405,7 @@ class GoogleContactsSaver(AbstractSaver):
         contacts = gc.list_contacts()
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
+        makedirs(self.dst)
         if text_file_exists(file, data):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google contacts file {file}: '
@@ -436,6 +438,7 @@ class GoogleBookmarksSaver(AbstractSaver):
     def run(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
+        makedirs(self.dst)
         for bookmark in bookmarks:
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
@@ -476,8 +479,7 @@ class SaveItem:
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.restorable = restorable
-        self.src_and_filters = [s if isinstance(s, (list, tuple))
-            else (s, [], []) for s in self.src_paths]
+        self.saver_args_list = self._get_saver_args_list()
         self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
@@ -487,6 +489,36 @@ class SaveItem:
         if dst_path != os.path.expanduser(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
         return os.path.join(dst_path, NAME, self.src_type)
+
+    def _get_saver_dst(self, src):
+        target_name = get_filename(src)
+        src_size = get_path_size(src)
+        for index in range(1, self.max_target_versions + 1):
+            suffix = '' if index == 1 else f'-{index}'
+            dst = os.path.join(self.dst_path, HOSTNAME,
+                f'{target_name}{suffix}')
+            size = get_path_size(dst)
+            if not size or src_size / size > self.min_size_ratio:
+                break
+        return dst
+
+    def _get_saver_args_list(self):
+        res = []
+        if self.src_type == 'local':
+            src_and_filters = [s if isinstance(s, (list, tuple))
+                else (s, [], []) for s in self.src_paths]
+            for path, inclusions, exclusions in src_and_filters:
+                for src in glob(os.path.expanduser(path)):
+                    if is_path_excluded(src, inclusions, exclusions,
+                            file_only=False):
+                        logger.debug(f'excluded {src}')
+                        continue
+                    dst = self._get_saver_dst(src)
+                    res.append((src, dst, inclusions, exclusions))
+        else:
+            dst = os.path.join(self.dst_path, self.src_type)
+            res = [(self.src_type, dst, None, None)]
+        return res
 
     def _check_meta(self, meta):
         if not meta:
@@ -520,42 +552,6 @@ class SaveItem:
                         return obj
         raise Exception(f'invalid src_type {self.src_type}')
 
-    def _get_saver_dst(self, src):
-        target_name = get_filename(src)
-        src_size = get_path_size(src)
-        for index in range(1, self.max_target_versions + 1):
-            suffix = '' if index == 1 else f'-{index}'
-            dst = os.path.join(self.dst_path, HOSTNAME,
-                f'{target_name}{suffix}')
-            size = get_path_size(dst)
-            if not size or src_size / size > self.min_size_ratio:
-                break
-        return dst
-
-    def _iterate_savers(self):
-        saver_cls = self._get_saver_class()
-        if saver_cls.src_type == 'local':
-            for path, inclusions, exclusions in self.src_and_filters:
-                for src in glob(os.path.expanduser(path)):
-                    if is_path_excluded(src, inclusions, exclusions,
-                            file_only=False):
-                        logger.debug(f'excluded {src}')
-                        continue
-                    yield saver_cls(src=src,
-                        dst=self._get_saver_dst(src),
-                        inclusions=inclusions,
-                        exclusions=exclusions,
-                        retention_delta=self.retention_delta,
-                    )
-        else:
-            dst = os.path.join(self.dst_path, self.src_type)
-            makedirs(dst)
-            yield saver_cls(src=self.src_type,
-                dst=dst,
-                retention_delta=self.retention_delta,
-                creds_file=self.creds_file,
-            )
-
     def _notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
@@ -570,7 +566,12 @@ class SaveItem:
 
     def save(self):
         makedirs(self.dst_path)
-        for saver in self._iterate_savers():
+        saver_cls = self._get_saver_class()
+        for saver_args in self.saver_args_list:
+            saver = saver_cls(*saver_args,
+                retention_delta=self.retention_delta,
+                creds_file=self.creds_file,
+            )
             meta = self.meta_manager.get(saver.dst)
             if not self._check_meta(meta):
                 continue
