@@ -28,7 +28,7 @@ from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
 SAVES = []
-MAX_LOG_FILE_SIZE = 100 * 1024
+MAX_LOG_FILE_SIZE = 1000 * 1024
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 2 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
@@ -63,19 +63,19 @@ def _setup_logging(logger, path):
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
 
-    makedirs(path)
-    file_handler = RotatingFileHandler(os.path.join(path, f'{NAME}.log'),
-        mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0, encoding=None,
-        delay=0)
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-
     if sys.stdout and not sys.stdout.isatty():
         stdout_handler = logging.StreamHandler(sys.stdout)
         stdout_handler.setFormatter(formatter)
         stdout_handler.setLevel(logging.DEBUG)
         logger.addHandler(stdout_handler)
+    else:
+        makedirs(path)
+        file_handler = RotatingFileHandler(os.path.join(path, f'{NAME}.log'),
+            mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0,
+            encoding='utf-8', delay=0)
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(logging.INFO)
+        logger.addHandler(file_handler)
 
 
 logger = logging.getLogger(__name__)
@@ -551,11 +551,11 @@ class SaveItem(object):
     def _generate_report(self):
         summary = defaultdict(int)
         keys = {'synced', 'removed'}
-        for src, data in self.report.items():
-            src_summary = {k: len(v) for k, v in data.items()
+        for path, data in self.report.items():
+            path_summary = {k: len(v) for k, v in data.items()
                 if k in keys and v}
-            if src_summary:
-                summary[src] = src_summary
+            if path_summary:
+                summary[path] = path_summary
         if summary:
             logger.info(f'summary:\n{to_json(summary)}')
 
@@ -620,7 +620,7 @@ class RestoreItem(object):
         self.from_username = from_username or os.getlogin()
         self.overwrite = overwrite
         self.dry_run = dry_run
-        self.report = defaultdict(set)
+        self.report = defaultdict(lambda: defaultdict(set))
 
 
     def _get_src_path(self, dst_path):
@@ -653,22 +653,22 @@ class RestoreItem(object):
         return None
 
 
-    def _restore_file(self, dst_path, src_path):
+    def _restore_file(self, dst_path, src_path, src):
         if not self.overwrite and os.path.exists(src_path):
-            self.report['skipped'].add(src_path)
+            self.report[src]['skipped'].add(src_path)
             logger.debug(f'skipped {src_path}: already exists')
             return
         if self.dry_run:
-            self.report['to_restore'].add(src_path)
+            self.report[src]['to_restore'].add(src_path)
             logger.debug(f'to restore: {src_path} from {dst_path}')
         else:
             try:
                 makedirs(os.path.dirname(src_path))
                 shutil.copyfile(dst_path, src_path)
-                self.report['restored'].add(src_path)
+                self.report[src]['restored'].add(src_path)
                 logger.info(f'restored {src_path} from {dst_path}')
             except Exception as exc:
-                self.report['failed'].add(src_path)
+                self.report[src]['failed'].add(src_path)
                 logger.error(f'failed to restore {src_path} '
                     f'from {dst_path}: {exc}')
 
@@ -701,7 +701,7 @@ class RestoreItem(object):
                 src_path = os.path.join(src, os.path.relpath(dst_path, dst))
                 src_path = self._get_valid_src_path(src_path)
                 if src_path:
-                    self._restore_file(dst_path, src_path)
+                    self._restore_file(dst_path, src_path, src)
 
 
 class RestoreHandler(object):
@@ -709,7 +709,7 @@ class RestoreHandler(object):
 
     def __init__(self, **restore_item_args):
         self.restore_item_args = restore_item_args
-        self.report = defaultdict(set)
+        self.report = defaultdict(lambda: defaultdict(set))
 
 
     def _iterate_save_items(self):
@@ -741,15 +741,13 @@ class RestoreHandler(object):
 
 
     def _generate_report(self):
-        report = {k: sorted(v) for k, v in self.report.items()}
-        logger.debug(f'report:\n{to_json(report)}')
-
-        if self.restore_item_args.get('dry_run'):
-            keys = 'skipped', 'to_restore'
-        else:
-            keys = 'skipped', 'failed', 'restored'
-        summary = {f'{k}_count': len(self.report.get(k, [])) for k in keys}
-        logger.debug(f'summary:\n{to_json(summary)}')
+        summary = defaultdict(int)
+        for path, data in self.report.items():
+            path_summary = {k: len(v) for k, v in data.items() if v}
+            if path_summary:
+                summary[path] = path_summary
+        if summary:
+            logger.info(f'summary:\n{to_json(summary)}')
 
 
     def restore(self):
@@ -758,15 +756,16 @@ class RestoreHandler(object):
                 restore_item.restore()
             except Exception:
                 logger.exception(f'failed to restore {restore_item.dst_path}')
-            for k, v in restore_item.report.items():
-                self.report[k].update(set(v))
+            for src, data in restore_item.report.items():
+                for k, v in data.items():
+                    self.report[src][k].update(v)
 
         self._generate_report()
 
 
 def list_hostnames(**kwargs):
     hostnames = RestoreHandler(**kwargs).list_hostnames()
-    logger.debug(f'available hostnames: {sorted(hostnames)}')
+    logger.info(f'available hostnames: {sorted(hostnames)}')
 
 
 def restoregame(**kwargs):
