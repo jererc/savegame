@@ -60,7 +60,7 @@ except ImportError:
 makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
 
 
-def _setup_logging(logger, path):
+def setup_logging(logger, path):
     logging.basicConfig(level=logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
@@ -81,14 +81,16 @@ def _setup_logging(logger, path):
 
 logger = logging.getLogger(__name__)
 makedirs(WORK_PATH)
-_setup_logging(logger, WORK_PATH)
+setup_logging(logger, WORK_PATH)
+
+
 get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
 get_file_mtime = lambda x: datetime.fromtimestamp(os.stat(x).st_mtime,
     tz=timezone.utc) if os.path.exists(x) else None
 to_json = lambda x: json.dumps(x, indent=4, sort_keys=True)
 
 
-def _get_path_size(path):
+def get_path_size(path):
     if os.path.isfile(path):
         return os.path.getsize(path)
     res = 0
@@ -104,37 +106,30 @@ def _get_path_size(path):
     return res
 
 
-def _remove_path(path):
+def remove_path(path):
     if os.path.isdir(path):
         shutil.rmtree(path)
     else:
         os.remove(path)
 
 
-def _match_any_pattern(path, patterns):
-    for pattern in patterns:
-        if fnmatch(path, pattern):
-            return True
-    return False
-
-
-def _walk_files(path):
+def walk_files(path):
     for root, dirs, files in os.walk(path):
         for file in sorted(files):
             yield os.path.join(root, file)
 
 
-def _walk_files_and_dirs(path):
+def walk_files_and_dirs(path):
     for root, dirs, files in os.walk(path, topdown=False):
         for item in sorted(files + dirs):
             yield os.path.join(root, item)
 
 
-def _notify(title, body, on_click=None):
+def notify(title, body, on_click=None):
     try:
         if os.name == 'nt':
-            from win11toast import notify
-            notify(title=title, body=body, on_click=on_click)
+            from win11toast import notify as _notify
+            _notify(title=title, body=body, on_click=on_click)
         else:
             env = os.environ.copy()
             env['DISPLAY'] = ':0'
@@ -148,19 +143,26 @@ def _notify(title, body, on_click=None):
         logger.error(f'failed to notify: {exc}')
 
 
-def _text_file_exists(file, data):
+def text_file_exists(file, data):
     if os.path.exists(file):
         with open(file) as fd:
             return fd.read() == data
     return False
 
 
-def _is_path_excluded(path, inclusions, exclusions, file_only=True):
+def match_any_pattern(path, patterns):
+    for pattern in patterns:
+        if fnmatch(path, pattern):
+            return True
+    return False
+
+
+def is_path_excluded(path, inclusions, exclusions, file_only=True):
     if file_only and os.path.isdir(path):
         return False
-    if inclusions and not _match_any_pattern(path, inclusions):
+    if inclusions and not match_any_pattern(path, inclusions):
         return True
-    if exclusions and _match_any_pattern(path, exclusions):
+    if exclusions and match_any_pattern(path, exclusions):
         return True
     return False
 
@@ -253,8 +255,8 @@ class MetaManager:
                     pass
         with open(self.meta_file, 'w') as fd:
             fd.write(to_json(self.meta))
-        logger.debug(f'saved {len(self.meta)} meta items'
-            f' in {time.time() - started_ts:.2f} seconds')
+        logger.debug(f'saved {len(self.meta)} meta items '
+            f'in {time.time() - started_ts:.2f} seconds')
 
     def set(self, key, value: dict):
         self.meta[key] = value
@@ -268,11 +270,11 @@ class MetaManager:
             if meta['updated_ts'] and now_ts > meta['updated_ts'] \
                     + meta['min_delta'] + OLD_DELTA:
                 logger.error(f'{meta["source"]} has not been saved recently')
-                _notify(title=f'{NAME} warning',
+                notify(title=f'{NAME} warning',
                     body=f'{meta["source"]} has not been saved recently')
 
 
-class BaseSaver:
+class AbstractSaver:
     src_type = None
 
     def __init__(self, src, dst, inclusions=None, exclusions=None,
@@ -291,7 +293,73 @@ class BaseSaver:
         return time.time() - os.stat(path).st_mtime > self.retention_delta
 
 
-class GoogleDriveSaver(BaseSaver):
+class LocalSaver(AbstractSaver):
+    src_type = 'local'
+
+    def _generate_ref_file(self, src, dst):
+        file = os.path.join(dst, REF_FILE)
+        data = str(src)
+        if not text_file_exists(file, data):
+            logger.info(f'created ref file {file}')
+            with open(file, 'w') as fd:
+                fd.write(data)
+
+    def run(self):
+        src = self.src
+        size = 0
+        started_ts = time.time()
+
+        if os.path.isfile(src):
+            src_files = [src]
+            src = os.path.dirname(src)
+        else:
+            src_files = list(walk_files(src))
+            if not src_files:
+                logger.debug(f'skipped empty src path {src}')
+                return
+
+        makedirs(self.dst)
+        for dst_path in walk_files_and_dirs(self.dst):
+            if os.path.basename(dst_path) == REF_FILE:
+                continue
+            src_path = os.path.join(src, os.path.relpath(dst_path,
+                self.dst))
+            if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
+                    or is_path_excluded(src_path, self.inclusions, self.exclusions):
+                remove_path(dst_path)
+                self.report[src]['removed'].add(dst_path)
+                logger.debug(f'removed {dst_path}')
+
+        for src_file in src_files:
+            if is_path_excluded(src_file, self.inclusions, self.exclusions):
+                self.report[src]['excluded'].add(src_file)
+                logger.debug(f'excluded {src_file}')
+                continue
+            self.report[src]['files'].add(src_file)
+            size += os.path.getsize(src_file)
+            dst_file = os.path.join(self.dst, os.path.relpath(src_file, src))
+            src_hash = self.file_hash_manager.get(src_file, use_cache=False)
+            dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
+            if dst_hash == src_hash:
+                continue
+            try:
+                makedirs(os.path.dirname(dst_file))
+                shutil.copyfile(src_file, dst_file)
+                self.file_hash_manager.set(dst_file, src_hash)
+                self.report[src]['saved'].add(dst_file)
+                logger.debug(f'saved {src_file}')
+            except Exception:
+                logger.exception(f'failed to save {src_file}')
+
+        self._generate_ref_file(src, self.dst)
+        logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
+        self.meta = {
+            'file_count': len(self.report[src]['files']),
+            'size_MB': size / 1024 / 1024,
+        }
+
+
+class GoogleDriveSaver(AbstractSaver):
     src_type = 'google_drive'
 
     def run(self):
@@ -319,16 +387,16 @@ class GoogleDriveSaver(BaseSaver):
             with open(dst_file, 'wb') as fd:
                 fd.write(content)
 
-        for dst_path in _walk_files_and_dirs(self.dst):
+        for dst_path in walk_files_and_dirs(self.dst):
             if dst_path not in paths and self._needs_purge(dst_path):
-                _remove_path(dst_path)
+                remove_path(dst_path)
 
         self.meta = {
             'file_count': len(paths)
         }
 
 
-class GoogleContactsSaver(BaseSaver):
+class GoogleContactsSaver(AbstractSaver):
     src_type = 'google_contacts'
 
     def run(self):
@@ -336,7 +404,7 @@ class GoogleContactsSaver(BaseSaver):
         contacts = gc.list_contacts()
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
-        if _text_file_exists(file, data):
+        if text_file_exists(file, data):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google contacts file {file}: '
                 'already exists')
@@ -350,12 +418,12 @@ class GoogleContactsSaver(BaseSaver):
         }
 
 
-class GoogleBookmarksSaver(BaseSaver):
+class GoogleBookmarksSaver(AbstractSaver):
     src_type = 'google_bookmarks'
 
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        if _text_file_exists(file, data):
+        if text_file_exists(file, data):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google bookmark {file}: '
                 'already exists')
@@ -378,78 +446,12 @@ class GoogleBookmarksSaver(BaseSaver):
             paths.add(dst_path)
             paths.add(dst_file)
 
-        for dst_path in _walk_files_and_dirs(self.dst):
+        for dst_path in walk_files_and_dirs(self.dst):
             if dst_path not in paths and self._needs_purge(dst_path):
-                _remove_path(dst_path)
+                remove_path(dst_path)
 
         self.meta = {
             'file_count': len(bookmarks),
-        }
-
-
-class LocalSaver(BaseSaver):
-    src_type = 'local'
-
-    def _generate_ref_file(self, src, dst):
-        file = os.path.join(dst, REF_FILE)
-        data = str(src)
-        if not _text_file_exists(file, data):
-            logger.info(f'created ref file {file}')
-            with open(file, 'w') as fd:
-                fd.write(data)
-
-    def run(self):
-        src = self.src
-        size = 0
-        started_ts = time.time()
-
-        if os.path.isfile(src):
-            src_files = [src]
-            src = os.path.dirname(src)
-        else:
-            src_files = list(_walk_files(src))
-            if not src_files:
-                logger.debug(f'skipped empty src path {src}')
-                return
-
-        makedirs(self.dst)
-        for dst_path in _walk_files_and_dirs(self.dst):
-            if os.path.basename(dst_path) == REF_FILE:
-                continue
-            src_path = os.path.join(src, os.path.relpath(dst_path,
-                self.dst))
-            if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
-                    or _is_path_excluded(src_path, self.inclusions, self.exclusions):
-                _remove_path(dst_path)
-                self.report[src]['removed'].add(dst_path)
-                logger.debug(f'removed {dst_path}')
-
-        for src_file in src_files:
-            if _is_path_excluded(src_file, self.inclusions, self.exclusions):
-                self.report[src]['excluded'].add(src_file)
-                logger.debug(f'excluded {src_file}')
-                continue
-            self.report[src]['files'].add(src_file)
-            size += os.path.getsize(src_file)
-            dst_file = os.path.join(self.dst, os.path.relpath(src_file, src))
-            src_hash = self.file_hash_manager.get(src_file, use_cache=False)
-            dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
-            if dst_hash == src_hash:
-                continue
-            try:
-                makedirs(os.path.dirname(dst_file))
-                shutil.copyfile(src_file, dst_file)
-                self.file_hash_manager.set(dst_file, src_hash)
-                self.report[src]['saved'].add(dst_file)
-                logger.debug(f'saved {src_file}')
-            except Exception:
-                logger.exception(f'failed to save {src_file}')
-
-        self._generate_ref_file(src, self.dst)
-        logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
-        self.meta = {
-            'file_count': len(self.report[src]['files']),
-            'size_MB': size / 1024 / 1024,
         }
 
 
@@ -511,12 +513,12 @@ class SaveItem:
 
     def _get_dst(self, src):
         target_name = get_filename(src)
-        src_size = _get_path_size(src)
+        src_size = get_path_size(src)
         for index in range(1, self.max_target_versions + 1):
             suffix = '' if index == 1 else f'-{index}'
             dst = os.path.join(self.dst_path, HOSTNAME,
                 f'{target_name}{suffix}')
-            size = _get_path_size(dst)
+            size = get_path_size(dst)
             if not size or src_size / size > self.min_size_ratio:
                 break
         return dst
@@ -525,7 +527,7 @@ class SaveItem:
         module = sys.modules[__name__]
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if obj.__module__ == module.__name__:
-                if issubclass(obj, BaseSaver) and obj is not BaseSaver:
+                if issubclass(obj, AbstractSaver) and obj is not AbstractSaver:
                     if obj.src_type == self.src_type:
                         return obj
         raise Exception(f'invalid src_type {self.src_type}')
@@ -535,7 +537,7 @@ class SaveItem:
         if saver_cls.src_type == 'local':
             for path, inclusions, exclusions in self.src_and_filters:
                 for src in glob(os.path.expanduser(path)):
-                    if _is_path_excluded(src, inclusions, exclusions,
+                    if is_path_excluded(src, inclusions, exclusions,
                             file_only=False):
                         logger.debug(f'excluded {src}')
                         continue
@@ -556,10 +558,10 @@ class SaveItem:
 
     def _notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
-            _notify(title=f'{NAME} google auth error', body=message,
+            notify(title=f'{NAME} google auth error', body=message,
                 on_click=GOOGLE_AUTH_WIN_FILE)
         else:
-            _notify(title=f'{NAME} error', body=message)
+            notify(title=f'{NAME} error', body=message)
 
     def _update_report(self, saver):
         for path, data in saver.report.items():
@@ -607,7 +609,7 @@ class SaveHandler:
             logger.warning(exc)
         except Exception as exc:
             logger.exception(f'failed to save {save}')
-            _notify(title=f'{NAME} exception',
+            notify(title=f'{NAME} exception',
                 body=f'failed to save {save}: {exc}')
         finally:
             logger.debug(f'processed {save} in '
@@ -725,7 +727,7 @@ class RestoreItem:
             return
 
         for src, dst in sorted(to_restore):
-            for dst_path in _walk_files(dst):
+            for dst_path in walk_files(dst):
                 if os.path.basename(dst_path) == REF_FILE:
                     continue
                 src_path = os.path.join(src, os.path.relpath(dst_path, dst))
@@ -824,7 +826,7 @@ def with_lockfile():
     return decorator
 
 
-def _must_run(last_run_ts):
+def must_run(last_run_ts):
     is_idle = lambda: psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
     now_ts = time.time()
     if now_ts > last_run_ts + FORCE_RUN_DELTA:
@@ -854,7 +856,7 @@ class Daemon:
     def run(self):
         while True:
             try:
-                if _must_run(self.last_run_ts):
+                if must_run(self.last_run_ts):
                     savegame()
                     self.last_run_ts = time.time()
             except Exception:
@@ -880,7 +882,7 @@ class Task:
 
     @with_lockfile()
     def run(self):
-        if _must_run(self._get_last_run_ts()):
+        if must_run(self._get_last_run_ts()):
             savegame()
             self._set_last_run_ts()
 

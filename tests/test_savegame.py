@@ -24,24 +24,24 @@ savegame.logger.setLevel(logging.DEBUG)
 makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
 
 
-def _remove_path(path):
+def remove_path(path):
     if os.path.isdir(path):
         shutil.rmtree(path)
     elif os.path.isfile(path):
         os.remove(path)
 
 
-def _walk_files_and_dirs(path):
+def walk_files_and_dirs(path):
     for root, dirs, files in os.walk(path, topdown=False):
         for item in sorted(files + dirs):
             yield os.path.join(root, item)
 
 
-def _print_dst_files():
+def print_dst_files():
     meta = savegame.MetaManager().meta
     pprint(meta)
     for dst in sorted(meta.keys()):
-        pprint(sorted(list(_walk_files_and_dirs(dst))))
+        pprint(sorted(list(walk_files_and_dirs(dst))))
 
 
 class RestoregamePathUsernameTestCase(unittest.TestCase):
@@ -83,7 +83,7 @@ class BaseTestCase(unittest.TestCase):
         for path in glob(os.path.join(savegame.WORK_PATH, '*')):
             if os.path.splitext(path)[1] == '.log':
                 continue
-            _remove_path(path)
+            remove_path(path)
         makedirs(user_settings.WORK_PATH)
 
         self.src_root = os.path.join(savegame.WORK_PATH, 'src_root')
@@ -131,7 +131,7 @@ class BaseTestCase(unittest.TestCase):
                 fd.write(data.replace(username_str,
                     f'{os.sep}{to_username}{os.sep}'))
 
-        for item in _walk_files_and_dirs(self.dst_root):
+        for item in walk_files_and_dirs(self.dst_root):
             if os.path.basename(item) == savegame.REF_FILE:
                 switch_ref_path(item)
 
@@ -157,7 +157,7 @@ class SavegameTestCase(BaseTestCase):
                     [
                         os.path.join(self.src_root, '*'),
                         [],
-                        ['*/src0', '*/dir0', '*/file0'],
+                        ['*/src2', '*/dir2/*', '*/file2'],
                     ],
                 ],
                 'dst_path': self.dst_root,
@@ -165,7 +165,7 @@ class SavegameTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        _print_dst_files()
+        print_dst_files()
 
     def test_report(self):
         self._savegame(index_start=1)
@@ -182,15 +182,15 @@ class RestoregameTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        _remove_path(self.src_root)
+        remove_path(self.src_root)
 
     def _restoregame(self, **kwargs):
         for i in range(2):
             savegame.restoregame(**kwargs)
         print('src data:')
-        src_files = list(_walk_files_and_dirs(self.src_root))
+        src_files = list(walk_files_and_dirs(self.src_root))
         pprint(sorted(src_files))
-        _remove_path(self.src_root)
+        remove_path(self.src_root)
         return {r for r in src_files if os.path.basename(r).startswith('src')}
 
     def test_multiple_versions(self):
@@ -202,7 +202,7 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=1, file_count=1, file_version=3)
 
         print('dst data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
 
         src_paths = self._restoregame(from_hostname=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
@@ -216,7 +216,7 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=1, file_count=1, file_version=3)
 
         print('dst data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
 
         src_paths = self._restoregame(overwrite=False)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
@@ -234,7 +234,7 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=5)
 
         print('dst data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
 
         src_paths = self._restoregame(from_hostname=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
@@ -257,9 +257,9 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=5)
 
         print('src data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.src_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.src_root))))
         print('dst data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
 
         src_paths = self._restoregame(from_username=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
@@ -280,9 +280,9 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=5)
 
         print('src data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.src_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.src_root))))
         print('dst data:')
-        pprint(sorted(list(_walk_files_and_dirs(self.dst_root))))
+        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
 
         src_paths = self._restoregame(from_username=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
@@ -340,7 +340,7 @@ class SavegameIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        _print_dst_files()
+        print_dst_files()
 
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
@@ -374,7 +374,7 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        _print_dst_files()
+        print_dst_files()
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
@@ -394,7 +394,7 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        _print_dst_files()
+        print_dst_files()
 
 
 class GoogleBookmarksIntegrationTestCase(BaseTestCase):
@@ -415,7 +415,7 @@ class GoogleBookmarksIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        _print_dst_files()
+        print_dst_files()
 
 
 if __name__ == '__main__':
