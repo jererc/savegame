@@ -476,12 +476,12 @@ class GoogleBookmarksSaver(AbstractSaver):
 
 
 class SaveItem:
-    def __init__(self, src_paths=None, src_type='local', dst_path=DST_PATH,
+    def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
             restorable=True,
             ):
         self.src_paths = src_paths or []
-        self.src_type = src_type
+        self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
         self.min_delta = min_delta
         self.retention_delta = retention_delta
@@ -500,7 +500,7 @@ class SaveItem:
 
     def _get_src_and_filters_list(self):
         res = []
-        if self.src_type == 'local':
+        if self.src_type == LocalSaver.src_type:
             src_and_filters_list = [s if isinstance(s, (list, tuple))
                 else (s, [], []) for s in self.src_paths]
             for path, inclusions, exclusions in src_and_filters_list:
@@ -593,9 +593,9 @@ class SaveHandler:
     def _save(self, save):
         started_ts = time.time()
         try:
-            save_item = SaveItem(**save)
-            save_item.save()
-            for path, data in save_item.report.items():
+            si = SaveItem(**save)
+            si.save()
+            for path, data in si.report.items():
                 for k, v in data.items():
                     self.report[path][k].update(v)
         except InvalidPath as exc:
@@ -740,23 +740,23 @@ class RestoreHandler:
             return
         for save in SAVES:
             try:
-                save_item = SaveItem(**save)
-                if save_item.src_type == 'local' and save_item.restorable:
-                    yield save_item
+                si = SaveItem(**save)
+                if si.src_type == LocalSaver.src_type and si.restorable:
+                    yield si
             except InvalidPath:
                 continue
 
     def _iterate_restore_items(self):
         dst_paths = set()
-        for save_item in self._iterate_save_items():
-            dst_paths.add(save_item.dst_path)
+        for si in self._iterate_save_items():
+            dst_paths.add(si.dst_path)
         for dst_path in dst_paths:
             yield RestoreItem(dst_path=dst_path, **self.restore_item_args)
 
     def list_hostnames(self):
         hostnames = set()
-        for restore_item in self._iterate_restore_items():
-            hostnames.update(restore_item.list_hostnames())
+        for ri in self._iterate_restore_items():
+            hostnames.update(ri.list_hostnames())
         return hostnames
 
     def _generate_report(self):
@@ -769,12 +769,12 @@ class RestoreHandler:
             logger.info(f'summary:\n{to_json(summary)}')
 
     def run(self):
-        for restore_item in self._iterate_restore_items():
+        for ri in self._iterate_restore_items():
             try:
-                restore_item.restore()
+                ri.restore()
             except Exception:
-                logger.exception(f'failed to restore {restore_item.dst_path}')
-            for path, data in restore_item.report.items():
+                logger.exception(f'failed to restore {ri.dst_path}')
+            for path, data in ri.report.items():
                 for k, v in data.items():
                     self.report[path][k].update(v)
 
