@@ -263,14 +263,17 @@ class GoogleDriveMixin:
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
+                self.report[self.src_type]['skipped'].add(dst_file)
                 logger.debug(f'skipped saving google drive file {dst_file}: '
                     'already exists')
                 continue
             try:
                 content = gc.fetch_file_content(file_id=file_data['id'],
                     mime_type=file_data['mime_type'])
+                self.report[self.src_type]['saved'].add(dst_file)
                 logger.debug(f'saved google drive file {dst_file}')
             except Exception as exc:
+                self.report[self.src_type]['failed'].add(dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
                 continue
@@ -293,11 +296,13 @@ class GoogleContactsMixin:
             oauth_creds_file=self.gc_oauth_creds_file).list_contacts()
         data = to_json(contacts)
         if self._text_file_exists(file, data):
+            self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google contacts file {file}: '
                 'already exists')
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
+            self.report[self.src_type]['saved'].add(file)
             logger.info(f'saved {len(contacts)} google contacts')
         return {
             'file_count': 1,
@@ -308,11 +313,13 @@ class GoogleBookmarksMixin:
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
         if self._text_file_exists(file, data):
+            self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google bookmark {file}: '
                 'already exists')
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
+            self.report[self.src_type]['saved'].add(file)
             logger.debug(f'saved google bookmark {file}')
 
     def _save_google_bookmarks(self, src, dst):
