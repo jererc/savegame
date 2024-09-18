@@ -511,7 +511,16 @@ class SaveItem:
             meta.update(extra_meta)
         self.meta_manager.set(dst, meta)
 
-    def _get_dst(self, src):
+    def _get_saver_class(self):
+        module = sys.modules[__name__]
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if obj.__module__ == module.__name__:
+                if issubclass(obj, AbstractSaver) and obj is not AbstractSaver:
+                    if obj.src_type == self.src_type:
+                        return obj
+        raise Exception(f'invalid src_type {self.src_type}')
+
+    def _get_saver_dst(self, src):
         target_name = get_filename(src)
         src_size = get_path_size(src)
         for index in range(1, self.max_target_versions + 1):
@@ -523,15 +532,6 @@ class SaveItem:
                 break
         return dst
 
-    def _get_saver_class(self):
-        module = sys.modules[__name__]
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if obj.__module__ == module.__name__:
-                if issubclass(obj, AbstractSaver) and obj is not AbstractSaver:
-                    if obj.src_type == self.src_type:
-                        return obj
-        raise Exception(f'invalid src_type {self.src_type}')
-
     def _iterate_savers(self):
         saver_cls = self._get_saver_class()
         if saver_cls.src_type == 'local':
@@ -542,7 +542,7 @@ class SaveItem:
                         logger.debug(f'excluded {src}')
                         continue
                     yield saver_cls(src=src,
-                        dst=self._get_dst(src),
+                        dst=self._get_saver_dst(src),
                         inclusions=inclusions,
                         exclusions=exclusions,
                         retention_delta=self.retention_delta,
@@ -568,29 +568,26 @@ class SaveItem:
             for k, v in data.items():
                 self.report[path][k].update(v)
 
-    def _run_saver(self, saver):
-        meta = self.meta_manager.get(saver.dst)
-        if not self._check_meta(meta):
-            return
-        started_ts = time.time()
-        updated_ts = None
-        retry_delta = 0
-        try:
-            saver.run()
-        except Exception as exc:
-            updated_ts = meta.get('updated_ts', 0)
-            retry_delta = RETRY_DELTA
-            logger.exception(f'failed to save {saver.src}')
-            self._notify_error(f'failed to save {saver.src}: {exc}', exc=exc)
-        self._update_report(saver)
-        self._update_meta(saver.src, saver.dst,
-            started_ts=started_ts, updated_ts=updated_ts,
-            retry_delta=retry_delta, extra_meta=saver.meta)
-
     def save(self):
         makedirs(self.dst_path)
         for saver in self._iterate_savers():
-            self._run_saver(saver)
+            meta = self.meta_manager.get(saver.dst)
+            if not self._check_meta(meta):
+                continue
+            started_ts = time.time()
+            updated_ts = None
+            retry_delta = 0
+            try:
+                saver.run()
+            except Exception as exc:
+                updated_ts = meta.get('updated_ts', 0)
+                retry_delta = RETRY_DELTA
+                logger.exception(f'failed to save {saver.src}')
+                self._notify_error(f'failed to save {saver.src}: {exc}', exc=exc)
+            self._update_report(saver)
+            self._update_meta(saver.src, saver.dst,
+                started_ts=started_ts, updated_ts=updated_ts,
+                retry_delta=retry_delta, extra_meta=saver.meta)
 
 
 class SaveHandler:
