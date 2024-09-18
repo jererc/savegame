@@ -46,6 +46,8 @@ RE_SPECIAL = re.compile(r'\W+')
 GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)),
     'google_cloud_auth.pyw')
 REF_FILE = f'.{NAME}'
+MAX_TARGET_VERSIONS = 4
+MIN_SIZE_RATIO = .5
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -277,27 +279,46 @@ class MetaManager:
 class AbstractSaver:
     src_type = None
 
-    def __init__(self, src, dst, inclusions=None, exclusions=None,
+    def __init__(self, src, inclusions, exclusions, dst_path,
             creds_file=None, retention_delta=RETENTION_DELTA):
         self.src = src
-        self.dst = dst
         self.inclusions = inclusions
         self.exclusions = exclusions
+        self.dst_path = dst_path
         self.retention_delta = retention_delta
         self.creds_file = creds_file
+        self.dst = self.get_dst()
         self.file_hash_manager = FileHashManager()
         self.report = defaultdict(lambda: defaultdict(set))
         self.meta = None
 
-    def _needs_purge(self, path):
+    def get_dst(self):
+        dst =  os.path.join(self.dst_path, self.src_type)
+        makedirs(dst)
+        return dst
+
+    def needs_purge(self, path):
         return time.time() - os.stat(path).st_mtime > self.retention_delta
 
 
 class LocalSaver(AbstractSaver):
     src_type = 'local'
 
-    def _generate_ref_file(self, src, dst):
-        file = os.path.join(dst, REF_FILE)
+    def get_dst(self):
+        target_name = get_filename(self.src)
+        src_size = get_path_size(self.src)
+        for index in range(1, MAX_TARGET_VERSIONS + 1):
+            suffix = '' if index == 1 else f'-{index}'
+            dst = os.path.join(self.dst_path, HOSTNAME,
+                f'{target_name}{suffix}')
+            size = get_path_size(dst)
+            if not size or src_size / size > MIN_SIZE_RATIO:
+                break
+        makedirs(dst)
+        return dst
+
+    def _generate_ref_file(self, src):
+        file = os.path.join(self.dst, REF_FILE)
         data = str(src)
         if not text_file_exists(file, data):
             logger.info(f'created ref file {file}')
@@ -318,13 +339,12 @@ class LocalSaver(AbstractSaver):
                 logger.debug(f'skipped empty src path {src}')
                 return
 
-        makedirs(self.dst)
         for dst_path in walk_files_and_dirs(self.dst):
             if os.path.basename(dst_path) == REF_FILE:
                 continue
             src_path = os.path.join(src, os.path.relpath(dst_path,
                 self.dst))
-            if (not os.path.exists(src_path) and self._needs_purge(dst_path)) \
+            if (not os.path.exists(src_path) and self.needs_purge(dst_path)) \
                     or is_path_excluded(src_path, self.inclusions, self.exclusions):
                 remove_path(dst_path)
                 self.report[src]['removed'].add(dst_path)
@@ -351,7 +371,7 @@ class LocalSaver(AbstractSaver):
             except Exception:
                 logger.exception(f'failed to save {src_file}')
 
-        self._generate_ref_file(src, self.dst)
+        self._generate_ref_file(src)
         logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
         self.meta = {
             'file_count': len(self.report[src]['files']),
@@ -365,7 +385,6 @@ class GoogleDriveSaver(AbstractSaver):
     def run(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         paths = set()
-        makedirs(self.dst)
         for file_data in gc.iterate_files():
             dst_file = os.path.join(self.dst, file_data['filename'])
             paths.add(dst_file)
@@ -389,7 +408,7 @@ class GoogleDriveSaver(AbstractSaver):
                 fd.write(content)
 
         for dst_path in walk_files_and_dirs(self.dst):
-            if dst_path not in paths and self._needs_purge(dst_path):
+            if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
 
         self.meta = {
@@ -405,7 +424,6 @@ class GoogleContactsSaver(AbstractSaver):
         contacts = gc.list_contacts()
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
-        makedirs(self.dst)
         if text_file_exists(file, data):
             self.report[self.src_type]['skipped'].add(file)
             logger.debug(f'skipped saving google contacts file {file}: '
@@ -438,7 +456,6 @@ class GoogleBookmarksSaver(AbstractSaver):
     def run(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
-        makedirs(self.dst)
         for bookmark in bookmarks:
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
@@ -450,7 +467,7 @@ class GoogleBookmarksSaver(AbstractSaver):
             paths.add(dst_file)
 
         for dst_path in walk_files_and_dirs(self.dst):
-            if dst_path not in paths and self._needs_purge(dst_path):
+            if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
 
         self.meta = {
@@ -459,27 +476,18 @@ class GoogleBookmarksSaver(AbstractSaver):
 
 
 class SaveItem:
-    def __init__(self,
-            src_paths=None,
-            src_type='local',
-            dst_path=DST_PATH,
-            min_delta=0,
-            min_size_ratio=.5,
-            max_target_versions=4,
-            retention_delta=RETENTION_DELTA,
-            creds_file=None,
+    def __init__(self, src_paths=None, src_type='local', dst_path=DST_PATH,
+            min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
             restorable=True,
             ):
         self.src_paths = src_paths or []
         self.src_type = src_type
         self.dst_path = self._get_dst_path(dst_path)
         self.min_delta = min_delta
-        self.min_size_ratio = min_size_ratio
-        self.max_target_versions = max_target_versions
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.restorable = restorable
-        self.saver_args_list = self._get_saver_args_list()
+        self.src_and_filters_list = self._get_src_and_filters_list()
         self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
@@ -490,34 +498,20 @@ class SaveItem:
             raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
         return os.path.join(dst_path, NAME, self.src_type)
 
-    def _get_saver_dst(self, src):
-        target_name = get_filename(src)
-        src_size = get_path_size(src)
-        for index in range(1, self.max_target_versions + 1):
-            suffix = '' if index == 1 else f'-{index}'
-            dst = os.path.join(self.dst_path, HOSTNAME,
-                f'{target_name}{suffix}')
-            size = get_path_size(dst)
-            if not size or src_size / size > self.min_size_ratio:
-                break
-        return dst
-
-    def _get_saver_args_list(self):
+    def _get_src_and_filters_list(self):
         res = []
         if self.src_type == 'local':
-            src_and_filters = [s if isinstance(s, (list, tuple))
+            src_and_filters_list = [s if isinstance(s, (list, tuple))
                 else (s, [], []) for s in self.src_paths]
-            for path, inclusions, exclusions in src_and_filters:
+            for path, inclusions, exclusions in src_and_filters_list:
                 for src in glob(os.path.expanduser(path)):
                     if is_path_excluded(src, inclusions, exclusions,
                             file_only=False):
                         logger.debug(f'excluded {src}')
                         continue
-                    dst = self._get_saver_dst(src)
-                    res.append((src, dst, inclusions, exclusions))
+                    res.append((src, inclusions, exclusions))
         else:
-            dst = os.path.join(self.dst_path, self.src_type)
-            res = [(self.src_type, dst, None, None)]
+            res = [(self.src_type, None, None)]
         return res
 
     def _check_meta(self, meta):
@@ -567,8 +561,9 @@ class SaveItem:
     def save(self):
         makedirs(self.dst_path)
         saver_cls = self._get_saver_class()
-        for saver_args in self.saver_args_list:
-            saver = saver_cls(*saver_args,
+        for src_and_filters in self.src_and_filters_list:
+            saver = saver_cls(*src_and_filters,
+                dst_path=self.dst_path,
                 retention_delta=self.retention_delta,
                 creds_file=self.creds_file,
             )
