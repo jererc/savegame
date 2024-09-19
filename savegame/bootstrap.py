@@ -10,6 +10,18 @@ SCRIPT_PATH = os.path.join(ROOT_PATH, 'savegame.py')
 NAME = os.path.splitext(os.path.basename(SCRIPT_PATH))[0]
 ROOT_VENV_PATH = os.path.join(os.path.expanduser('~'), 'venv')
 VENV_PATH = os.path.join(ROOT_VENV_PATH, NAME)
+VENV_ACTIVATE_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\activate'),
+    'posix': os.path.join(VENV_PATH, 'bin/activate'),
+}[os.name]
+PIP_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\pip.exe'),
+    'posix': os.path.join(VENV_PATH, 'bin/pip'),
+}[os.name]
+PY_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\pythonw.exe'),
+    'posix': os.path.join(VENV_PATH, 'bin/python'),
+}[os.name]
 LINUX_PY_MODULES = [
     'dateutils',
     'google-api-python-client',
@@ -25,18 +37,6 @@ PY_MODULES = {
     'nt': WIN_PY_MODULES,
     'posix': LINUX_PY_MODULES,
 }[os.name]
-VENV_ACTIVATE_PATH = {
-    'nt': os.path.join(VENV_PATH, r'Scripts\activate'),
-    'posix': os.path.join(VENV_PATH, 'bin/activate'),
-}[os.name]
-PIP_PATH = {
-    'nt': os.path.join(VENV_PATH, r'Scripts\pip.exe'),
-    'posix': os.path.join(VENV_PATH, 'bin/pip'),
-}[os.name]
-PY_PATH = {
-    'nt': os.path.join(VENV_PATH, r'Scripts\pythonw.exe'),
-    'posix': os.path.join(VENV_PATH, 'bin/python'),
-}[os.name]
 CRONTAB_SCHEDULE = '*/2 * * * *'
 
 
@@ -48,15 +48,9 @@ class Bootstrapper:
     def _parse_args(self):
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers(dest='command')
-        setup_parser = subparsers.add_parser('setup')
-        save_parser = subparsers.add_parser('save')
-        hostnames_parser = subparsers.add_parser('hostnames')
-        restore_parser = subparsers.add_parser('restore')
-        restore_parser.add_argument('--from-hostname')
-        restore_parser.add_argument('--from-username')
-        restore_parser.add_argument('--overwrite', action='store_true')
-        restore_parser.add_argument('--dry-run', action='store_true')
-        return parser.parse_args()
+        for command in ('setup', 'save', 'hostnames', 'restore'):
+            subparsers.add_parser(command)
+        return parser.parse_known_args()[0]
 
     def _check_venv(self):
         res = subprocess.run([PIP_PATH, 'freeze'],
@@ -112,7 +106,7 @@ class Bootstrapper:
             '/tn', task_name,
         ])
 
-    def _run_setup(self):
+    def setup(self):
         if os.name == 'nt':
             if ctypes.windll.shell32.IsUserAnAdmin() == 0:
                 raise Exception('must run as admin')
@@ -122,7 +116,7 @@ class Bootstrapper:
             self._setup_linux_crontab(
                 cmd=f'{PY_PATH} {SCRIPT_PATH} save --task')
 
-    def _run_savegame_cmd(self):
+    def run_savegame_cmd(self):
         cmd = [PY_PATH, SCRIPT_PATH] + sys.argv[1:]
         res = subprocess.run(cmd, cwd=ROOT_PATH,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -131,12 +125,11 @@ class Bootstrapper:
         else:
             sys.stdout.write(res.stderr or res.stdout)
 
-    _run_save = _run_savegame_cmd
-    _run_restore = _run_savegame_cmd
-    _run_hostnames = _run_savegame_cmd
-
     def run(self):
-        getattr(self, f'_run_{self.args.command}')()
+        if self.args.command == 'setup':
+            self.setup()
+        else:
+            self.run_savegame_cmd()
 
 
 def main():
