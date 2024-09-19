@@ -484,7 +484,7 @@ class SaveItem:
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
             restorable=True, force=False,
             ):
-        self.src_paths = src_paths or []
+        self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
         self.min_delta = min_delta
@@ -494,6 +494,10 @@ class SaveItem:
         self.force = force
         self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
+
+    def _get_src_paths(self, src_paths):
+        return [s if isinstance(s, (list, tuple))
+            else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
         if not os.path.exists(dst_path):
@@ -536,9 +540,7 @@ class SaveItem:
 
     def _iterate_src_and_filters(self):
         if self.src_type == LocalSaver.src_type:
-            src_paths = [s if isinstance(s, (list, tuple))
-                else (s, [], []) for s in self.src_paths]
-            for path, inclusions, exclusions in src_paths:
+            for path, inclusions, exclusions in self.src_paths:
                 for src in glob(os.path.expanduser(path)):
                     if is_path_excluded(src, inclusions, exclusions,
                             file_only=False):

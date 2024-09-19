@@ -43,6 +43,13 @@ def walk_files(path):
             yield os.path.join(root, file)
 
 
+def any_str_contains(strings, substring):
+    for s in strings:
+        if substring in s:
+            return True
+    return False
+
+
 def print_dst_files():
     meta = savegame.MetaManager().meta
     pprint(meta)
@@ -141,8 +148,6 @@ class BaseTestCase(unittest.TestCase):
             if os.path.basename(item) == savegame.REF_FILE:
                 switch_ref_path(item)
 
-
-class SavegameTestCase(BaseTestCase):
     def _savegame(self, **kwargs):
         self._generate_src_data(**kwargs)
         savegame.SAVES = [
@@ -151,9 +156,13 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        for i in range(2):
-            savegame.savegame()
+        savegame.savegame()
+        src_files = set(walk_paths(self.src_root))
+        remove_path(self.src_root)
+        return src_files
 
+
+class SavegameTestCase(BaseTestCase):
     def test_glob_and_exclusions(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
@@ -169,29 +178,33 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        for i in range(2):
-            savegame.savegame()
-        print_dst_files()
+        savegame.savegame()
+        dst_files = set(walk_paths(self.dst_root))
+        pprint(dst_files)
+        self.assertFalse(any_str_contains(dst_files, 'src2'))
+        self.assertFalse(any_str_contains(dst_files, 'dir2'))
+        self.assertFalse(any_str_contains(dst_files, 'file2'))
+        self.assertTrue(any_str_contains(dst_files, 'src1'))
+        self.assertTrue(any_str_contains(dst_files, 'src3'))
+        self.assertTrue(any_str_contains(dst_files, 'dir1'))
+        self.assertTrue(any_str_contains(dst_files, 'dir3'))
+        self.assertTrue(any_str_contains(dst_files, 'file1'))
+        self.assertTrue(any_str_contains(dst_files, 'file3'))
 
-    def test_report(self):
-        self._savegame(index_start=1)
+    def test_savegame(self):
+        src_files = self._savegame(index_start=1, file_count=2)
+        pprint(src_files)
+        dst_files = set(walk_paths(self.dst_root))
+        pprint(dst_files)
+        self.assertTrue(any_str_contains(dst_files, 'src1'))
+        self.assertTrue(any_str_contains(dst_files, 'src2'))
+        self.assertTrue(any_str_contains(dst_files, 'dir1'))
+        self.assertTrue(any_str_contains(dst_files, 'dir2'))
+        self.assertTrue(any_str_contains(dst_files, 'file1'))
+        self.assertTrue(any_str_contains(dst_files, 'file2'))
 
 
 class RestoregameTestCase(BaseTestCase):
-    def _savegame(self, **kwargs):
-        self._generate_src_data(**kwargs)
-        savegame.SAVES = [
-            {
-                'src_paths': self._get_src_paths(**kwargs),
-                'dst_path': self.dst_root,
-            },
-        ]
-        for i in range(2):
-            savegame.savegame()
-        src_files = set(walk_paths(self.src_root))
-        remove_path(self.src_root)
-        return src_files
-
     def _list_src_paths(self):
         print('src data:')
         src_files = set(walk_paths(self.src_root))
@@ -222,14 +235,12 @@ class RestoregameTestCase(BaseTestCase):
     def test_skipped_identical(self):
         src_files = self._savegame(index_start=1, file_count=2)
         pprint(src_files)
-        self.assertTrue(src_files)
-        # print('dst data:')
-        # pprint(set(walk_paths(self.dst_root)))
 
         savegame.restoregame(overwrite=False)
         src_files2 = set(walk_paths(self.src_root))
         pprint(src_files2)
         self.assertEqual(src_files2, src_files)
+
         savegame.restoregame(overwrite=False)
         src_files3 = set(walk_paths(self.src_root))
         pprint(src_files3)
@@ -238,9 +249,6 @@ class RestoregameTestCase(BaseTestCase):
     def test_skipped_conflict(self):
         src_files = self._savegame(index_start=1, file_count=2)
         pprint(src_files)
-        self.assertTrue(src_files)
-        # print('dst data:')
-        # pprint(set(walk_paths(self.dst_root)))
 
         savegame.restoregame(overwrite=False)
         src_files2 = set(walk_paths(self.src_root))
@@ -251,6 +259,7 @@ class RestoregameTestCase(BaseTestCase):
                 content = fd.read()
             with open(file, 'w') as fd:
                 fd.write(content + file)
+
         savegame.restoregame(overwrite=False)
         src_files3 = set(walk_paths(self.src_root))
         pprint(src_files3)
