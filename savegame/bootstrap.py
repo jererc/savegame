@@ -48,7 +48,8 @@ class Bootstrapper:
     def _parse_args(self):
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers(dest='command')
-        for command in ('setup', 'save', 'hostnames', 'restore'):
+        for command in ('setup', 'save', 'hostnames', 'restore',
+                'google_oauth'):
             subparsers.add_parser(command)
         return parser.parse_known_args()[0]
 

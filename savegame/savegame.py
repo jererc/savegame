@@ -43,8 +43,8 @@ NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 HOSTNAME = socket.gethostname()
 RE_SPECIAL = re.compile(r'\W+')
-GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-    'google_cloud_auth.pyw')
+GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), 'google_cloud_auth.pyw')
 REF_FILE = f'.{NAME}'
 MAX_TARGET_VERSIONS = 4
 MIN_SIZE_RATIO = .5
@@ -860,6 +860,10 @@ def list_hostnames(**kwargs):
     logger.info(f'available hostnames: {sorted(hostnames)}')
 
 
+def google_oauth(**kwargs):
+    GoogleCloud(**kwargs).get_oauth_creds(interact=True)
+
+
 class Daemon:
     last_run_ts = 0
 
@@ -910,6 +914,8 @@ def _parse_args():
     restore_parser.add_argument('--overwrite', action='store_true')
     restore_parser.add_argument('--dry-run', action='store_true')
     hostnames_parser = subparsers.add_parser('hostnames')
+    google_oauth_parser = subparsers.add_parser('google_oauth')
+    google_oauth_parser.add_argument('--oauth-creds-file')
     return parser.parse_args()
 
 
@@ -927,6 +933,9 @@ def main():
             if k != 'command'})
     elif args.command == 'hostnames':
         list_hostnames(**{k: v for k, v in vars(args).items()
+            if k != 'command'})
+    elif args.command == 'google_oauth':
+        google_oauth(**{k: v for k, v in vars(args).items()
             if k != 'command'})
 
 
