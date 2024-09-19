@@ -647,17 +647,6 @@ class RestoreItem:
         self.file_hash_manager = FileHashManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
-    def _get_src_path(self, dst_path):
-        ref_file = os.path.join(dst_path, REF_FILE)
-        if not os.path.exists(ref_file):
-            return None
-        with open(ref_file) as fd:
-            src = fd.read()
-        if not src:
-            logger.error(f'invalid ref src in {ref_file}')
-            return None
-        return src
-
     def _get_valid_src_path(self, path):
         with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
         home_path = os.path.expanduser('~')
@@ -676,47 +665,58 @@ class RestoreItem:
             f'does not match {self.from_username}')
         return None
 
-    def _requires_restore(self, dst_path, src_path, src):
-        if not os.path.exists(src_path):
+    def _requires_restore(self, dst_file, src_file, src):
+        if not os.path.exists(src_file):
             return True
-        if self.file_hash_manager.hash(src_path) \
-                == self.file_hash_manager.hash(dst_path):
-            self.report[src]['skipped_identical'].add(src_path)
+        if self.file_hash_manager.hash(src_file) \
+                == self.file_hash_manager.hash(dst_file):
+            self.report[src]['skipped_identical'].add(src_file)
             return False
         if not self.overwrite:
-            self.report[src]['skipped_conflict'].add(src_path)
+            self.report[src]['skipped_conflict'].add(src_file)
             return False
         return True
 
-    def _restore_file(self, dst_path, src_path, src):
-        if not self._requires_restore(dst_path, src_path, src):
+    def _restore_file(self, dst_file, src_file, src):
+        if not self._requires_restore(dst_file, src_file, src):
             return
         if self.dry_run:
-            self.report[src]['to_restore'].add(src_path)
-            logger.debug(f'to restore: {src_path} from {dst_path}')
+            self.report[src]['to_restore'].add(src_file)
+            logger.debug(f'to restore: {src_file} from {dst_file}')
             return
         try:
-            if os.path.exists(src_path):
-                src_path_bak = f'{src_path}.{NAME}bak'
-                if os.path.exists(src_path_bak):
-                    os.remove(src_path)
+            if os.path.exists(src_file):
+                src_file_bak = f'{src_file}.{NAME}bak'
+                if os.path.exists(src_file_bak):
+                    os.remove(src_file)
                 else:
-                    os.rename(src_path, src_path_bak)
+                    os.rename(src_file, src_file_bak)
                     logger.warning(f'renamed existing src file '
-                        f'{src_path} to {src_path_bak}')
-                self.report[src]['restored_overwritten'].add(src_path)
+                        f'{src_file} to {src_file_bak}')
+                self.report[src]['restored_overwritten'].add(src_file)
             else:
-                self.report[src]['restored'].add(src_path)
-            makedirs(os.path.dirname(src_path))
-            shutil.copyfile(dst_path, src_path)
-            logger.info(f'restored {src_path} from {dst_path}')
+                self.report[src]['restored'].add(src_file)
+            makedirs(os.path.dirname(src_file))
+            shutil.copyfile(dst_file, src_file)
+            logger.info(f'restored {src_file} from {dst_file}')
         except Exception as exc:
-            self.report[src]['failed'].add(src_path)
-            logger.error(f'failed to restore {src_path} '
-                f'from {dst_path}: {exc}')
+            self.report[src]['failed'].add(src_file)
+            logger.error(f'failed to restore {src_file} '
+                f'from {dst_file}: {exc}')
 
     def list_hostnames(self):
         return sorted(os.listdir(self.dst_path))
+
+    def _get_src(self, dst):
+        ref_file = os.path.join(dst, REF_FILE)
+        if not os.path.exists(ref_file):
+            return None
+        with open(ref_file) as fd:
+            src = fd.read()
+        if not src:
+            logger.error(f'invalid ref src in {ref_file}')
+            return None
+        return src
 
     def restore(self):
         to_restore = set()
@@ -726,7 +726,7 @@ class RestoreItem:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
                 dst = os.path.join(self.dst_path, hostname, dst_dir)
-                src = self._get_src_path(dst)
+                src = self._get_src(dst)
                 if src:
                     to_restore.add((src, dst))
 
@@ -737,13 +737,13 @@ class RestoreItem:
             return
 
         for src, dst in sorted(to_restore):
-            for dst_path in walk_files(dst):
-                if os.path.basename(dst_path) == REF_FILE:
+            for dst_file in walk_files(dst):
+                if os.path.basename(dst_file) == REF_FILE:
                     continue
-                src_path = os.path.join(src, os.path.relpath(dst_path, dst))
-                src_path = self._get_valid_src_path(src_path)
-                if src_path:
-                    self._restore_file(dst_path, src_path, src)
+                src_file = os.path.join(src, os.path.relpath(dst_file, dst))
+                src_file = self._get_valid_src_path(src_file)
+                if src_file:
+                    self._restore_file(dst_file, src_file, src)
 
 
 class RestoreHandler:
