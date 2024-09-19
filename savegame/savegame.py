@@ -115,16 +115,16 @@ def remove_path(path):
         os.remove(path)
 
 
+def walk_paths(path):
+    for root, dirs, files in os.walk(path, topdown=False):
+        for item in sorted(files + dirs):
+            yield os.path.join(root, item)
+
+
 def walk_files(path):
     for root, dirs, files in os.walk(path):
         for file in sorted(files):
             yield os.path.join(root, file)
-
-
-def walk_files_and_dirs(path):
-    for root, dirs, files in os.walk(path, topdown=False):
-        for item in sorted(files + dirs):
-            yield os.path.join(root, item)
 
 
 def notify(title, body, on_click=None):
@@ -187,7 +187,7 @@ class FileHashManager:
             cls.instance.load()
         return cls.instance
 
-    def _generate_hash(self, path):
+    def hash(self, path):
         hash_obj = hashlib.md5()
         with open(path, 'rb') as fd:
             while True:
@@ -209,7 +209,7 @@ class FileHashManager:
                 return self.cache[path][0]
             except KeyError:
                 pass
-        res = self._generate_hash(path)
+        res = self.hash(path)
         if use_cache:
             self.set(path, res)
         return res
@@ -343,7 +343,7 @@ class LocalSaver(AbstractSaver):
                 logger.debug(f'skipped empty src path {src}')
                 return
 
-        for dst_path in walk_files_and_dirs(self.dst):
+        for dst_path in walk_paths(self.dst):
             if os.path.basename(dst_path) == REF_FILE:
                 continue
             src_path = os.path.join(src, os.path.relpath(dst_path,
@@ -411,7 +411,7 @@ class GoogleDriveSaver(AbstractSaver):
             with open(dst_file, 'wb') as fd:
                 fd.write(content)
 
-        for dst_path in walk_files_and_dirs(self.dst):
+        for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
 
@@ -470,7 +470,7 @@ class GoogleBookmarksSaver(AbstractSaver):
             paths.add(dst_path)
             paths.add(dst_file)
 
-        for dst_path in walk_files_and_dirs(self.dst):
+        for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
 
@@ -643,6 +643,7 @@ class RestoreItem:
         self.from_username = from_username or os.getlogin()
         self.overwrite = overwrite
         self.dry_run = dry_run
+        self.file_hash_manager = FileHashManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
     def _get_src_path(self, dst_path):
@@ -673,34 +674,44 @@ class RestoreItem:
         logger.debug(f'skipped {path}: the path username does not match {self.from_username}')
         return None
 
+    def _requires_restore(self, dst_path, src_path, src):
+        if not os.path.exists(src_path):
+            return True
+        if self.file_hash_manager.hash(src_path) \
+                == self.file_hash_manager.hash(dst_path):
+            self.report[src]['skipped_identical'].add(src_path)
+            return False
+        if not self.overwrite:
+            self.report[src]['skipped_conflict'].add(src_path)
+            return False
+        return True
+
     def _restore_file(self, dst_path, src_path, src):
-        if not self.overwrite and os.path.exists(src_path):
-            self.report[src]['skipped'].add(src_path)
-            logger.debug(f'skipped {src_path}: already exists')
+        if not self._requires_restore(dst_path, src_path, src):
             return
         if self.dry_run:
             self.report[src]['to_restore'].add(src_path)
             logger.debug(f'to restore: {src_path} from {dst_path}')
-        else:
-            try:
-                if os.path.exists(src_path):
-                    src_path_bak = f'{src_path}.{NAME}bak'
-                    if os.path.exists(src_path_bak):
-                        os.remove(src_path)
-                    else:
-                        os.rename(src_path, src_path_bak)
-                        logger.warning(f'renamed existing src file '
-                            f'{src_path} to {src_path_bak}')
-                    self.report[src]['overwritten'].add(src_path)
-
-                makedirs(os.path.dirname(src_path))
-                shutil.copyfile(dst_path, src_path)
+            return
+        try:
+            if os.path.exists(src_path):
+                src_path_bak = f'{src_path}.{NAME}bak'
+                if os.path.exists(src_path_bak):
+                    os.remove(src_path)
+                else:
+                    os.rename(src_path, src_path_bak)
+                    logger.warning(f'renamed existing src file '
+                        f'{src_path} to {src_path_bak}')
+                self.report[src]['restored_overwritten'].add(src_path)
+            else:
                 self.report[src]['restored'].add(src_path)
-                logger.info(f'restored {src_path} from {dst_path}')
-            except Exception as exc:
-                self.report[src]['failed'].add(src_path)
-                logger.error(f'failed to restore {src_path} '
-                    f'from {dst_path}: {exc}')
+            makedirs(os.path.dirname(src_path))
+            shutil.copyfile(dst_path, src_path)
+            logger.info(f'restored {src_path} from {dst_path}')
+        except Exception as exc:
+            self.report[src]['failed'].add(src_path)
+            logger.error(f'failed to restore {src_path} '
+                f'from {dst_path}: {exc}')
 
     def list_hostnames(self):
         return sorted(os.listdir(self.dst_path))

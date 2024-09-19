@@ -31,17 +31,23 @@ def remove_path(path):
         os.remove(path)
 
 
-def walk_files_and_dirs(path):
+def walk_paths(path):
     for root, dirs, files in os.walk(path, topdown=False):
         for item in sorted(files + dirs):
             yield os.path.join(root, item)
+
+
+def walk_files(path):
+    for root, dirs, files in os.walk(path):
+        for file in sorted(files):
+            yield os.path.join(root, file)
 
 
 def print_dst_files():
     meta = savegame.MetaManager().meta
     pprint(meta)
     for dst in sorted(meta.keys()):
-        pprint(sorted(list(walk_files_and_dirs(dst))))
+        pprint(set(walk_paths(dst)))
 
 
 class RestoregamePathUsernameTestCase(unittest.TestCase):
@@ -131,7 +137,7 @@ class BaseTestCase(unittest.TestCase):
                 fd.write(data.replace(username_str,
                     f'{os.sep}{to_username}{os.sep}'))
 
-        for item in walk_files_and_dirs(self.dst_root):
+        for item in walk_paths(self.dst_root):
             if os.path.basename(item) == savegame.REF_FILE:
                 switch_ref_path(item)
 
@@ -182,16 +188,22 @@ class RestoregameTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
+        src_files = set(walk_paths(self.src_root))
         remove_path(self.src_root)
+        return src_files
+
+    def _list_src_paths(self):
+        print('src data:')
+        src_files = set(walk_paths(self.src_root))
+        pprint(src_files)
+        return {r for r in src_files if os.path.basename(r).startswith('src')}
 
     def _restoregame(self, **kwargs):
         for i in range(2):
             savegame.restoregame(**kwargs)
-        print('src data:')
-        src_files = list(walk_files_and_dirs(self.src_root))
-        pprint(sorted(src_files))
+        src_paths = self._list_src_paths()
         remove_path(self.src_root)
-        return {r for r in src_files if os.path.basename(r).startswith('src')}
+        return src_paths
 
     def test_multiple_versions(self):
         hostname2 = 'hostname2'
@@ -202,26 +214,55 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=1, file_count=1, file_version=3)
 
         print('dst data:')
-        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
+        pprint(set(walk_paths(self.dst_root)))
 
         src_paths = self._restoregame(from_hostname=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
 
-    def test_overwrite(self):
-        hostname2 = 'hostname2'
-        hostname3 = 'hostname3'
+    def test_skipped_identical(self):
+        src_files = self._savegame(index_start=1, file_count=2)
+        pprint(src_files)
+        self.assertTrue(src_files)
+        # print('dst data:')
+        # pprint(set(walk_paths(self.dst_root)))
 
-        self._savegame(index_start=1, file_count=6, file_version=1)
-        self._savegame(index_start=1, file_count=3, file_version=2)
-        self._savegame(index_start=1, file_count=1, file_version=3)
+        savegame.restoregame(overwrite=False)
+        src_files2 = set(walk_paths(self.src_root))
+        pprint(src_files2)
+        self.assertEqual(src_files2, src_files)
+        savegame.restoregame(overwrite=False)
+        src_files3 = set(walk_paths(self.src_root))
+        pprint(src_files3)
+        self.assertEqual(src_files3, src_files)
 
-        print('dst data:')
-        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
+    def test_skipped_conflict(self):
+        src_files = self._savegame(index_start=1, file_count=2)
+        pprint(src_files)
+        self.assertTrue(src_files)
+        # print('dst data:')
+        # pprint(set(walk_paths(self.dst_root)))
 
-        src_paths = self._restoregame(overwrite=False)
-        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
-        src_paths = self._restoregame(overwrite=True)
-        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
+        savegame.restoregame(overwrite=False)
+        src_files2 = set(walk_paths(self.src_root))
+        pprint(src_files2)
+        self.assertEqual(src_files2, src_files)
+        for file in walk_files(self.src_root):
+            with open(file) as fd:
+                content = fd.read()
+            with open(file, 'w') as fd:
+                fd.write(content + file)
+        savegame.restoregame(overwrite=False)
+        src_files3 = set(walk_paths(self.src_root))
+        pprint(src_files3)
+        self.assertEqual(src_files3, src_files)
+
+        savegame.restoregame(overwrite=True)
+        src_files4 = set(walk_paths(self.src_root))
+        pprint(src_files4)
+        diff = src_files4 - src_files
+        self.assertTrue(diff)
+        self.assertTrue(all(os.path.splitext(f)[-1] == '.savegamebak'
+            for f in diff))
 
     def test_from_hostname(self):
         hostname2 = 'hostname2'
@@ -234,7 +275,7 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=5)
 
         print('dst data:')
-        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
+        pprint(set(walk_paths(self.dst_root)))
 
         src_paths = self._restoregame(from_hostname=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
@@ -246,6 +287,7 @@ class RestoregameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set())
         savegame.list_hostnames()
 
+    @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_shared_username_path(self):
         username2 = 'Public' if os.name == 'nt' else 'shared'
         username3 = 'username3'
@@ -257,9 +299,9 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=5)
 
         print('src data:')
-        pprint(sorted(list(walk_files_and_dirs(self.src_root))))
+        pprint(set(walk_paths(self.src_root)))
         print('dst data:')
-        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
+        pprint(set(walk_paths(self.dst_root)))
 
         src_paths = self._restoregame(from_username=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
@@ -280,9 +322,9 @@ class RestoregameTestCase(BaseTestCase):
         self._savegame(index_start=5)
 
         print('src data:')
-        pprint(sorted(list(walk_files_and_dirs(self.src_root))))
+        pprint(set(walk_paths(self.src_root)))
         print('dst data:')
-        pprint(sorted(list(walk_files_and_dirs(self.dst_root))))
+        pprint(set(walk_paths(self.dst_root)))
 
         src_paths = self._restoregame(from_username=None)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
