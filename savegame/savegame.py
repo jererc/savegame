@@ -482,7 +482,7 @@ class GoogleBookmarksSaver(AbstractSaver):
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
-            restorable=True,
+            restorable=True, force=False,
             ):
         self.src_paths = src_paths or []
         self.src_type = src_type or LocalSaver.src_type
@@ -491,7 +491,7 @@ class SaveItem:
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.restorable = restorable
-        self.src_and_filters_list = self._get_src_and_filters_list()
+        self.force = force
         self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
@@ -501,22 +501,6 @@ class SaveItem:
         if dst_path != os.path.expanduser(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
         return os.path.join(dst_path, NAME, self.src_type)
-
-    def _get_src_and_filters_list(self):
-        res = []
-        if self.src_type == LocalSaver.src_type:
-            src_and_filters_list = [s if isinstance(s, (list, tuple))
-                else (s, [], []) for s in self.src_paths]
-            for path, inclusions, exclusions in src_and_filters_list:
-                for src in glob(os.path.expanduser(path)):
-                    if is_path_excluded(src, inclusions, exclusions,
-                            file_only=False):
-                        logger.debug(f'excluded {src}')
-                        continue
-                    res.append((src, inclusions, exclusions))
-        else:
-            res = [(self.src_type, None, None)]
-        return res
 
     def _check_meta(self, meta):
         if not meta:
@@ -550,6 +534,20 @@ class SaveItem:
                         return obj
         raise Exception(f'invalid src_type {self.src_type}')
 
+    def _iterate_src_and_filters(self):
+        if self.src_type == LocalSaver.src_type:
+            src_paths = [s if isinstance(s, (list, tuple))
+                else (s, [], []) for s in self.src_paths]
+            for path, inclusions, exclusions in src_paths:
+                for src in glob(os.path.expanduser(path)):
+                    if is_path_excluded(src, inclusions, exclusions,
+                            file_only=False):
+                        logger.debug(f'excluded {src}')
+                        continue
+                    yield src, inclusions, exclusions
+        else:
+            yield self.src_type, None, None
+
     def _notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
@@ -565,14 +563,14 @@ class SaveItem:
     def save(self):
         makedirs(self.dst_path)
         saver_cls = self._get_saver_class()
-        for src_and_filters in self.src_and_filters_list:
+        for src_and_filters in self._iterate_src_and_filters():
             saver = saver_cls(*src_and_filters,
                 dst_path=self.dst_path,
                 retention_delta=self.retention_delta,
                 creds_file=self.creds_file,
             )
             meta = self.meta_manager.get(saver.dst)
-            if not self._check_meta(meta):
+            if not self.force and not self._check_meta(meta):
                 continue
             started_ts = time.time()
             updated_ts = None
@@ -591,13 +589,14 @@ class SaveItem:
 
 
 class SaveHandler:
-    def __init__(self):
+    def __init__(self, force=False):
+        self.force = force
         self.report = defaultdict(lambda: defaultdict(set))
 
     def _save(self, save):
         started_ts = time.time()
         try:
-            si = SaveItem(**save)
+            si = SaveItem(**save, force=self.force)
             si.save()
             for path, data in si.report.items():
                 for k, v in data.items():
@@ -907,7 +906,7 @@ def main():
         elif args.task:
             Task().run()
         else:
-            savegame()
+            savegame(force=True)
     elif args.command == 'restore':
         restoregame(**{k: v for k, v in vars(args).items() if k != 'command'})
     elif args.command == 'hostnames':
