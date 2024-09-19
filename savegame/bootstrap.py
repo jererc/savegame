@@ -10,9 +10,7 @@ SCRIPT_PATH = os.path.join(ROOT_PATH, 'savegame.py')
 NAME = os.path.splitext(os.path.basename(SCRIPT_PATH))[0]
 ROOT_VENV_PATH = os.path.join(os.path.expanduser('~'), 'venv')
 VENV_PATH = os.path.join(ROOT_VENV_PATH, NAME)
-LINUX_VENV_ACTIVATE_PATH = os.path.join(VENV_PATH, 'bin/activate')
-WIN_VENV_ACTIVATE_PATH = os.path.join(VENV_PATH, r'Scripts\activate')
-LINUX_PYTHON_MODULES = [
+LINUX_PY_MODULES = [
     'dateutils',
     'google-api-python-client',
     'google-auth-httplib2',
@@ -20,11 +18,25 @@ LINUX_PYTHON_MODULES = [
     'psutil',
     'selenium',
 ]
-WIN_PYTHON_MODULES = LINUX_PYTHON_MODULES + [
+WIN_PY_MODULES = LINUX_PY_MODULES + [
     'win11toast'
 ]
-LINUX_PYTHON_PATH = os.path.join(VENV_PATH, 'bin/python')
-WIN_PYTHON_PATH = os.path.join(VENV_PATH, r'Scripts\pythonw.exe')
+PY_MODULES = {
+    'nt': WIN_PY_MODULES,
+    'posix': LINUX_PY_MODULES,
+}[os.name]
+VENV_ACTIVATE_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\activate'),
+    'posix': os.path.join(VENV_PATH, 'bin/activate'),
+}[os.name]
+PIP_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\pip.exe'),
+    'posix': os.path.join(VENV_PATH, 'bin/pip'),
+}[os.name]
+PY_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\pythonw.exe'),
+    'posix': os.path.join(VENV_PATH, 'bin/python'),
+}[os.name]
 CRONTAB_SCHEDULE = '*/2 * * * *'
 
 
@@ -46,30 +58,25 @@ class Bootstrapper:
         restore_parser.add_argument('--dry-run', action='store_true')
         return parser.parse_args()
 
-    def _setup_linux_venv(self):
-        if os.path.exists(LINUX_VENV_ACTIVATE_PATH):
-            return
-        subprocess.check_call(['virtualenv', VENV_PATH])
-        subprocess.check_call(f'. {LINUX_VENV_ACTIVATE_PATH}; '
-            f'pip install {" ".join(LINUX_PYTHON_MODULES)}',
-            shell=True, cwd=ROOT_PATH)
-
-    def _setup_win_venv(self):
-        if os.path.exists(WIN_VENV_ACTIVATE_PATH):
-            return
-        subprocess.check_call(['pip', 'install', 'virtualenv'])
-        subprocess.check_call(['virtualenv', VENV_PATH])
-        subprocess.check_call(f'{WIN_VENV_ACTIVATE_PATH} && '
-            f'pip install {" ".join(WIN_PYTHON_MODULES)}',
-            shell=True, cwd=ROOT_PATH)
+    def _check_venv(self):
+        res = subprocess.run([PIP_PATH, 'freeze'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode != 0:
+            return False
+        venv_modules = {l.split('==', 1)[0] for l in res.stdout.splitlines()}
+        return venv_modules >= set(PY_MODULES)
 
     def _setup_venv(self):
         if not os.path.exists(ROOT_VENV_PATH):
             os.makedirs(ROOT_VENV_PATH)
-        if os.name == 'nt':
-            self._setup_win_venv()
-        else:
-            self._setup_linux_venv()
+        if self._check_venv():
+            return
+        if not os.path.exists(VENV_ACTIVATE_PATH):
+            if os.name == 'nt':
+                subprocess.check_call(['pip', 'install', 'virtualenv'])
+            subprocess.check_call(['virtualenv', VENV_PATH])
+        subprocess.check_call([PIP_PATH, 'install'] + PY_MODULES,
+            cwd=ROOT_PATH)
 
     def _setup_linux_crontab(self, cmd):
         res = subprocess.run(['crontab', '-l'],
@@ -110,14 +117,13 @@ class Bootstrapper:
             if ctypes.windll.shell32.IsUserAnAdmin() == 0:
                 raise Exception('must run as admin')
             self._setup_win_task(task_name=NAME,
-                cmd=f'{WIN_PYTHON_PATH} {SCRIPT_PATH} save --daemon')
+                cmd=f'{PY_PATH} {SCRIPT_PATH} save --daemon')
         else:
             self._setup_linux_crontab(
-                cmd=f'{LINUX_PYTHON_PATH} {SCRIPT_PATH} save --task')
+                cmd=f'{PY_PATH} {SCRIPT_PATH} save --task')
 
     def _run_savegame_cmd(self):
-        python_path = WIN_PYTHON_PATH if os.name == 'nt' else LINUX_PYTHON_PATH
-        cmd = [python_path, SCRIPT_PATH] + sys.argv[1:]
+        cmd = [PY_PATH, SCRIPT_PATH] + sys.argv[1:]
         res = subprocess.run(cmd, cwd=ROOT_PATH,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode == 0:
