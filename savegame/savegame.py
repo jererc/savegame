@@ -349,7 +349,8 @@ class LocalSaver(AbstractSaver):
             src_path = os.path.join(src, os.path.relpath(dst_path,
                 self.dst))
             if (not os.path.exists(src_path) and self.needs_purge(dst_path)) \
-                    or is_path_excluded(src_path, self.inclusions, self.exclusions):
+                    or is_path_excluded(src_path,
+                        self.inclusions, self.exclusions):
                 remove_path(dst_path)
                 self.report[src]['removed'].add(dst_path)
                 logger.debug(f'removed {dst_path}')
@@ -671,7 +672,8 @@ class RestoreItem:
         if username == self.from_username:
             return path.replace(with_end_sep(os.path.join(home, username)),
                 with_end_sep(home_path), 1)
-        logger.debug(f'skipped {path}: the path username does not match {self.from_username}')
+        logger.debug(f'skipped {path}: the path username '
+            f'does not match {self.from_username}')
         return None
 
     def _requires_restore(self, dst_path, src_path, src):
@@ -730,7 +732,8 @@ class RestoreItem:
 
         if not to_restore:
             logger.info(f'nothing to restore from path {self.dst_path} '
-                f'and hostname {self.from_hostname} (available hostnames: {hostnames})')
+                f'and hostname {self.from_hostname} '
+                f'(available hostnames: {hostnames})')
             return
 
         for src, dst in sorted(to_restore):
@@ -919,9 +922,11 @@ def main():
         else:
             savegame(force=True)
     elif args.command == 'restore':
-        restoregame(**{k: v for k, v in vars(args).items() if k != 'command'})
+        restoregame(**{k: v for k, v in vars(args).items()
+            if k != 'command'})
     elif args.command == 'hostnames':
-        list_hostnames(**{k: v for k, v in vars(args).items() if k != 'command'})
+        list_hostnames(**{k: v for k, v in vars(args).items()
+            if k != 'command'})
 
 
 if __name__ == '__main__':
