@@ -346,8 +346,7 @@ class LocalSaver(AbstractSaver):
         for dst_path in walk_paths(self.dst):
             if os.path.basename(dst_path) == REF_FILE:
                 continue
-            src_path = os.path.join(src, os.path.relpath(dst_path,
-                self.dst))
+            src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
             if (not os.path.exists(src_path) and self.needs_purge(dst_path)) \
                     or is_path_excluded(src_path,
                         self.inclusions, self.exclusions):
@@ -647,7 +646,18 @@ class RestoreItem:
         self.file_hash_manager = FileHashManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
-    def _get_valid_src_path(self, path):
+    def _get_src(self, dst):
+        ref_file = os.path.join(dst, REF_FILE)
+        if not os.path.exists(ref_file):
+            return None
+        with open(ref_file) as fd:
+            src = fd.read()
+        if not src:
+            logger.error(f'invalid ref src in {ref_file}')
+            return None
+        return src
+
+    def _get_valid_src_file(self, path):
         with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
         home_path = os.path.expanduser('~')
         home = os.path.dirname(home_path)
@@ -707,17 +717,6 @@ class RestoreItem:
     def list_hostnames(self):
         return sorted(os.listdir(self.dst_path))
 
-    def _get_src(self, dst):
-        ref_file = os.path.join(dst, REF_FILE)
-        if not os.path.exists(ref_file):
-            return None
-        with open(ref_file) as fd:
-            src = fd.read()
-        if not src:
-            logger.error(f'invalid ref src in {ref_file}')
-            return None
-        return src
-
     def restore(self):
         to_restore = set()
         hostnames = self.list_hostnames()
@@ -741,7 +740,7 @@ class RestoreItem:
                 if os.path.basename(dst_file) == REF_FILE:
                     continue
                 src_file = os.path.join(src, os.path.relpath(dst_file, dst))
-                src_file = self._get_valid_src_path(src_file)
+                src_file = self._get_valid_src_file(src_file)
                 if src_file:
                     self._restore_file(dst_file, src_file, src)
 
