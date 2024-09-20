@@ -253,10 +253,10 @@ class MetaManager:
 
     def save(self):
         started_ts = time.time()
-        for key, meta in deepcopy(self.meta).items():
+        for src, meta in deepcopy(self.meta).items():
             if not os.path.exists(meta['dst']):
                 try:
-                    del self.meta[key]
+                    del self.meta[src]
                 except KeyError:
                     pass
         with open(self.meta_file, 'w') as fd:
@@ -272,29 +272,33 @@ class MetaManager:
 
     def check(self):
         now_ts = time.time()
-        for key, meta in self.meta.items():
-            if meta['updated_ts'] and now_ts > meta['updated_ts'] \
-                    + meta['min_delta'] + OLD_DELTA:
-                logger.error(f'{meta["source"]} has not been saved recently')
+        for src, meta in self.meta.items():
+            if meta['next_ts'] and now_ts > meta['next_ts'] + OLD_DELTA:
+                logger.error(f'{src} has not been saved recently')
                 notify(title=f'{NAME} warning',
                     body=f'{meta["source"]} has not been saved recently')
 
 
-class AbstractSaver:
+class BaseSaver:
     src_type = None
 
-    def __init__(self, src, inclusions, exclusions, dst_path,
-            creds_file=None, retention_delta=RETENTION_DELTA):
+    def __init__(self, src, inclusions, exclusions, dst_path, min_delta=0,
+            retention_delta=RETENTION_DELTA, creds_file=None):
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
         self.dst_path = dst_path
+        self.min_delta = min_delta
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.dst = self.get_dst()
         self.file_hash_manager = FileHashManager()
+        self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
-        self.meta = None
+        self.start_ts = None
+        self.end_ts = None
+        self.success = None
+        self.result = None
 
     def get_dst(self):
         dst =  os.path.join(self.dst_path, self.src_type)
@@ -304,8 +308,53 @@ class AbstractSaver:
     def needs_purge(self, path):
         return time.time() - os.stat(path).st_mtime > self.retention_delta
 
+    def notify_error(self, message, exc):
+        if isinstance(exc, (AuthError, RefreshError)):
+            notify(title=f'{NAME} google auth error', body=message,
+                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
+        else:
+            notify(title=f'{NAME} error', body=message)
 
-class LocalSaver(AbstractSaver):
+    def _must_save(self):
+        meta = self.meta_manager.get(self.src)
+        if not meta:
+            return True
+        if time.time() > meta['next_ts']:
+            return True
+        return False
+
+    def _update_meta(self):
+        retry_delta = 0 if self.success else RETRY_DELTA
+        self.meta_manager.set(self.src, {
+            'dst': self.dst,
+            'start_ts': self.start_ts,
+            'end_ts': self.end_ts,
+            'success': self.success,
+            'result': self.result,
+            'next_ts': time.time() + max(retry_delta, self.min_delta),
+            'duration': self.end_ts - self.start_ts,
+        })
+
+    def save(self):
+        raise NotImplementedError()
+
+    def run(self, force=False):
+        if not force and not self._must_save():
+            return
+        self.start_ts = time.time()
+        try:
+            self.save()
+            self.success = True
+        except Exception as exc:
+            self.success = False
+            logger.exception(f'failed to save {self.src}')
+            self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
+        finally:
+            self.end_ts = time.time()
+        self._update_meta()
+
+
+class LocalSaver(BaseSaver):
     src_type = 'local'
 
     def get_dst(self):
@@ -329,7 +378,7 @@ class LocalSaver(AbstractSaver):
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
 
-    def run(self):
+    def save(self):
         src = self.src
         size = 0
         started_ts = time.time()
@@ -377,16 +426,16 @@ class LocalSaver(AbstractSaver):
 
         self._generate_ref_file(src)
         logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
-        self.meta = {
+        self.result = {
             'file_count': len(self.report[src]['files']),
             'size_MB': size / 1024 / 1024,
         }
 
 
-class GoogleDriveSaver(AbstractSaver):
+class GoogleDriveSaver(BaseSaver):
     src_type = 'google_drive'
 
-    def run(self):
+    def save(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         paths = set()
         for file_data in gc.iterate_files():
@@ -415,15 +464,15 @@ class GoogleDriveSaver(AbstractSaver):
             if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
 
-        self.meta = {
+        self.result = {
             'file_count': len(paths)
         }
 
 
-class GoogleContactsSaver(AbstractSaver):
+class GoogleContactsSaver(BaseSaver):
     src_type = 'google_contacts'
 
-    def run(self):
+    def save(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         contacts = gc.list_contacts()
         data = to_json(contacts)
@@ -437,12 +486,12 @@ class GoogleContactsSaver(AbstractSaver):
                 fd.write(data)
             self.report[self.src_type]['saved'].add(file)
             logger.info(f'saved {len(contacts)} google contacts')
-        self.meta = {
+        self.result = {
             'file_count': 1,
         }
 
 
-class GoogleBookmarksSaver(AbstractSaver):
+class GoogleBookmarksSaver(BaseSaver):
     src_type = 'google_bookmarks'
 
     def _create_bookmark_file(self, title, url, file):
@@ -457,7 +506,7 @@ class GoogleBookmarksSaver(AbstractSaver):
             self.report[self.src_type]['saved'].add(file)
             logger.debug(f'saved google bookmark {file}')
 
-    def run(self):
+    def save(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
         for bookmark in bookmarks:
@@ -474,47 +523,15 @@ class GoogleBookmarksSaver(AbstractSaver):
             if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
 
-        self.meta = {
+        self.result = {
             'file_count': len(bookmarks),
         }
-
-
-class SaveMetaHandler:
-
-    def __init__(self, saver, min_delta):
-        self.saver = saver
-        self.min_delta = min_delta
-        self.meta_manager = MetaManager()
-        self.meta = self.meta_manager.get(self.saver.src)
-
-    def check(self):
-        if not self.meta:
-            return True
-        if time.time() > max(self.meta['updated_ts'] + self.min_delta,
-                self.meta['next_ts']):
-            return True
-        return False
-
-    def update(self, started_ts, updated_ts, retry_delta=0):
-        now_ts = time.time()
-        meta = {
-            'dst': self.saver.dst,
-            'started_ts': started_ts,
-            'updated_ts': updated_ts or self.meta.get('updated_ts', 0),
-            'next_ts': now_ts + retry_delta,
-            'min_delta': self.min_delta,
-            'duration': now_ts - started_ts,
-        }
-        if self.saver.meta:
-            meta.update(self.saver.meta)
-        self.meta_manager.set(self.saver.src, meta)
 
 
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
-            restorable=True, force=False,
-            ):
+            restorable=True, force=False):
         self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
@@ -540,7 +557,7 @@ class SaveItem:
         module = sys.modules[__name__]
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if obj.__module__ == module.__name__:
-                if issubclass(obj, AbstractSaver) and obj is not AbstractSaver:
+                if issubclass(obj, BaseSaver) and obj is not BaseSaver:
                     if obj.src_type == self.src_type:
                         return obj
         raise Exception(f'invalid src_type {self.src_type}')
@@ -557,43 +574,23 @@ class SaveItem:
         else:
             yield self.src_type, None, None
 
-    def _notify_error(self, message, exc):
-        if isinstance(exc, (AuthError, RefreshError)):
-            notify(title=f'{NAME} google auth error', body=message,
-                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
-        else:
-            notify(title=f'{NAME} error', body=message)
-
     def _update_report(self, saver):
         for path, data in saver.report.items():
             for k, v in data.items():
                 self.report[path][k].update(v)
 
-    def save(self):
+    def run(self):
         makedirs(self.dst_path)
         saver_cls = self._get_saver_class()
         for src_and_filters in self._iterate_src_and_filters():
             saver = saver_cls(*src_and_filters,
                 dst_path=self.dst_path,
+                min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
                 creds_file=self.creds_file,
             )
-            meta_handler = SaveMetaHandler(saver, min_delta=self.min_delta)
-            if not self.force and not meta_handler.check():
-                continue
-            started_ts = time.time()
-            updated_ts = None
-            retry_delta = 0
-            try:
-                saver.run()
-                updated_ts = time.time()
-            except Exception as exc:
-                retry_delta = RETRY_DELTA
-                logger.exception(f'failed to save {saver.src}')
-                self._notify_error(f'failed to save {saver.src}: {exc}', exc=exc)
+            saver.run(self.force)
             self._update_report(saver)
-            meta_handler.update(started_ts=started_ts,
-                updated_ts=updated_ts, retry_delta=retry_delta)
 
 
 class SaveHandler:
@@ -605,7 +602,7 @@ class SaveHandler:
         started_ts = time.time()
         try:
             si = SaveItem(**save, force=self.force)
-            si.save()
+            si.run()
             for path, data in si.report.items():
                 for k, v in data.items():
                     self.report[path][k].update(v)
