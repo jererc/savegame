@@ -110,9 +110,9 @@ class Bootstrapper:
                 cmd=f'{PY_PATH} {SCRIPT_PATH} save --task')
 
     def run_savegame_cmd(self):
-        cmd = [PY_PATH, SCRIPT_PATH] + sys.argv[1:]
-        res = subprocess.run(cmd, cwd=ROOT_PATH,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        res = subprocess.run([PY_PATH, SCRIPT_PATH] + sys.argv[1:],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            cwd=ROOT_PATH)
         if res.returncode == 0:
             sys.stdout.write(res.stdout)
         else:
