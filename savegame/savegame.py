@@ -43,8 +43,8 @@ NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 HOSTNAME = socket.gethostname()
 RE_SPECIAL = re.compile(r'\W+')
-GOOGLE_AUTH_WIN_FILE = os.path.join(os.path.dirname(
-    os.path.realpath(__file__)), 'google_cloud_auth.pyw')
+GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), 'run_google_oauth.pyw')
 REF_FILE = f'.{NAME}'
 MAX_TARGET_VERSIONS = 4
 MIN_SIZE_RATIO = .5
@@ -553,7 +553,7 @@ class SaveItem:
     def _notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
-                on_click=GOOGLE_AUTH_WIN_FILE)
+                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
         else:
             notify(title=f'{NAME} error', body=message)
 
