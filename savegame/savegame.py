@@ -540,11 +540,11 @@ class SaveItem:
 
     def _iterate_src_and_filters(self):
         if self.src_type == LocalSaver.src_type:
-            for path, inclusions, exclusions in self.src_paths:
-                for src in glob(os.path.expanduser(path)):
+            for src_path, inclusions, exclusions in self.src_paths:
+                for src in glob(os.path.expanduser(src_path)):
                     if is_path_excluded(src, inclusions, exclusions,
                             file_only=False):
-                        logger.debug(f'excluded {src}')
+                        logger.debug(f'excluded src_path {src}')
                         continue
                     yield src, inclusions, exclusions
         else:

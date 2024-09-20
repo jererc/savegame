@@ -50,7 +50,7 @@ def any_str_contains(strings, substring):
     return False
 
 
-def print_dst_files():
+def print_dst_data():
     meta = savegame.MetaManager().meta
     pprint(meta)
     for dst in sorted(meta.keys()):
@@ -80,7 +80,7 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
         obj = savegame.RestoreItem('dst_path')
         path = '/var/some_dir'
         self.assertEqual(obj._replace_username_in_path(path), path)
-        path = f'/home/root/some_dir'
+        path = '/home/root/some_dir'
         self.assertEqual(obj._replace_username_in_path(path), path)
 
         obj = savegame.RestoreItem('dst_path', from_username=self.other_username)
@@ -124,6 +124,16 @@ class BaseTestCase(unittest.TestCase):
         return [os.path.join(self.src_root, f'src{i}')
             for i in range(index_start, index_start + src_count)]
 
+    def _list_src_root_paths(self):
+        return set(walk_paths(self.src_root))
+
+    def _list_src_root_src_paths(self):
+        return {r for r in self._list_src_root_paths()
+            if os.path.basename(r).startswith('src')}
+
+    def _list_dst_root_paths(self):
+        return set(walk_paths(self.dst_root))
+
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
             for src_type in os.listdir(os.path.join(self.dst_root, base_dir)):
@@ -144,9 +154,9 @@ class BaseTestCase(unittest.TestCase):
                 fd.write(data.replace(username_str,
                     f'{os.sep}{to_username}{os.sep}'))
 
-        for item in walk_paths(self.dst_root):
-            if os.path.basename(item) == savegame.REF_FILE:
-                switch_ref_path(item)
+        for path in walk_paths(self.dst_root):
+            if os.path.basename(path) == savegame.REF_FILE:
+                switch_ref_path(path)
 
     def _savegame(self, **kwargs):
         self._generate_src_data(**kwargs)
@@ -157,13 +167,13 @@ class BaseTestCase(unittest.TestCase):
             },
         ]
         savegame.savegame()
-        src_files = set(walk_paths(self.src_root))
-        remove_path(self.src_root)
-        return src_files
+
+    def _restoregame(self, **kwargs):
+        savegame.restoregame(**kwargs)
 
 
 class SavegameTestCase(BaseTestCase):
-    def test_glob_and_exclusions(self):
+    def test_save_glob_and_exclusions(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
         savegame.SAVES = [
@@ -179,81 +189,73 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         savegame.savegame()
-        dst_files = set(walk_paths(self.dst_root))
-        pprint(dst_files)
-        self.assertFalse(any_str_contains(dst_files, 'src2'))
-        self.assertFalse(any_str_contains(dst_files, 'dir2'))
-        self.assertFalse(any_str_contains(dst_files, 'file2'))
-        self.assertTrue(any_str_contains(dst_files, 'src1'))
-        self.assertTrue(any_str_contains(dst_files, 'src3'))
-        self.assertTrue(any_str_contains(dst_files, 'dir1'))
-        self.assertTrue(any_str_contains(dst_files, 'dir3'))
-        self.assertTrue(any_str_contains(dst_files, 'file1'))
-        self.assertTrue(any_str_contains(dst_files, 'file3'))
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(any_str_contains(dst_paths, 'src2'))
+        self.assertFalse(any_str_contains(dst_paths, 'dir2'))
+        self.assertFalse(any_str_contains(dst_paths, 'file2'))
+        self.assertTrue(any_str_contains(dst_paths, 'src1'))
+        self.assertTrue(any_str_contains(dst_paths, 'src3'))
+        self.assertTrue(any_str_contains(dst_paths, 'dir1'))
+        self.assertTrue(any_str_contains(dst_paths, 'dir3'))
+        self.assertTrue(any_str_contains(dst_paths, 'file1'))
+        self.assertTrue(any_str_contains(dst_paths, 'file3'))
 
-    def test_savegame(self):
-        src_files = self._savegame(index_start=1, file_count=2)
-        pprint(src_files)
-        dst_files = set(walk_paths(self.dst_root))
-        pprint(dst_files)
-        self.assertTrue(any_str_contains(dst_files, 'src1'))
-        self.assertTrue(any_str_contains(dst_files, 'src2'))
-        self.assertTrue(any_str_contains(dst_files, 'dir1'))
-        self.assertTrue(any_str_contains(dst_files, 'dir2'))
-        self.assertTrue(any_str_contains(dst_files, 'file1'))
-        self.assertTrue(any_str_contains(dst_files, 'file2'))
-
-
-class RestoregameTestCase(BaseTestCase):
-    def _list_src_paths(self):
-        print('src data:')
-        src_files = set(walk_paths(self.src_root))
-        pprint(src_files)
-        return {r for r in src_files if os.path.basename(r).startswith('src')}
-
-    def _restoregame(self, **kwargs):
-        for i in range(2):
-            savegame.restoregame(**kwargs)
-        src_paths = self._list_src_paths()
-        remove_path(self.src_root)
-        return src_paths
+    def test_save(self):
+        self._savegame(index_start=1, file_count=2)
+        src_paths = self._list_src_root_paths()
+        pprint(src_paths)
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertTrue(any_str_contains(dst_paths, 'src1'))
+        self.assertTrue(any_str_contains(dst_paths, 'src2'))
+        self.assertTrue(any_str_contains(dst_paths, 'dir1'))
+        self.assertTrue(any_str_contains(dst_paths, 'dir2'))
+        self.assertTrue(any_str_contains(dst_paths, 'file1'))
+        self.assertTrue(any_str_contains(dst_paths, 'file2'))
 
     def test_multiple_versions(self):
-        hostname2 = 'hostname2'
-        hostname3 = 'hostname3'
-
         self._savegame(index_start=1, file_count=6, file_version=1)
+        remove_path(self.src_root)
         self._savegame(index_start=1, file_count=3, file_version=2)
+        remove_path(self.src_root)
         self._savegame(index_start=1, file_count=1, file_version=3)
+        remove_path(self.src_root)
 
         print('dst data:')
-        pprint(set(walk_paths(self.dst_root)))
+        pprint(self._list_dst_root_paths())
 
-        src_paths = self._restoregame(from_hostname=None)
+        self._restoregame(from_hostname=None)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
 
-    def test_skipped_identical(self):
-        src_files = self._savegame(index_start=1, file_count=2)
-        pprint(src_files)
+    def test_restore_skipped_identical(self):
+        self._savegame(index_start=1, file_count=2)
+        src_paths = self._list_src_root_paths()
+        pprint(src_paths)
+        remove_path(self.src_root)
 
         savegame.restoregame(overwrite=False)
-        src_files2 = set(walk_paths(self.src_root))
-        pprint(src_files2)
-        self.assertEqual(src_files2, src_files)
+        src_paths2 = self._list_src_root_paths()
+        pprint(src_paths2)
+        self.assertEqual(src_paths2, src_paths)
 
         savegame.restoregame(overwrite=False)
-        src_files3 = set(walk_paths(self.src_root))
-        pprint(src_files3)
-        self.assertEqual(src_files3, src_files)
+        src_paths3 = self._list_src_root_paths()
+        pprint(src_paths3)
+        self.assertEqual(src_paths3, src_paths)
 
-    def test_skipped_conflict(self):
-        src_files = self._savegame(index_start=1, file_count=2)
-        pprint(src_files)
+    def test_restore_skipped_conflict(self):
+        self._savegame(index_start=1, file_count=2)
+        src_paths = self._list_src_root_paths()
+        pprint(src_paths)
+        remove_path(self.src_root)
 
         savegame.restoregame(overwrite=False)
-        src_files2 = set(walk_paths(self.src_root))
-        pprint(src_files2)
-        self.assertEqual(src_files2, src_files)
+        src_paths2 = self._list_src_root_paths()
+        pprint(src_paths2)
+        self.assertEqual(src_paths2, src_paths)
         for file in walk_files(self.src_root):
             with open(file) as fd:
                 content = fd.read()
@@ -261,89 +263,118 @@ class RestoregameTestCase(BaseTestCase):
                 fd.write(content + file)
 
         savegame.restoregame(overwrite=False)
-        src_files3 = set(walk_paths(self.src_root))
-        pprint(src_files3)
-        self.assertEqual(src_files3, src_files)
+        src_paths3 = self._list_src_root_paths()
+        pprint(src_paths3)
+        self.assertEqual(src_paths3, src_paths)
 
         savegame.restoregame(overwrite=True)
-        src_files4 = set(walk_paths(self.src_root))
-        pprint(src_files4)
-        diff = src_files4 - src_files
+        src_paths4 = self._list_src_root_paths()
+        pprint(src_paths4)
+        diff = src_paths4 - src_paths
         self.assertTrue(diff)
         self.assertTrue(all(os.path.splitext(f)[-1] == '.savegamebak'
             for f in diff))
 
-    def test_from_hostname(self):
+    def test_restore_from_hostname(self):
         hostname2 = 'hostname2'
         hostname3 = 'hostname3'
 
         self._savegame(index_start=1)
+        remove_path(self.src_root)
         self._switch_dst_data_hostname(from_hostname=HOSTNAME, to_hostname=hostname2)
         self._savegame(index_start=3)
+        remove_path(self.src_root)
         self._switch_dst_data_hostname(from_hostname=HOSTNAME, to_hostname=hostname3)
         self._savegame(index_start=5)
+        remove_path(self.src_root)
 
         print('dst data:')
-        pprint(set(walk_paths(self.dst_root)))
+        pprint(self._list_dst_root_paths())
 
-        src_paths = self._restoregame(from_hostname=None)
+        self._restoregame(from_hostname=None)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
-        src_paths = self._restoregame(from_hostname=hostname2)
+        self._restoregame(from_hostname=hostname2)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
-        src_paths = self._restoregame(from_hostname=hostname3)
+        self._restoregame(from_hostname=hostname3)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=3)))
-        src_paths = self._restoregame(from_hostname='unknown')
+        self._restoregame(from_hostname='unknown')
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set())
         savegame.list_hostnames()
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
-    def test_shared_username_path(self):
+    def test_restore_shared_username_path(self):
         username2 = 'Public' if os.name == 'nt' else 'shared'
         username3 = 'username3'
 
         self._savegame(index_start=1)
+        remove_path(self.src_root)
         self._switch_dst_data_username(from_username=USERNAME, to_username=username2)
         self._savegame(index_start=3)
+        remove_path(self.src_root)
         self._switch_dst_data_username(from_username=USERNAME, to_username=username3)
         self._savegame(index_start=5)
+        remove_path(self.src_root)
 
         print('src data:')
-        pprint(set(walk_paths(self.src_root)))
+        pprint(self._list_src_root_paths())
         print('dst data:')
-        pprint(set(walk_paths(self.dst_root)))
+        pprint(self._list_dst_root_paths())
 
-        src_paths = self._restoregame(from_username=None)
+        self._restoregame(from_username=None)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
             + self._get_src_paths(index_start=5)))
-        src_paths = self._restoregame(from_username=username3)
+        self._restoregame(from_username=username3)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
             + self._get_src_paths(index_start=3)
             + self._get_src_paths(index_start=5)))
 
-    def test_from_username(self):
+    def test_restore_from_username(self):
         username2 = 'username2'
         username3 = 'username3'
 
         self._savegame(index_start=1)
+        remove_path(self.src_root)
         self._switch_dst_data_username(from_username=USERNAME, to_username=username2)
         self._savegame(index_start=3)
+        remove_path(self.src_root)
         self._switch_dst_data_username(from_username=USERNAME, to_username=username3)
         self._savegame(index_start=5)
+        remove_path(self.src_root)
 
         print('src data:')
-        pprint(set(walk_paths(self.src_root)))
+        pprint(self._list_src_root_paths())
         print('dst data:')
-        pprint(set(walk_paths(self.dst_root)))
+        pprint(self._list_dst_root_paths())
 
-        src_paths = self._restoregame(from_username=None)
+        self._restoregame(from_username=None)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
-        src_paths = self._restoregame(from_username=username2)
+        self._restoregame(from_username=username2)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)
             + self._get_src_paths(index_start=1)))
-        src_paths = self._restoregame(from_username=username3)
+        self._restoregame(from_username=username3)
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)
             + self._get_src_paths(index_start=3)))
-        src_paths = self._restoregame(from_username='unknown')
+        self._restoregame(from_username='unknown')
+        src_paths = self._list_src_root_src_paths()
+        remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
 
 
@@ -391,7 +422,7 @@ class SavegameIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_files()
+        print_dst_data()
 
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
@@ -421,7 +452,7 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_files()
+        print_dst_data()
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
@@ -440,7 +471,7 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_files()
+        print_dst_data()
 
 
 class GoogleBookmarksIntegrationTestCase(BaseTestCase):
@@ -455,7 +486,7 @@ class GoogleBookmarksIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-            print_dst_files()
+            print_dst_data()
 
 
 if __name__ == '__main__':
