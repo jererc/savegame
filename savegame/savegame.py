@@ -309,11 +309,7 @@ class BaseSaver:
         return time.time() - os.stat(path).st_mtime > self.retention_delta
 
     def notify_error(self, message, exc):
-        if isinstance(exc, (AuthError, RefreshError)):
-            notify(title=f'{NAME} google auth error', body=message,
-                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
-        else:
-            notify(title=f'{NAME} error', body=message)
+        notify(title=f'{NAME} error', body=message)
 
     def _must_save(self):
         meta = self.meta_manager.get(self.src)
@@ -322,8 +318,9 @@ class BaseSaver:
     def _update_meta(self):
         meta = {k: getattr(self, k) for k in ('dst', 'start_ts', 'end_ts',
             'success', 'result')}
-        retry_delta = 0 if self.success else RETRY_DELTA
-        meta['next_ts'] = time.time() + max(retry_delta, self.min_delta)
+        delta = self.min_delta if self.success else RETRY_DELTA
+        meta['next_ts'] = time.time() + (self.min_delta if self.success
+            else RETRY_DELTA)
         meta['duration'] = self.end_ts - self.start_ts
         self.meta_manager.set(self.src, meta)
 
@@ -427,6 +424,13 @@ class LocalSaver(BaseSaver):
 class GoogleDriveSaver(BaseSaver):
     src_type = 'google_drive'
 
+    def notify_error(self, message, exc):
+        if isinstance(exc, (AuthError, RefreshError)):
+            notify(title=f'{NAME} google auth error', body=message,
+                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
+        else:
+            super().notify(message, exc)
+
     def save(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         paths = set()
@@ -463,6 +467,13 @@ class GoogleDriveSaver(BaseSaver):
 
 class GoogleContactsSaver(BaseSaver):
     src_type = 'google_contacts'
+
+    def notify_error(self, message, exc):
+        if isinstance(exc, (AuthError, RefreshError)):
+            notify(title=f'{NAME} google auth error', body=message,
+                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
+        else:
+            super().notify(message, exc)
 
     def save(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
