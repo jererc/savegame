@@ -317,23 +317,15 @@ class BaseSaver:
 
     def _must_save(self):
         meta = self.meta_manager.get(self.src)
-        if not meta:
-            return True
-        if time.time() > meta['next_ts']:
-            return True
-        return False
+        return not meta or time.time() > meta['next_ts']
 
     def _update_meta(self):
+        meta = {k: getattr(self, k) for k in ('dst', 'start_ts', 'end_ts',
+            'success', 'result')}
         retry_delta = 0 if self.success else RETRY_DELTA
-        self.meta_manager.set(self.src, {
-            'dst': self.dst,
-            'start_ts': self.start_ts,
-            'end_ts': self.end_ts,
-            'success': self.success,
-            'result': self.result,
-            'next_ts': time.time() + max(retry_delta, self.min_delta),
-            'duration': self.end_ts - self.start_ts,
-        })
+        meta['next_ts'] = time.time() + max(retry_delta, self.min_delta)
+        meta['duration'] = self.end_ts - self.start_ts
+        self.meta_manager.set(self.src, meta)
 
     def save(self):
         raise NotImplementedError()

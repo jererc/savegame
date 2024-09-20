@@ -1,3 +1,4 @@
+from copy import deepcopy
 from glob import glob
 import json
 import logging
@@ -158,12 +159,13 @@ class BaseTestCase(unittest.TestCase):
             if os.path.basename(path) == savegame.REF_FILE:
                 switch_ref_path(path)
 
-    def _savegame(self, **kwargs):
+    def _savegame(self, min_delta=0, **kwargs):
         self._generate_src_data(**kwargs)
         savegame.SAVES = [
             {
                 'src_paths': self._get_src_paths(**kwargs),
                 'dst_path': self.dst_root,
+                'min_delta': min_delta,
             },
         ]
         savegame.savegame()
@@ -202,7 +204,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_contains(dst_paths, 'file3'))
 
     def test_save(self):
-        self._savegame(index_start=1, file_count=2)
+        self._savegame(min_delta=600, index_start=1, file_count=2)
         src_paths = self._list_src_root_paths()
         pprint(src_paths)
         dst_paths = self._list_dst_root_paths()
@@ -213,12 +215,13 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_contains(dst_paths, 'dir2'))
         self.assertTrue(any_str_contains(dst_paths, 'file1'))
         self.assertTrue(any_str_contains(dst_paths, 'file2'))
-        meta = savegame.MetaManager().meta
+        meta = deepcopy(savegame.MetaManager().meta)
         pprint(meta)
         for data in sorted(meta.values(), key=lambda x: x['dst']):
             pprint(set(walk_paths(data['dst'])))
-        self._savegame(index_start=1, file_count=2)
-        meta2 = savegame.MetaManager().meta
+
+        self._savegame(min_delta=600, index_start=1, file_count=2)
+        meta2 = deepcopy(savegame.MetaManager().meta)
         pprint(meta2)
         self.assertEqual(meta2, meta)
         for data in sorted(meta2.values(), key=lambda x: x['dst']):
