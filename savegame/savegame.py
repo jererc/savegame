@@ -253,10 +253,10 @@ class MetaManager:
 
     def save(self):
         started_ts = time.time()
-        for path in deepcopy(self.meta).keys():
-            if not os.path.exists(path):
+        for key, meta in deepcopy(self.meta).items():
+            if not os.path.exists(meta['dst']):
                 try:
-                    del self.meta[path]
+                    del self.meta[key]
                 except KeyError:
                     pass
         with open(self.meta_file, 'w') as fd:
@@ -272,7 +272,7 @@ class MetaManager:
 
     def check(self):
         now_ts = time.time()
-        for path, meta in self.meta.items():
+        for key, meta in self.meta.items():
             if meta['updated_ts'] and now_ts > meta['updated_ts'] \
                     + meta['min_delta'] + OLD_DELTA:
                 logger.error(f'{meta["source"]} has not been saved recently')
@@ -485,7 +485,7 @@ class SaveMetaHandler:
         self.saver = saver
         self.min_delta = min_delta
         self.meta_manager = MetaManager()
-        self.meta = self.meta_manager.get(self.saver.dst)
+        self.meta = self.meta_manager.get(self.saver.src)
 
     def check(self):
         if not self.meta:
@@ -495,19 +495,19 @@ class SaveMetaHandler:
             return True
         return False
 
-    def update(self, started_ts, updated_ts=None, retry_delta=0):
+    def update(self, started_ts, updated_ts, retry_delta=0):
         now_ts = time.time()
         meta = {
-            'source': self.saver.src,
+            'dst': self.saver.dst,
             'started_ts': started_ts,
-            'updated_ts': now_ts if updated_ts is None else updated_ts,
+            'updated_ts': updated_ts or self.meta.get('updated_ts', 0),
             'next_ts': now_ts + retry_delta,
             'min_delta': self.min_delta,
-            'duration': time.time() - started_ts,
+            'duration': now_ts - started_ts,
         }
         if self.saver.meta:
             meta.update(self.saver.meta)
-        self.meta_manager.set(self.saver.dst, meta)
+        self.meta_manager.set(self.saver.src, meta)
 
 
 class SaveItem:
@@ -586,8 +586,8 @@ class SaveItem:
             retry_delta = 0
             try:
                 saver.run()
+                updated_ts = time.time()
             except Exception as exc:
-                updated_ts = meta_handler.meta.get('updated_ts', 0)
                 retry_delta = RETRY_DELTA
                 logger.exception(f'failed to save {saver.src}')
                 self._notify_error(f'failed to save {saver.src}: {exc}', exc=exc)
