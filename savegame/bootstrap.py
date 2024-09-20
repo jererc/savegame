@@ -1,4 +1,3 @@
-import argparse
 import ctypes
 import os
 import subprocess
@@ -42,23 +41,16 @@ CRONTAB_SCHEDULE = '*/2 * * * *'
 
 class Bootstrapper:
     def __init__(self):
-        self.args = self._parse_args()
         self._setup_venv()
 
-    def _parse_args(self):
-        parser = argparse.ArgumentParser()
-        subparsers = parser.add_subparsers(dest='command')
-        for command in ('setup', 'save', 'hostnames', 'restore',
-                'google_oauth'):
-            subparsers.add_parser(command)
-        return parser.parse_known_args()[0]
-
     def _check_venv(self):
+        if not os.path.exists(PIP_PATH):
+            return False
         res = subprocess.run([PIP_PATH, 'freeze'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode != 0:
             return False
-        venv_modules = {l.split('==', 1)[0] for l in res.stdout.splitlines()}
+        venv_modules = {l.split('==')[0] for l in res.stdout.splitlines()}
         return venv_modules >= set(PY_MODULES)
 
     def _setup_venv(self):
@@ -67,7 +59,7 @@ class Bootstrapper:
         if self._check_venv():
             return
         if not os.path.exists(VENV_ACTIVATE_PATH):
-            if os.name == 'nt':
+            if os.name == 'nt':   # requires python3-virtualenv on linux
                 subprocess.check_call(['pip', 'install', 'virtualenv'])
             subprocess.check_call(['virtualenv', VENV_PATH])
         subprocess.check_call([PIP_PATH, 'install'] + PY_MODULES,
@@ -96,6 +88,8 @@ class Bootstrapper:
             print('Failed to update crontab')
 
     def _setup_win_task(self, task_name, cmd):
+        if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+            raise Exception('must run as admin')
         subprocess.check_call(['schtasks', '/create',
             '/tn', task_name,
             '/tr', cmd,
@@ -109,8 +103,6 @@ class Bootstrapper:
 
     def setup(self):
         if os.name == 'nt':
-            if ctypes.windll.shell32.IsUserAnAdmin() == 0:
-                raise Exception('must run as admin')
             self._setup_win_task(task_name=NAME,
                 cmd=f'{PY_PATH} {SCRIPT_PATH} save --daemon')
         else:
@@ -127,7 +119,7 @@ class Bootstrapper:
             sys.stdout.write(res.stderr or res.stdout)
 
     def run(self):
-        if self.args.command == 'setup':
+        if len(sys.argv) > 1 and sys.argv[1] == 'setup':
             self.setup()
         else:
             self.run_savegame_cmd()

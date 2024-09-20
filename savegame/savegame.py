@@ -913,7 +913,7 @@ def _parse_args():
     restore_parser.add_argument('--from-username')
     restore_parser.add_argument('--overwrite', action='store_true')
     restore_parser.add_argument('--dry-run', action='store_true')
-    hostnames_parser = subparsers.add_parser('hostnames')
+    subparsers.add_parser('hostnames')
     google_oauth_parser = subparsers.add_parser('google_oauth')
     google_oauth_parser.add_argument('--oauth-creds-file')
     return parser.parse_args()
