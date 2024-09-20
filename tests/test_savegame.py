@@ -66,26 +66,26 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
     def test_win(self):
         obj = savegame.RestoreItem('dst_path')
         path = r'C:\Program Files\some_dir'
-        self.assertEqual(obj._replace_username_in_path(path), path)
+        self.assertEqual(obj._get_valid_src_file(path), path)
         path = r'C:\Users\Public\some_dir'
-        self.assertEqual(obj._replace_username_in_path(path), path)
+        self.assertEqual(obj._get_valid_src_file(path), path)
 
         obj = savegame.RestoreItem('dst_path', from_username=self.other_username)
         path = rf'C:\Users\{self.other_username}\some_dir'
-        self.assertEqual(obj._replace_username_in_path(path),
+        self.assertEqual(obj._get_valid_src_file(path),
             rf'C:\Users\{self.username}\some_dir')
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_posix(self):
         obj = savegame.RestoreItem('dst_path')
         path = '/var/some_dir'
-        self.assertEqual(obj._replace_username_in_path(path), path)
-        path = '/home/root/some_dir'
-        self.assertEqual(obj._replace_username_in_path(path), path)
+        self.assertEqual(obj._get_valid_src_file(path), path)
+        path = '/home/shared/some_dir'
+        self.assertEqual(obj._get_valid_src_file(path), path)
 
         obj = savegame.RestoreItem('dst_path', from_username=self.other_username)
         path = f'/home/{self.other_username}/some_dir'
-        self.assertEqual(obj._replace_username_in_path(path),
+        self.assertEqual(obj._get_valid_src_file(path),
             f'/home/{self.username}/some_dir')
 
 
