@@ -53,8 +53,8 @@ def any_str_contains(strings, substring):
 def print_dst_data():
     meta = savegame.MetaManager().meta
     pprint(meta)
-    for dst in sorted(meta.keys()):
-        pprint(set(walk_paths(dst)))
+    for path in sorted(meta.keys()):
+        pprint(set(walk_paths(path)))
 
 
 class RestoregamePathUsernameTestCase(unittest.TestCase):
@@ -213,6 +213,16 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_contains(dst_paths, 'dir2'))
         self.assertTrue(any_str_contains(dst_paths, 'file1'))
         self.assertTrue(any_str_contains(dst_paths, 'file2'))
+        meta = savegame.MetaManager().meta
+        pprint(meta)
+        for path in sorted(meta.keys()):
+            pprint(set(walk_paths(path)))
+        self._savegame(index_start=1, file_count=2)
+        meta2 = savegame.MetaManager().meta
+        pprint(meta2)
+        self.assertEqual(meta2, meta)
+        for path in sorted(meta2.keys()):
+            pprint(set(walk_paths(path)))
 
     def test_multiple_versions(self):
         self._savegame(index_start=1, file_count=6, file_version=1)

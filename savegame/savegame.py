@@ -479,6 +479,37 @@ class GoogleBookmarksSaver(AbstractSaver):
         }
 
 
+class SaveMetaHandler:
+
+    def __init__(self, saver, min_delta):
+        self.saver = saver
+        self.min_delta = min_delta
+        self.meta_manager = MetaManager()
+        self.meta = self.meta_manager.get(self.saver.dst)
+
+    def check(self):
+        if not self.meta:
+            return True
+        if time.time() > max(self.meta['updated_ts'] + self.min_delta,
+                self.meta['next_ts']):
+            return True
+        return False
+
+    def update(self, started_ts, updated_ts=None, retry_delta=0):
+        now_ts = time.time()
+        meta = {
+            'source': self.saver.src,
+            'started_ts': started_ts,
+            'updated_ts': now_ts if updated_ts is None else updated_ts,
+            'next_ts': now_ts + retry_delta,
+            'min_delta': self.min_delta,
+            'duration': time.time() - started_ts,
+        }
+        if self.saver.meta:
+            meta.update(self.saver.meta)
+        self.meta_manager.set(self.saver.dst, meta)
+
+
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
@@ -492,7 +523,6 @@ class SaveItem:
         self.creds_file = creds_file
         self.restorable = restorable
         self.force = force
-        self.meta_manager = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
     def _get_src_paths(self, src_paths):
@@ -505,29 +535,6 @@ class SaveItem:
         if dst_path != os.path.expanduser(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
         return os.path.join(dst_path, NAME, self.src_type)
-
-    def _check_meta(self, meta):
-        if not meta:
-            return True
-        if time.time() > max(meta['updated_ts'] + self.min_delta,
-                meta['next_ts']):
-            return True
-        return False
-
-    def _update_meta(self, src, dst, started_ts, updated_ts=None,
-            retry_delta=0, extra_meta=None):
-        now_ts = time.time()
-        meta = {
-            'source': src,
-            'started_ts': started_ts,
-            'updated_ts': now_ts if updated_ts is None else updated_ts,
-            'next_ts': now_ts + retry_delta,
-            'min_delta': self.min_delta,
-            'duration': time.time() - started_ts,
-        }
-        if extra_meta:
-            meta.update(extra_meta)
-        self.meta_manager.set(dst, meta)
 
     def _get_saver_class(self):
         module = sys.modules[__name__]
@@ -571,8 +578,8 @@ class SaveItem:
                 retention_delta=self.retention_delta,
                 creds_file=self.creds_file,
             )
-            meta = self.meta_manager.get(saver.dst)
-            if not self.force and not self._check_meta(meta):
+            meta_handler = SaveMetaHandler(saver, min_delta=self.min_delta)
+            if not self.force and not meta_handler.check():
                 continue
             started_ts = time.time()
             updated_ts = None
@@ -580,14 +587,13 @@ class SaveItem:
             try:
                 saver.run()
             except Exception as exc:
-                updated_ts = meta.get('updated_ts', 0)
+                updated_ts = meta_handler.meta.get('updated_ts', 0)
                 retry_delta = RETRY_DELTA
                 logger.exception(f'failed to save {saver.src}')
                 self._notify_error(f'failed to save {saver.src}: {exc}', exc=exc)
             self._update_report(saver)
-            self._update_meta(saver.src, saver.dst,
-                started_ts=started_ts, updated_ts=updated_ts,
-                retry_delta=retry_delta, extra_meta=saver.meta)
+            meta_handler.update(started_ts=started_ts,
+                updated_ts=updated_ts, retry_delta=retry_delta)
 
 
 class SaveHandler:
