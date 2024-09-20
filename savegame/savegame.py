@@ -46,8 +46,8 @@ RE_SPECIAL = re.compile(r'\W+')
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
 REF_FILE = f'.{NAME}'
-MAX_TARGET_VERSIONS = 4
 MIN_SIZE_RATIO = .5
+MAX_DST_FILE_VERSIONS = 4
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -311,7 +311,7 @@ class LocalSaver(AbstractSaver):
     def get_dst(self):
         target_name = get_filename(self.src)
         src_size = get_path_size(self.src)
-        for index in range(1, MAX_TARGET_VERSIONS + 1):
+        for index in range(1, MAX_DST_FILE_VERSIONS + 1):
             suffix = '' if index == 1 else f'-{index}'
             dst = os.path.join(self.dst_path, HOSTNAME,
                 f'{target_name}{suffix}')
