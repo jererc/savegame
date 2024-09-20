@@ -406,8 +406,6 @@ WIN_SAVE = {
 class SavegameIntegrationTestCase(BaseTestCase):
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_glob_and_empty_dirs_win(self):
-        dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
-        makedirs(dst_root)
         savegame.SAVES = [
             {
                 'src_paths': [
@@ -417,12 +415,12 @@ class SavegameIntegrationTestCase(BaseTestCase):
                         [r'*\desktop.ini'],
                     ],
                 ],
-                'dst_path': dst_root,
+                'dst_path': self.dst_root,
             },
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_data()
+            print_dst_data()
 
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
@@ -452,7 +450,7 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_data()
+            print_dst_data()
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
@@ -471,7 +469,7 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
         ]
         for i in range(2):
             savegame.savegame()
-        print_dst_data()
+            print_dst_data()
 
 
 class GoogleBookmarksIntegrationTestCase(BaseTestCase):
