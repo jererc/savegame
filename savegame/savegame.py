@@ -201,16 +201,16 @@ class FileHashManager:
     def set(self, path, value):
         self.cache[path] = value, int(time.time())
 
-    def get(self, path, use_cache=False):
+    def get(self, path, from_cache=False):
         if not os.path.exists(path):
             return None
-        if use_cache:
+        if from_cache:
             try:
                 return self.cache[path][0]
             except KeyError:
                 pass
         res = self.hash(path)
-        if use_cache:
+        if from_cache:
             self.set(path, res)
         return res
 
@@ -221,7 +221,7 @@ class FileHashManager:
                 logger.debug(f'loaded {len(self.cache)} cached items')
 
     def save(self):
-        started_ts = time.time()
+        start_ts = time.time()
         limit_ts = time.time() - HASH_CACHE_TTL
         for path, (h, ts) in deepcopy(self.cache).items():
             if ts < limit_ts or not os.path.exists(path):
@@ -232,7 +232,7 @@ class FileHashManager:
         with open(self.cache_file, 'wb') as fd:
             fd.write(zlib.compress(json.dumps(self.cache).encode('utf-8')))
         logger.debug(f'saved {len(self.cache)} cached items'
-            f' in {time.time() - started_ts:.2f} seconds')
+            f' in {time.time() - start_ts:.2f} seconds')
 
 
 class MetaManager:
@@ -252,7 +252,7 @@ class MetaManager:
                 logger.debug(f'loaded {len(self.meta)} meta items')
 
     def save(self):
-        started_ts = time.time()
+        start_ts = time.time()
         for src, meta in deepcopy(self.meta).items():
             if not os.path.exists(meta['dst']):
                 try:
@@ -262,7 +262,7 @@ class MetaManager:
         with open(self.meta_file, 'w') as fd:
             fd.write(to_json(self.meta))
         logger.debug(f'saved {len(self.meta)} meta items '
-            f'in {time.time() - started_ts:.2f} seconds')
+            f'in {time.time() - start_ts:.2f} seconds')
 
     def set(self, key, value: dict):
         self.meta[key] = value
@@ -294,7 +294,7 @@ class BaseSaver:
         self.dst = self.get_dst()
         self.file_hash_manager = FileHashManager()
         self.meta_manager = MetaManager()
-        self.report = defaultdict(lambda: defaultdict(set))
+        self.report = defaultdict(set)
         self.start_ts = None
         self.end_ts = None
         self.success = None
@@ -370,16 +370,11 @@ class LocalSaver(BaseSaver):
 
     def save(self):
         src = self.src
-        started_ts = time.time()
-
         if os.path.isfile(src):
             src_files = [src]
             src = os.path.dirname(src)
         else:
             src_files = list(walk_files(src))
-            if not src_files:
-                logger.debug(f'skipped empty src path {src}')
-                return
 
         for dst_path in walk_paths(self.dst):
             if os.path.basename(dst_path) == REF_FILE:
@@ -389,32 +384,31 @@ class LocalSaver(BaseSaver):
                     or is_path_excluded(src_path,
                         self.inclusions, self.exclusions):
                 remove_path(dst_path)
-                self.report[src]['removed'].add(dst_path)
+                self.report['removed'].add(dst_path)
                 logger.debug(f'removed {dst_path}')
 
         for src_file in src_files:
             if is_path_excluded(src_file, self.inclusions, self.exclusions):
-                self.report[src]['excluded'].add(src_file)
+                self.report['excluded'].add(src_file)
                 logger.debug(f'excluded {src_file}')
                 continue
-            self.report[src]['files'].add(src_file)
+            self.report['files'].add(src_file)
             dst_file = os.path.join(self.dst, os.path.relpath(src_file, src))
-            src_hash = self.file_hash_manager.get(src_file, use_cache=False)
-            dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
+            src_hash = self.file_hash_manager.get(src_file, from_cache=False)
+            dst_hash = self.file_hash_manager.get(dst_file, from_cache=True)
             if dst_hash == src_hash:
                 continue
             try:
                 makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
                 self.file_hash_manager.set(dst_file, src_hash)
-                self.report[src]['saved'].add(dst_file)
+                self.report['saved'].add(dst_file)
                 logger.debug(f'saved {src_file}')
             except Exception:
                 logger.exception(f'failed to save {src_file}')
 
         self._generate_ref_file(src)
-        logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
-        self.result['file_count'] = len(self.report[src]['files'])
+        self.result['file_count'] = len(self.report['files'])
 
 
 class GoogleDriveSaver(BaseSaver):
@@ -435,17 +429,17 @@ class GoogleDriveSaver(BaseSaver):
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
-                self.report[self.src_type]['skipped'].add(dst_file)
+                self.report['skipped'].add(dst_file)
                 logger.debug(f'skipped saving google drive file {dst_file}: '
                     'already exists')
                 continue
             try:
                 content = gc.fetch_file_content(file_id=file_data['id'],
                     mime_type=file_data['mime_type'])
-                self.report[self.src_type]['saved'].add(dst_file)
+                self.report['saved'].add(dst_file)
                 logger.debug(f'saved google drive file {dst_file}')
             except Exception as exc:
-                self.report[self.src_type]['failed'].add(dst_file)
+                self.report['failed'].add(dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
                 continue
@@ -474,13 +468,13 @@ class GoogleContactsSaver(BaseSaver):
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
         if text_file_exists(file, data):
-            self.report[self.src_type]['skipped'].add(file)
+            self.report['skipped'].add(file)
             logger.debug(f'skipped saving google contacts file {file}: '
                 'already exists')
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report[self.src_type]['saved'].add(file)
+            self.report['saved'].add(file)
             logger.info(f'saved {len(contacts)} google contacts')
         self.result['file_count'] = 1
 
@@ -491,13 +485,13 @@ class GoogleBookmarksSaver(BaseSaver):
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
         if text_file_exists(file, data, log_content_changed=True):
-            self.report[self.src_type]['skipped'].add(file)
+            self.report['skipped'].add(file)
             logger.debug(f'skipped saving google bookmark {file}: '
                 'already exists')
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report[self.src_type]['saved'].add(file)
+            self.report['saved'].add(file)
             logger.debug(f'saved google bookmark {file}')
 
     def save(self):
@@ -581,13 +575,11 @@ class SaveHandler:
         self.report = defaultdict(lambda: defaultdict(set))
 
     def _save(self, save):
-        started_ts = time.time()
+        start_ts = time.time()
         try:
             for saver in SaveItem(**save).iterate_savers():
                 saver.run(force=self.force)
-                for path, data in saver.report.items():
-                    for k, v in data.items():
-                        self.report[path][k].update(v)
+                self.report[saver.src] = saver.report
         except InvalidPath as exc:
             logger.warning(exc)
         except Exception as exc:
@@ -596,21 +588,21 @@ class SaveHandler:
                 body=f'failed to save {save}: {exc}')
         finally:
             logger.debug(f'processed {save} in '
-                f'{time.time() - started_ts:.02f} seconds')
+                f'{time.time() - start_ts:.02f} seconds')
 
     def _generate_report(self):
         summary = defaultdict(int)
         keys = {'saved', 'removed'}
-        for path, data in self.report.items():
+        for src, data in self.report.items():
             path_summary = {k: len(v) for k, v in data.items()
                 if k in keys and v}
             if path_summary:
-                summary[path] = path_summary
+                summary[src] = path_summary
         if summary:
             logger.info(f'summary:\n{to_json(summary)}')
 
     def run(self):
-        started_ts = time.time()
+        start_ts = time.time()
         try:
             for save in SAVES:
                 self._save(save)
@@ -619,7 +611,7 @@ class SaveHandler:
             MetaManager().check()
         finally:
             self._generate_report()
-            logger.info(f'completed in {time.time() - started_ts:.02f} seconds')
+            logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
 
 class RestoreItem:
