@@ -324,7 +324,7 @@ class BaseSaver:
         meta['duration'] = self.end_ts - self.start_ts
         self.meta_manager.set(self.src, meta)
 
-    def save(self):
+    def do_run(self):
         raise NotImplementedError()
 
     def run(self, force=False):
@@ -332,7 +332,7 @@ class BaseSaver:
             return
         self.start_ts = time.time()
         try:
-            self.save()
+            self.do_run()
             self.success = True
         except Exception as exc:
             self.success = False
@@ -368,7 +368,7 @@ class LocalSaver(BaseSaver):
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
 
-    def save(self):
+    def do_run(self):
         src = self.src
         if os.path.isfile(src):
             src_files = [src]
@@ -421,7 +421,7 @@ class GoogleDriveSaver(BaseSaver):
         else:
             super().notify(message, exc)
 
-    def save(self):
+    def do_run(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         paths = set()
         for file_data in gc.iterate_files():
@@ -462,7 +462,7 @@ class GoogleContactsSaver(BaseSaver):
         else:
             super().notify(message, exc)
 
-    def save(self):
+    def do_run(self):
         gc = GoogleCloud(oauth_creds_file=self.creds_file)
         contacts = gc.list_contacts()
         data = to_json(contacts)
@@ -494,7 +494,7 @@ class GoogleBookmarksSaver(BaseSaver):
             self.report['saved'].add(file)
             logger.debug(f'saved google bookmark {file}')
 
-    def save(self):
+    def do_run(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
         for bookmark in bookmarks:
@@ -524,6 +524,7 @@ class SaveItem:
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.restorable = restorable
+        self.saver_cls = self._get_saver_class()
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple))
@@ -559,9 +560,8 @@ class SaveItem:
 
     def iterate_savers(self):
         makedirs(self.dst_path)
-        saver_cls = self._get_saver_class()
         for src_and_filters in self._iterate_src_and_filters():
-            yield saver_cls(*src_and_filters,
+            yield self.saver_cls(*src_and_filters,
                 dst_path=self.dst_path,
                 min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
@@ -586,9 +586,8 @@ class SaveHandler:
             logger.exception(f'failed to save {save}')
             notify(title=f'{NAME} exception',
                 body=f'failed to save {save}: {exc}')
-        finally:
-            logger.debug(f'processed {save} in '
-                f'{time.time() - start_ts:.02f} seconds')
+        logger.debug(f'processed {save} in '
+            f'{time.time() - start_ts:.02f} seconds')
 
     def _generate_report(self):
         summary = defaultdict(int)
@@ -603,18 +602,16 @@ class SaveHandler:
 
     def run(self):
         start_ts = time.time()
-        try:
-            for save in SAVES:
-                self._save(save)
-            FileHashManager().save()
-            MetaManager().save()
-            MetaManager().check()
-        finally:
-            self._generate_report()
-            logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
+        for save in SAVES:
+            self._save(save)
+        FileHashManager().save()
+        MetaManager().save()
+        MetaManager().check()
+        self._generate_report()
+        logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
 
-class RestoreItem:
+class LocalRestorer:
     def __init__(self, dst_path, from_hostname=None, from_username=None,
             overwrite=False, dry_run=False):
         self.dst_path = dst_path
@@ -622,6 +619,7 @@ class RestoreItem:
         self.from_username = from_username or os.getlogin()
         self.overwrite = overwrite
         self.dry_run = dry_run
+        self.hostnames = sorted(os.listdir(self.dst_path))
         self.file_hash_manager = FileHashManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
@@ -693,13 +691,9 @@ class RestoreItem:
             logger.error(f'failed to restore {src_file} '
                 f'from {dst_file}: {exc}')
 
-    def list_hostnames(self):
-        return sorted(os.listdir(self.dst_path))
-
-    def restore(self):
+    def run(self):
         to_restore = set()
-        hostnames = self.list_hostnames()
-        for hostname in hostnames:
+        for hostname in self.hostnames:
             if hostname != self.from_hostname:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
@@ -711,7 +705,7 @@ class RestoreItem:
         if not to_restore:
             logger.info(f'nothing to restore from path {self.dst_path} '
                 f'and hostname {self.from_hostname} '
-                f'(available hostnames: {hostnames})')
+                f'(available hostnames: {self.hostnames})')
             return
 
         for src, dst in sorted(to_restore):
@@ -725,33 +719,27 @@ class RestoreItem:
 
 
 class RestoreHandler:
-    def __init__(self, **restore_item_args):
-        self.restore_item_args = restore_item_args
+    def __init__(self, **restorer_args):
+        self.restorer_args = restorer_args
         self.report = defaultdict(lambda: defaultdict(set))
 
-    def _iterate_save_items(self):
-        if not SAVES:
-            logger.info('missing saves')
-            return
+    def _iterate_restorers(self):
+        dst_paths = set()
         for save in SAVES:
             try:
                 si = SaveItem(**save)
-                if si.src_type == LocalSaver.src_type and si.restorable:
-                    yield si
-            except InvalidPath:
+                if si.saver_cls == LocalSaver and si.restorable:
+                    dst_paths.add(si.dst_path)
+            except InvalidPath as exc:
+                logger.warning(str(exc))
                 continue
-
-    def _iterate_restore_items(self):
-        dst_paths = set()
-        for si in self._iterate_save_items():
-            dst_paths.add(si.dst_path)
         for dst_path in dst_paths:
-            yield RestoreItem(dst_path=dst_path, **self.restore_item_args)
+            yield LocalRestorer(dst_path=dst_path, **self.restorer_args)
 
     def list_hostnames(self):
         hostnames = set()
-        for ri in self._iterate_restore_items():
-            hostnames.update(ri.list_hostnames())
+        for restorer in self._iterate_restorers():
+            hostnames.update(restorer.hostnames)
         return hostnames
 
     def _generate_report(self):
@@ -764,12 +752,12 @@ class RestoreHandler:
             logger.info(f'summary:\n{to_json(summary)}')
 
     def run(self):
-        for ri in self._iterate_restore_items():
+        for restorer in self._iterate_restorers():
             try:
-                ri.restore()
+                restorer.run()
             except Exception:
-                logger.exception(f'failed to restore {ri.dst_path}')
-            for path, data in ri.report.items():
+                logger.exception(f'failed to restore {restorer.dst_path}')
+            for path, data in restorer.report.items():
                 for k, v in data.items():
                     self.report[path][k].update(v)
 
