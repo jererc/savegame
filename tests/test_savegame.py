@@ -15,7 +15,6 @@ MODULE_PATH = os.path.join(REPO_PATH, 'savegame')
 sys.path.append(MODULE_PATH)
 import savegame
 import user_settings
-import google_cloud
 
 
 HOSTNAME = socket.gethostname()
@@ -62,29 +61,32 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
     def setUp(self):
         self.username = os.getlogin()
         self.other_username = f'not{self.username}'
+        self.dst_path = os.path.dirname(__file__)
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win(self):
-        obj = savegame.RestoreItem('dst_path')
+        obj = savegame.LocalRestorer(self.dst_path)
         path = r'C:\Program Files\some_dir'
         self.assertEqual(obj._get_valid_src_file(path), path)
         path = r'C:\Users\Public\some_dir'
         self.assertEqual(obj._get_valid_src_file(path), path)
 
-        obj = savegame.RestoreItem('dst_path', from_username=self.other_username)
+        obj = savegame.LocalRestorer(self.dst_path,
+            from_username=self.other_username)
         path = rf'C:\Users\{self.other_username}\some_dir'
         self.assertEqual(obj._get_valid_src_file(path),
             rf'C:\Users\{self.username}\some_dir')
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_posix(self):
-        obj = savegame.RestoreItem('dst_path')
+        obj = savegame.LocalRestorer(self.dst_path)
         path = '/var/some_dir'
         self.assertEqual(obj._get_valid_src_file(path), path)
         path = '/home/shared/some_dir'
         self.assertEqual(obj._get_valid_src_file(path), path)
 
-        obj = savegame.RestoreItem('dst_path', from_username=self.other_username)
+        obj = savegame.LocalRestorer(self.dst_path,
+            from_username=self.other_username)
         path = f'/home/{self.other_username}/some_dir'
         self.assertEqual(obj._get_valid_src_file(path),
             f'/home/{self.username}/some_dir')
@@ -429,116 +431,3 @@ class SavegameTestCase(BaseTestCase):
         src_paths2 = self._list_src_root_paths()
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
-
-
-#
-# Integration
-#
-
-LINUX_SAVE = {
-    'src_paths': [
-        '/home/jererc/.gitconfig',
-        [
-            '/home/jererc/.ssh',
-            [],
-            ['*/id_ed25519'],
-        ],
-        '/home/jererc/.config/sublime-text',
-    ],
-    'dst_path': '/home/jererc/OneDrive/data',
-}
-WIN_SAVE = {
-    'src_paths': [
-        r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Games',
-        r'C:\Users\jerer\AppData\Roaming\Sublime Text 3',
-    ],
-    'dst_path': r'C:\Users\jerer\OneDrive\data',
-}
-
-
-class SavegameIntegrationTestCase(BaseTestCase):
-    @unittest.skipIf(os.name != 'nt', 'not windows')
-    def test_glob_and_empty_dirs_win(self):
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    [
-                        r'C:\Users\Public\Documents\*',
-                        [],
-                        [r'*\desktop.ini'],
-                    ],
-                ],
-                'dst_path': self.dst_root,
-            },
-        ]
-        for i in range(2):
-            savegame.savegame()
-            print_dst_data()
-
-    def test_1(self):
-        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.savegame()
-
-
-class RestoregameIntegrationTestCase(BaseTestCase):
-    def test_1(self):
-        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.restoregame(dry_run=True)
-
-
-class GoogleDriveIntegrationTestCase(BaseTestCase):
-    def test_1(self):
-        creds_file = os.path.realpath(os.path.expanduser(
-            '~/data/credentials_oauth.json'))
-        google_cloud.GoogleCloud(oauth_creds_file=creds_file
-            ).get_oauth_creds(interact=True)
-        savegame.SAVES = [
-            {
-                'src_type': 'google_drive',
-                'dst_path': self.dst_root,
-                'creds_file': creds_file,
-                'retention_delta': 0,
-                'min_delta': 0,
-            },
-        ]
-        for i in range(2):
-            savegame.savegame()
-            print_dst_data()
-
-
-class GoogleContactsIntegrationTestCase(BaseTestCase):
-    def test_1(self):
-        creds_file = os.path.realpath(os.path.expanduser(
-            '~/data/credentials_oauth.json'))
-        google_cloud.GoogleCloud(oauth_creds_file=creds_file
-            ).get_oauth_creds(interact=True)
-        savegame.SAVES = [
-            {
-                'src_type': 'google_contacts',
-                'dst_path': self.dst_root,
-                'creds_file': creds_file,
-                'min_delta': 0,
-            },
-        ]
-        for i in range(2):
-            savegame.savegame()
-            print_dst_data()
-
-
-class GoogleBookmarksIntegrationTestCase(BaseTestCase):
-    def test_1(self):
-        savegame.SAVES = [
-            {
-                'src_type': 'google_bookmarks',
-                'dst_path': self.dst_root,
-                'retention_delta': 0,
-                'min_delta': 0,
-            },
-        ]
-        for i in range(2):
-            savegame.savegame()
-            print_dst_data()
-
-
-if __name__ == '__main__':
-    unittest.main()
