@@ -113,7 +113,7 @@ class Bootstrapper:
         res = subprocess.run([PY_PATH, SCRIPT_PATH] + sys.argv[1:],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             cwd=ROOT_PATH)
-        sys.stdout.write(res.stdout)
+        sys.stdout.write(res.stdout or res.stderr)
 
     def run(self):
         if len(sys.argv) > 1 and sys.argv[1] == 'setup':

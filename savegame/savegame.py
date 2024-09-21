@@ -732,6 +732,8 @@ class RestoreHandler:
             except InvalidPath as exc:
                 logger.warning(str(exc))
                 continue
+        if not dst_paths:
+            print(f'nothing to restore')
         for dst_path in dst_paths:
             yield LocalRestorer(dst_path=dst_path, **self.restorer_args)
 
@@ -892,14 +894,13 @@ def main():
             Task().run()
         else:
             savegame(force=True)
-    elif args.command == 'restore':
-        restoregame(**{k: v for k, v in vars(args).items()
-            if k != 'command'})
-    elif args.command == 'hostnames':
-        list_hostnames(**{k: v for k, v in vars(args).items()
-            if k != 'command'})
-    elif args.command == 'google_oauth':
-        google_oauth(**{k: v for k, v in vars(args).items()
+    else:
+        callable_ = {
+            'restore': restoregame,
+            'hostnames': list_hostnames,
+            'google_oauth': google_oauth,
+        }[args.command]
+        callable_(**{k: v for k, v in vars(args).items()
             if k != 'command'})
 
 
