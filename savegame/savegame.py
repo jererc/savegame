@@ -218,7 +218,7 @@ class FileHashManager:
         if os.path.exists(self.cache_file):
             with open(self.cache_file, 'rb') as fd:
                 self.cache = json.loads(zlib.decompress(fd.read()))
-                logger.debug(f'loaded {len(self.cache)} cached items')
+            logger.debug(f'loaded {len(self.cache)} cached items')
 
     def save(self):
         start_ts = time.time()
@@ -252,12 +252,9 @@ class MetaManager:
             logger.debug(f'loaded {len(self.meta)} meta items')
 
     def save(self, keys):
-        start_ts = time.time()
-        meta = {k: v for k, v in self.meta.items() if k in keys}
+        self.meta = {k: v for k, v in self.meta.items() if k in keys}
         with open(self.meta_file, 'w') as fd:
-            fd.write(to_json(meta))
-        logger.debug(f'saved {len(meta)} meta items '
-            f'in {time.time() - start_ts:.2f} seconds')
+            fd.write(to_json(self.meta))
 
     def set(self, key, value: dict):
         self.meta[key] = value
