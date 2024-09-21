@@ -334,6 +334,40 @@ class BaseSaver:
         self._update_meta()
 
 
+class ReferenceFileHandler:
+
+    def __init__(self, dst):
+        self.dst = dst
+        self.file = os.path.join(self.dst, REF_FILE)
+        self.file_hash_manager = FileHashManager()
+
+    def generate(self, ref_data):
+        data = to_json(ref_data)
+        if not text_file_exists(self.file, data):
+            with open(self.file, 'w', encoding='utf-8') as fd:
+                fd.write(data)
+            logger.info(f'created ref file {self.file}')
+
+    def load(self):
+        if not os.path.exists(self.file):
+            raise Exception(f'missing ref file {self.file}')
+        try:
+            with open(self.file, encoding='utf-8') as fd:
+                ref_data = json.load(fd)
+        except Exception as exc:
+            raise Exception(f'failed to load ref data from {self.file}: {exc}')
+        dst_files = set()
+        invalid_files = set()
+        for rel_path, file_hash in ref_data['files']:
+            dst_file = os.path.join(self.dst, rel_path)
+            if not os.path.exists(dst_file) or \
+                    self.file_hash_manager.hash(dst_file) != file_hash:
+                invalid_files.add(dst_file)
+            else:
+                dst_files.add(dst_file)
+        return ref_data['src'], dst_files, invalid_files
+
+
 class LocalSaver(BaseSaver):
     src_type = 'local'
 
@@ -349,14 +383,6 @@ class LocalSaver(BaseSaver):
                 break
         makedirs(dst)
         return dst
-
-    def _generate_ref_file(self, src):
-        file = os.path.join(self.dst, REF_FILE)
-        data = str(src)
-        if not text_file_exists(file, data, log_content_changed=True):
-            logger.info(f'created ref file {file}')
-            with open(file, 'w', encoding='utf-8') as fd:
-                fd.write(data)
 
     def do_run(self):
         src = self.src
@@ -377,15 +403,18 @@ class LocalSaver(BaseSaver):
                 self.report['removed'].add(dst_path)
                 logger.debug(f'removed {dst_path}')
 
+        ref_data = {'src': src, 'files': []}
         for src_file in src_files:
             if is_path_excluded(src_file, self.inclusions, self.exclusions):
                 self.report['excluded'].add(src_file)
                 logger.debug(f'excluded {src_file}')
                 continue
             self.report['files'].add(src_file)
-            dst_file = os.path.join(self.dst, os.path.relpath(src_file, src))
+            file_rel_path = os.path.relpath(src_file, src)
+            dst_file = os.path.join(self.dst, file_rel_path)
             src_hash = self.file_hash_manager.get(src_file, from_cache=False)
             dst_hash = self.file_hash_manager.get(dst_file, from_cache=True)
+            ref_data['files'].append((file_rel_path, src_hash))
             if dst_hash == src_hash:
                 continue
             try:
@@ -397,7 +426,7 @@ class LocalSaver(BaseSaver):
             except Exception:
                 logger.exception(f'failed to save {src_file}')
 
-        self._generate_ref_file(src)
+        ReferenceFileHandler(self.dst).generate(ref_data)
         self.result['file_count'] = len(self.report['files'])
 
 
@@ -540,8 +569,7 @@ class SaveItem:
         if self.src_type == LocalSaver.src_type:
             for src_path, inclusions, exclusions in self.src_paths:
                 for src in glob(os.path.expanduser(src_path)):
-                    if is_path_excluded(src, inclusions, exclusions,
-                            file_only=False):
+                    if is_path_excluded(src, [], exclusions, file_only=False):
                         logger.debug(f'excluded src_path {src}')
                         continue
                     yield src, inclusions, exclusions
@@ -615,17 +643,6 @@ class LocalRestorer:
         self.file_hash_manager = FileHashManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
-    def _get_src(self, dst):
-        ref_file = os.path.join(dst, REF_FILE)
-        if not os.path.exists(ref_file):
-            return None
-        with open(ref_file) as fd:
-            src = fd.read()
-        if not src:
-            logger.error(f'invalid ref src in {ref_file}')
-            return None
-        return src
-
     def _get_valid_src_file(self, path):
         with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
         home_path = os.path.expanduser('~')
@@ -684,29 +701,25 @@ class LocalRestorer:
                 f'from {dst_file}: {exc}')
 
     def run(self):
-        to_restore = set()
         for hostname in self.hostnames:
             if hostname != self.from_hostname:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
                 dst = os.path.join(self.dst_path, hostname, dst_dir)
-                src = self._get_src(dst)
-                if src:
-                    to_restore.add((src, dst))
-
-        if not to_restore:
-            logger.info(f'nothing to restore from path {self.dst_path} '
-                f'and hostname {self.from_hostname} '
-                f'(available hostnames: {self.hostnames})')
-            return
-
-        for src, dst in sorted(to_restore):
-            for dst_file in walk_files(dst):
-                if os.path.basename(dst_file) == REF_FILE:
+                try:
+                    src, dst_files, invalid_files = ReferenceFileHandler(dst).load()
+                except Exception as exc:
+                    logger.error(str(exc))
+                    self.report[None]['invalid_dst'].add(dst)
                     continue
-                src_file = os.path.join(src, os.path.relpath(dst_file, dst))
-                src_file = self._get_valid_src_file(src_file)
-                if src_file:
+                if invalid_files:
+                    self.report[src]['invalid_files'].update(invalid_files)
+                    continue
+                if not dst_files:
+                    self.report[src]['empty_dst'].add(dst)
+                    continue
+                for dst_file in dst_files:
+                    src_file = os.path.join(src, os.path.relpath(dst_file, dst))
                     self._restore_file(dst_file, src_file, src)
 
 
@@ -737,13 +750,10 @@ class RestoreHandler:
         return hostnames
 
     def _generate_report(self):
-        summary = defaultdict(int)
+        report = {}
         for path, data in self.report.items():
-            path_summary = {k: len(v) for k, v in data.items() if v}
-            if path_summary:
-                summary[path] = path_summary
-        if summary:
-            logger.info(f'summary:\n{to_json(summary)}')
+            report[path] = {k: sorted(v) for k, v in data.items() if v}
+        logger.info(f'report:\n{to_json(report)}')
 
     def run(self):
         for restorer in self._iterate_restorers():
@@ -754,7 +764,6 @@ class RestoreHandler:
             for path, data in restorer.report.items():
                 for k, v in data.items():
                     self.report[path][k].update(v)
-
         self._generate_report()
 
 

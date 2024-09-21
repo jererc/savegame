@@ -417,6 +417,26 @@ class SavegameTestCase(BaseTestCase):
         remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
 
+    def test_restore_invalid_files(self):
+        self._savegame(index_start=1, file_count=2)
+        src_paths = self._list_src_root_paths()
+        print('src data:')
+        pprint(src_paths)
+        remove_path(self.src_root)
+
+        print('dst data:')
+        pprint(self._list_dst_root_paths())
+        for file in walk_files(self.dst_root):
+            if os.path.basename(file) == 'file1':
+                with open(file, 'w') as fd:
+                    fd.write('corrupted data')
+
+        savegame.restoregame()
+        src_paths2 = self._list_src_root_paths()
+        print('src data:')
+        pprint(src_paths2)
+        self.assertFalse(src_paths2)
+
     def test_restore(self):
         self._savegame(index_start=1, file_count=2)
         src_paths = self._list_src_root_paths()
@@ -429,5 +449,6 @@ class SavegameTestCase(BaseTestCase):
 
         savegame.restoregame()
         src_paths2 = self._list_src_root_paths()
+        print('src data:')
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
