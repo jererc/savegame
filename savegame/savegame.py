@@ -249,19 +249,14 @@ class MetaManager:
         if os.path.exists(self.meta_file):
             with open(self.meta_file) as fd:
                 self.meta = json.loads(fd.read())
-                logger.debug(f'loaded {len(self.meta)} meta items')
+            logger.debug(f'loaded {len(self.meta)} meta items')
 
-    def save(self):
+    def save(self, keys):
         start_ts = time.time()
-        for src, meta in deepcopy(self.meta).items():
-            if not os.path.exists(meta['dst']):
-                try:
-                    del self.meta[src]
-                except KeyError:
-                    pass
+        meta = {k: v for k, v in self.meta.items() if k in keys}
         with open(self.meta_file, 'w') as fd:
-            fd.write(to_json(self.meta))
-        logger.debug(f'saved {len(self.meta)} meta items '
+            fd.write(to_json(meta))
+        logger.debug(f'saved {len(meta)} meta items '
             f'in {time.time() - start_ts:.2f} seconds')
 
     def set(self, key, value: dict):
@@ -274,7 +269,7 @@ class MetaManager:
         now_ts = time.time()
         for src, meta in self.meta.items():
             if meta['next_ts'] and now_ts > meta['next_ts'] + OLD_DELTA:
-                logger.error(f'{src} has not been saved recently')
+                logger.warning(f'{src} has not been saved recently')
                 notify(title=f'{NAME} warning',
                     body=f'{meta["source"]} has not been saved recently')
 
@@ -337,9 +332,8 @@ class BaseSaver:
             self.success = False
             logger.exception(f'failed to save {self.src}')
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
-        finally:
-            self.result['size_MB'] = get_path_size(self.dst) / 1024 / 1024
-            self.end_ts = time.time()
+        self.result['size_MB'] = get_path_size(self.dst) / 1024 / 1024
+        self.end_ts = time.time()
         self._update_meta()
 
 
@@ -573,20 +567,15 @@ class SaveHandler:
         self.force = force
         self.report = defaultdict(lambda: defaultdict(set))
 
-    def _save(self, save):
-        start_ts = time.time()
-        try:
-            for saver in SaveItem(**save).iterate_savers():
-                saver.run(force=self.force)
-                self.report[saver.src] = saver.report
-        except InvalidPath as exc:
-            logger.warning(exc)
-        except Exception as exc:
-            logger.exception(f'failed to save {save}')
-            notify(title=f'{NAME} exception',
-                body=f'failed to save {save}: {exc}')
-        logger.debug(f'processed {save} in '
-            f'{time.time() - start_ts:.02f} seconds')
+    def _iterate_savers(self):
+        for save in SAVES:
+            try:
+                save_item = SaveItem(**save)
+            except InvalidPath as exc:
+                logger.warning(exc)
+                continue
+            for saver in save_item.iterate_savers():
+                yield saver
 
     def _generate_report(self):
         summary = defaultdict(int)
@@ -601,10 +590,17 @@ class SaveHandler:
 
     def run(self):
         start_ts = time.time()
-        for save in SAVES:
-            self._save(save)
+        savers = list(self._iterate_savers())
+        for saver in savers:
+            try:
+                saver.run(force=self.force)
+            except Exception as exc:
+                logger.exception(f'failed to save {saver.src}')
+                notify(title=f'{NAME} exception',
+                    body=f'failed to save {saver.src}: {exc}')
+            self.report[saver.src] = saver.report
         FileHashManager().save()
-        MetaManager().save()
+        MetaManager().save(keys={s.src for s in savers})
         MetaManager().check()
         self._generate_report()
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
@@ -733,7 +729,7 @@ class RestoreHandler:
                 logger.warning(str(exc))
                 continue
         if not dst_paths:
-            print(f'nothing to restore')
+            logger.info('nothing to restore')
         for dst_path in dst_paths:
             yield LocalRestorer(dst_path=dst_path, **self.restorer_args)
 

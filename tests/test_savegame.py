@@ -104,6 +104,9 @@ class BaseTestCase(unittest.TestCase):
         self.dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
         makedirs(self.dst_root)
 
+        savegame.MetaManager().meta = {}
+        savegame.FileHashManager().cache = {}
+
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
         for s in range(index_start, index_start + src_count):
@@ -204,10 +207,30 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_contains(dst_paths, 'file3'))
 
     def test_save(self):
-        self._savegame(min_delta=600, index_start=1, file_count=2)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src1'),
+                ],
+                'dst_path': self.dst_root,
+                'min_delta': 600,
+            },
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src2'),
+                ],
+                'dst_path': self.dst_root,
+                'min_delta': 600,
+            },
+        ]
+        savegame.savegame()
         src_paths = self._list_src_root_paths()
+        print('src data:')
         pprint(src_paths)
         dst_paths = self._list_dst_root_paths()
+        print('dst data:')
         pprint(dst_paths)
         self.assertTrue(any_str_contains(dst_paths, 'src1'))
         self.assertTrue(any_str_contains(dst_paths, 'src2'))
@@ -218,13 +241,15 @@ class SavegameTestCase(BaseTestCase):
         meta = deepcopy(savegame.MetaManager().meta)
         pprint(meta)
         for data in sorted(meta.values(), key=lambda x: x['dst']):
+            print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
-        self._savegame(min_delta=600, index_start=1, file_count=2)
+        savegame.savegame()
         meta2 = deepcopy(savegame.MetaManager().meta)
         pprint(meta2)
         self.assertEqual(meta2, meta)
         for data in sorted(meta2.values(), key=lambda x: x['dst']):
+            print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
     def test_multiple_versions(self):
