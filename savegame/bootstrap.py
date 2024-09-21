@@ -37,6 +37,7 @@ PY_MODULES = {
     'posix': LINUX_PY_MODULES,
 }[os.name]
 CRONTAB_SCHEDULE = '*/2 * * * *'
+COMMAND = 'setup'
 
 
 class Bootstrapper:
@@ -117,12 +118,12 @@ class Bootstrapper:
 
     def run(self):
         try:
-            if sys.argv[1] == 'setup':
+            if sys.argv[1] == COMMAND:
                 self.setup()
             else:
                 self.run_savegame_cmd()
         except IndexError:
-            print(f'missing command: setup or any savegame command')
+            print(f'missing command: {COMMAND} or any savegame command')
 
 
 def main():
