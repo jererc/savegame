@@ -298,7 +298,7 @@ class BaseSaver:
         self.start_ts = None
         self.end_ts = None
         self.success = None
-        self.result = None
+        self.result = {}
 
     def get_dst(self):
         dst =  os.path.join(self.dst_path, self.src_type)
@@ -339,6 +339,7 @@ class BaseSaver:
             logger.exception(f'failed to save {self.src}')
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         finally:
+            self.result['size_MB'] = get_path_size(self.dst) / 1024 / 1024
             self.end_ts = time.time()
         self._update_meta()
 
@@ -369,7 +370,6 @@ class LocalSaver(BaseSaver):
 
     def save(self):
         src = self.src
-        size = 0
         started_ts = time.time()
 
         if os.path.isfile(src):
@@ -398,7 +398,6 @@ class LocalSaver(BaseSaver):
                 logger.debug(f'excluded {src_file}')
                 continue
             self.report[src]['files'].add(src_file)
-            size += os.path.getsize(src_file)
             dst_file = os.path.join(self.dst, os.path.relpath(src_file, src))
             src_hash = self.file_hash_manager.get(src_file, use_cache=False)
             dst_hash = self.file_hash_manager.get(dst_file, use_cache=True)
@@ -415,10 +414,7 @@ class LocalSaver(BaseSaver):
 
         self._generate_ref_file(src)
         logger.debug(f'saved {src} in {time.time() - started_ts:.02f} seconds')
-        self.result = {
-            'file_count': len(self.report[src]['files']),
-            'size_MB': size / 1024 / 1024,
-        }
+        self.result['file_count'] = len(self.report[src]['files'])
 
 
 class GoogleDriveSaver(BaseSaver):
@@ -459,11 +455,7 @@ class GoogleDriveSaver(BaseSaver):
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
-
-        self.result = {
-            'file_count': len(paths),
-            'size_MB': get_path_size(self.dst) / 1024 / 1024,
-        }
+        self.result['file_count'] = len(paths)
 
 
 class GoogleContactsSaver(BaseSaver):
@@ -490,10 +482,7 @@ class GoogleContactsSaver(BaseSaver):
                 fd.write(data)
             self.report[self.src_type]['saved'].add(file)
             logger.info(f'saved {len(contacts)} google contacts')
-        self.result = {
-            'file_count': 1,
-            'size_MB': get_path_size(file) / 1024 / 1024,
-        }
+        self.result['file_count'] = 1
 
 
 class GoogleBookmarksSaver(BaseSaver):
@@ -527,11 +516,7 @@ class GoogleBookmarksSaver(BaseSaver):
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.needs_purge(dst_path):
                 remove_path(dst_path)
-
-        self.result = {
-            'file_count': len(bookmarks),
-            'size_MB': get_path_size(self.dst) / 1024 / 1024,
-        }
+        self.result['file_count'] = len(bookmarks)
 
 
 class SaveItem:
