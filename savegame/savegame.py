@@ -534,7 +534,7 @@ class GoogleBookmarksSaver(BaseSaver):
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
-            restorable=True, force=False):
+            restorable=True):
         self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
@@ -542,8 +542,6 @@ class SaveItem:
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.restorable = restorable
-        self.force = force
-        self.report = defaultdict(lambda: defaultdict(set))
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple))
@@ -577,23 +575,16 @@ class SaveItem:
         else:
             yield self.src_type, None, None
 
-    def _update_report(self, saver):
-        for path, data in saver.report.items():
-            for k, v in data.items():
-                self.report[path][k].update(v)
-
-    def run(self):
+    def iterate_savers(self):
         makedirs(self.dst_path)
         saver_cls = self._get_saver_class()
         for src_and_filters in self._iterate_src_and_filters():
-            saver = saver_cls(*src_and_filters,
+            yield saver_cls(*src_and_filters,
                 dst_path=self.dst_path,
                 min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
                 creds_file=self.creds_file,
             )
-            saver.run(self.force)
-            self._update_report(saver)
 
 
 class SaveHandler:
@@ -604,11 +595,11 @@ class SaveHandler:
     def _save(self, save):
         started_ts = time.time()
         try:
-            si = SaveItem(**save, force=self.force)
-            si.run()
-            for path, data in si.report.items():
-                for k, v in data.items():
-                    self.report[path][k].update(v)
+            for saver in SaveItem(**save).iterate_savers():
+                saver.run(force=self.force)
+                for path, data in saver.report.items():
+                    for k, v in data.items():
+                        self.report[path][k].update(v)
         except InvalidPath as exc:
             logger.warning(exc)
         except Exception as exc:
