@@ -461,7 +461,8 @@ class GoogleDriveSaver(BaseSaver):
                 remove_path(dst_path)
 
         self.result = {
-            'file_count': len(paths)
+            'file_count': len(paths),
+            'size_MB': get_path_size(self.dst) / 1024 / 1024,
         }
 
 
@@ -491,6 +492,7 @@ class GoogleContactsSaver(BaseSaver):
             logger.info(f'saved {len(contacts)} google contacts')
         self.result = {
             'file_count': 1,
+            'size_MB': get_path_size(file) / 1024 / 1024,
         }
 
 
@@ -528,6 +530,7 @@ class GoogleBookmarksSaver(BaseSaver):
 
         self.result = {
             'file_count': len(bookmarks),
+            'size_MB': get_path_size(self.dst) / 1024 / 1024,
         }
 
 
