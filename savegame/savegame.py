@@ -318,7 +318,6 @@ class BaseSaver:
     def _update_meta(self):
         meta = {k: getattr(self, k) for k in ('dst', 'start_ts', 'end_ts',
             'success', 'result')}
-        delta = self.min_delta if self.success else RETRY_DELTA
         meta['next_ts'] = time.time() + (self.min_delta if self.success
             else RETRY_DELTA)
         meta['duration'] = self.end_ts - self.start_ts
