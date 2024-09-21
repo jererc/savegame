@@ -13,7 +13,3 @@ class BookmarksTestCase(unittest.TestCase):
         res = google_chrome.get_bookmarks()
         pprint(res)
         self.assertTrue(res)
-
-
-if __name__ == '__main__':
-    unittest.main()

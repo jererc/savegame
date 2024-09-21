@@ -22,7 +22,3 @@ class GoogleAutoauthTestCase(unittest.TestCase):
         print(creds_json)
         creds_dict = json.loads(creds_json)
         self.assertTrue(creds_dict.get('token'))
-
-
-if __name__ == '__main__':
-    unittest.main()
