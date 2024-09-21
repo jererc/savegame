@@ -116,10 +116,13 @@ class Bootstrapper:
         sys.stdout.write(res.stdout or res.stderr)
 
     def run(self):
-        if len(sys.argv) > 1 and sys.argv[1] == 'setup':
-            self.setup()
-        else:
-            self.run_savegame_cmd()
+        try:
+            if sys.argv[1] == 'setup':
+                self.setup()
+            else:
+                self.run_savegame_cmd()
+        except IndexError:
+            print(f'missing command: setup or any savegame command')
 
 
 def main():
