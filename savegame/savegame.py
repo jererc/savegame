@@ -1,11 +1,11 @@
 import argparse
 import atexit
 from collections import defaultdict
-from copy import deepcopy
 from datetime import datetime, timezone
 from fnmatch import fnmatch
 import functools
 from glob import glob
+import gzip
 import hashlib
 import inspect
 import json
@@ -20,7 +20,6 @@ import socket
 import subprocess
 import sys
 import time
-import zlib
 
 import psutil
 
@@ -71,14 +70,13 @@ def setup_logging(logger, path):
         stdout_handler.setFormatter(formatter)
         stdout_handler.setLevel(logging.DEBUG)
         logger.addHandler(stdout_handler)
-    else:
-        makedirs(path)
-        file_handler = RotatingFileHandler(os.path.join(path, f'{NAME}.log'),
-            mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0,
-            encoding='utf-8', delay=0)
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(logging.INFO)
-        logger.addHandler(file_handler)
+    makedirs(path)
+    file_handler = RotatingFileHandler(os.path.join(path, f'{NAME}.log'),
+        mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0,
+        encoding='utf-8', delay=0)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
 
 
 logger = logging.getLogger(__name__)
@@ -176,8 +174,11 @@ def is_path_excluded(path, inclusions, exclusions, file_only=True):
 class InvalidPath(Exception):
     pass
 
+class UnhandledPath(Exception):
+    pass
 
-class FileHashManager:
+
+class HashManager:
     cache_file = os.path.join(WORK_PATH, 'cache.dat')
     cache = {}
 
@@ -187,50 +188,42 @@ class FileHashManager:
             cls.instance.load()
         return cls.instance
 
-    def hash(self, path):
-        hash_obj = hashlib.md5()
-        with open(path, 'rb') as fd:
-            while True:
-                buffer = fd.read(8192)
-                if not buffer:
-                    break
-                hash_value = hashlib.md5(buffer).hexdigest()
-                hash_obj.update(hash_value.encode('utf-8'))
-        return hash_obj.hexdigest()
+    def hash_file(self, file, chunk_size=8192):
+        md5_hash = hashlib.md5()
+        with open(file, 'rb') as fd:
+            while chunk := fd.read(chunk_size):
+                md5_hash.update(chunk)
+        return md5_hash.hexdigest()
 
     def set(self, path, value):
-        self.cache[path] = value, int(time.time())
+        self.cache[path] = [value, int(time.time())]
 
-    def get(self, path, from_cache=False):
+    def get(self, path, use_cache=False):
         if not os.path.exists(path):
             return None
-        if from_cache:
+        if use_cache:
             try:
                 return self.cache[path][0]
             except KeyError:
                 pass
-        res = self.hash(path)
-        if from_cache:
+        res = self.hash_file(path)
+        if use_cache:
             self.set(path, res)
         return res
 
     def load(self):
         if os.path.exists(self.cache_file):
             with open(self.cache_file, 'rb') as fd:
-                self.cache = json.loads(zlib.decompress(fd.read()))
+                self.cache = json.loads(gzip.decompress(fd.read()))
             logger.debug(f'loaded {len(self.cache)} cached items')
 
     def save(self):
         start_ts = time.time()
         limit_ts = time.time() - HASH_CACHE_TTL
-        for path, (h, ts) in deepcopy(self.cache).items():
-            if ts < limit_ts or not os.path.exists(path):
-                try:
-                    del self.cache[path]
-                except KeyError:
-                    pass
+        self.cache = {k: v for k, v in self.cache.items()
+            if os.path.exists(k) and v[1] > limit_ts}
         with open(self.cache_file, 'wb') as fd:
-            fd.write(zlib.compress(json.dumps(self.cache).encode('utf-8')))
+            fd.write(gzip.compress(json.dumps(self.cache).encode('utf-8')))
         logger.debug(f'saved {len(self.cache)} cached items'
             f' in {time.time() - start_ts:.2f} seconds')
 
@@ -284,8 +277,8 @@ class BaseSaver:
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.dst = self.get_dst()
-        self.file_hash_manager = FileHashManager()
-        self.meta_manager = MetaManager()
+        self.hash_man = HashManager()
+        self.meta_man = MetaManager()
         self.report = defaultdict(set)
         self.start_ts = None
         self.end_ts = None
@@ -304,7 +297,7 @@ class BaseSaver:
         notify(title=f'{NAME} error', body=message)
 
     def _must_save(self):
-        meta = self.meta_manager.get(self.src)
+        meta = self.meta_man.get(self.src)
         return not meta or time.time() > meta['next_ts']
 
     def _update_meta(self):
@@ -313,7 +306,7 @@ class BaseSaver:
         meta['next_ts'] = time.time() + (self.min_delta if self.success
             else RETRY_DELTA)
         meta['duration'] = self.end_ts - self.start_ts
-        self.meta_manager.set(self.src, meta)
+        self.meta_man.set(self.src, meta)
 
     def do_run(self):
         raise NotImplementedError()
@@ -334,38 +327,39 @@ class BaseSaver:
         self._update_meta()
 
 
-class ReferenceFileHandler:
+class ReferenceData:
 
     def __init__(self, dst):
         self.dst = dst
         self.file = os.path.join(self.dst, REF_FILE)
-        self.file_hash_manager = FileHashManager()
 
-    def generate(self, ref_data):
-        data = to_json(ref_data)
-        if not text_file_exists(self.file, data):
-            with open(self.file, 'w', encoding='utf-8') as fd:
-                fd.write(data)
-            logger.info(f'created ref file {self.file}')
+    def _normalize_ref_data(self, ref_data):
+        ref_data['files'] = sorted(map(list, ref_data['files']))
+
+    def _normalize_json(self, ref_data):
+        return json.dumps(ref_data, sort_keys=True)
+
+    def save(self, ref_data):
+        self._normalize_ref_data(ref_data)
+        try:
+            if ref_data == self.load():
+                return
+        except Exception:
+            pass
+        data = gzip.compress(self._normalize_json(ref_data).encode('utf-8'))
+        with open(self.file, 'wb') as fd:
+            fd.write(data)
+        logger.debug(f'updated ref file {self.file}')
 
     def load(self):
         if not os.path.exists(self.file):
             raise Exception(f'missing ref file {self.file}')
         try:
-            with open(self.file, encoding='utf-8') as fd:
-                ref_data = json.load(fd)
+            with open(self.file, 'rb') as fd:
+                data = gzip.decompress(fd.read())
+            return json.loads(data.decode('utf-8'))
         except Exception as exc:
             raise Exception(f'failed to load ref data from {self.file}: {exc}')
-        dst_files = set()
-        invalid_files = set()
-        for rel_path, file_hash in ref_data['files']:
-            dst_file = os.path.join(self.dst, rel_path)
-            if not os.path.exists(dst_file) or \
-                    self.file_hash_manager.hash(dst_file) != file_hash:
-                invalid_files.add(dst_file)
-            else:
-                dst_files.add(dst_file)
-        return ref_data['src'], dst_files, invalid_files
 
 
 class LocalSaver(BaseSaver):
@@ -407,26 +401,25 @@ class LocalSaver(BaseSaver):
         for src_file in src_files:
             if is_path_excluded(src_file, self.inclusions, self.exclusions):
                 self.report['excluded'].add(src_file)
-                logger.debug(f'excluded {src_file}')
                 continue
             self.report['files'].add(src_file)
             file_rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, file_rel_path)
-            src_hash = self.file_hash_manager.get(src_file, from_cache=False)
-            dst_hash = self.file_hash_manager.get(dst_file, from_cache=True)
-            ref_data['files'].append((file_rel_path, src_hash))
+            src_hash = self.hash_man.get(src_file)
+            dst_hash = self.hash_man.get(dst_file, use_cache=True)
+            ref_data['files'].append([file_rel_path, src_hash])
             if dst_hash == src_hash:
                 continue
             try:
                 makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
-                self.file_hash_manager.set(dst_file, src_hash)
+                self.hash_man.set(dst_file, src_hash)
                 self.report['saved'].add(dst_file)
                 logger.debug(f'saved {src_file}')
             except Exception:
                 logger.exception(f'failed to save {src_file}')
 
-        ReferenceFileHandler(self.dst).generate(ref_data)
+        ReferenceData(self.dst).save(ref_data)
         self.result['file_count'] = len(self.report['files'])
 
 
@@ -449,14 +442,11 @@ class GoogleDriveSaver(BaseSaver):
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
                 self.report['skipped'].add(dst_file)
-                logger.debug(f'skipped saving google drive file {dst_file}: '
-                    'already exists')
                 continue
             try:
                 content = gc.fetch_file_content(file_id=file_data['id'],
                     mime_type=file_data['mime_type'])
                 self.report['saved'].add(dst_file)
-                logger.debug(f'saved google drive file {dst_file}')
             except Exception as exc:
                 self.report['failed'].add(dst_file)
                 logger.error('failed to save google drive file '
@@ -488,8 +478,6 @@ class GoogleContactsSaver(BaseSaver):
         file = os.path.join(self.dst, f'{self.src_type}.json')
         if text_file_exists(file, data):
             self.report['skipped'].add(file)
-            logger.debug(f'skipped saving google contacts file {file}: '
-                'already exists')
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
@@ -505,13 +493,10 @@ class GoogleBookmarksSaver(BaseSaver):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
         if text_file_exists(file, data, log_content_changed=True):
             self.report['skipped'].add(file)
-            logger.debug(f'skipped saving google bookmark {file}: '
-                'already exists')
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
             self.report['saved'].add(file)
-            logger.debug(f'saved google bookmark {file}')
 
     def do_run(self):
         bookmarks = google_chrome.get_bookmarks()
@@ -550,6 +535,8 @@ class SaveItem:
             else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
+        if os.sep not in dst_path:
+            raise UnhandledPath(f'unhandled dst_path {dst_path}: not {os.name}')
         if not os.path.exists(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
         if dst_path != os.path.expanduser(dst_path):
@@ -596,6 +583,9 @@ class SaveHandler:
         for save in SAVES:
             try:
                 save_item = SaveItem(**save)
+            except UnhandledPath as exc:
+                logger.debug(exc)
+                continue
             except InvalidPath as exc:
                 logger.warning(exc)
                 continue
@@ -624,7 +614,7 @@ class SaveHandler:
                 notify(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
             self.report[saver.src] = saver.report
-        FileHashManager().save()
+        HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
         MetaManager().check()
         self._generate_report()
@@ -640,10 +630,10 @@ class LocalRestorer:
         self.overwrite = overwrite
         self.dry_run = dry_run
         self.hostnames = sorted(os.listdir(self.dst_path))
-        self.file_hash_manager = FileHashManager()
+        self.hash_man = HashManager()
         self.report = defaultdict(lambda: defaultdict(set))
 
-    def _get_valid_src_file(self, path):
+    def _get_src_file_for_user(self, path):
         with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
         home_path = os.path.expanduser('~')
         home = os.path.dirname(home_path)
@@ -664,8 +654,7 @@ class LocalRestorer:
     def _requires_restore(self, dst_file, src_file, src):
         if not os.path.exists(src_file):
             return True
-        if self.file_hash_manager.hash(src_file) \
-                == self.file_hash_manager.hash(dst_file):
+        if self.hash_man.get(src_file) == self.hash_man.get(dst_file):
             self.report[src]['skipped_identical'].add(src_file)
             return False
         if not self.overwrite:
@@ -707,20 +696,34 @@ class LocalRestorer:
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
                 dst = os.path.join(self.dst_path, hostname, dst_dir)
                 try:
-                    src, dst_files, invalid_files = ReferenceFileHandler(dst).load()
+                    ref_data = ReferenceData(dst).load()
                 except Exception as exc:
                     logger.error(str(exc))
                     self.report[None]['invalid_dst'].add(dst)
                     continue
+
+                src = ref_data['src']
+                rel_paths = set()
+                invalid_files = set()
+                for rel_path, file_hash in ref_data['files']:
+                    dst_file = os.path.join(dst, rel_path)
+                    if self.hash_man.get(dst_file) != file_hash:
+                        invalid_files.add(dst_file)
+                    else:
+                        rel_paths.add(rel_path)
+
                 if invalid_files:
                     self.report[src]['invalid_files'].update(invalid_files)
                     continue
-                if not dst_files:
+                if not rel_paths:
                     self.report[src]['empty_dst'].add(dst)
                     continue
-                for dst_file in dst_files:
-                    src_file = os.path.join(src, os.path.relpath(dst_file, dst))
-                    self._restore_file(dst_file, src_file, src)
+                for rel_path in rel_paths:
+                    src_file = self._get_src_file_for_user(
+                        os.path.join(src, rel_path))
+                    if src_file:
+                        self._restore_file(os.path.join(dst, rel_path),
+                            src_file, src)
 
 
 class RestoreHandler:

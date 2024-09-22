@@ -1,5 +1,6 @@
 from copy import deepcopy
 from glob import glob
+import gzip
 import json
 import logging
 import os
@@ -7,7 +8,9 @@ from pprint import pprint
 import shutil
 import socket
 import sys
+import time
 import unittest
+from unittest.mock import patch
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -15,7 +18,6 @@ MODULE_PATH = os.path.join(REPO_PATH, 'savegame')
 sys.path.append(MODULE_PATH)
 import savegame
 import user_settings
-
 
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
@@ -67,28 +69,28 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
     def test_win(self):
         obj = savegame.LocalRestorer(self.dst_path)
         path = r'C:\Program Files\some_dir'
-        self.assertEqual(obj._get_valid_src_file(path), path)
+        self.assertEqual(obj._get_src_file_for_user(path), path)
         path = r'C:\Users\Public\some_dir'
-        self.assertEqual(obj._get_valid_src_file(path), path)
+        self.assertEqual(obj._get_src_file_for_user(path), path)
 
         obj = savegame.LocalRestorer(self.dst_path,
             from_username=self.other_username)
         path = rf'C:\Users\{self.other_username}\some_dir'
-        self.assertEqual(obj._get_valid_src_file(path),
+        self.assertEqual(obj._get_src_file_for_user(path),
             rf'C:\Users\{self.username}\some_dir')
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_posix(self):
         obj = savegame.LocalRestorer(self.dst_path)
         path = '/var/some_dir'
-        self.assertEqual(obj._get_valid_src_file(path), path)
+        self.assertEqual(obj._get_src_file_for_user(path), path)
         path = '/home/shared/some_dir'
-        self.assertEqual(obj._get_valid_src_file(path), path)
+        self.assertEqual(obj._get_src_file_for_user(path), path)
 
         obj = savegame.LocalRestorer(self.dst_path,
             from_username=self.other_username)
         path = f'/home/{self.other_username}/some_dir'
-        self.assertEqual(obj._get_valid_src_file(path),
+        self.assertEqual(obj._get_src_file_for_user(path),
             f'/home/{self.username}/some_dir')
 
 
@@ -107,7 +109,7 @@ class BaseTestCase(unittest.TestCase):
         makedirs(self.dst_root)
 
         savegame.MetaManager().meta = {}
-        savegame.FileHashManager().cache = {}
+        savegame.HashManager().cache = {}
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
@@ -150,15 +152,16 @@ class BaseTestCase(unittest.TestCase):
                         os.path.join(self.dst_root, base_dir, src_type, to_hostname))
 
     def _switch_dst_data_username(self, from_username, to_username):
+
         def switch_ref_path(file):
-            with open(file) as fd:
-                data = fd.read()
+            rd = savegame.ReferenceData(os.path.dirname(file))
+            ref_data = rd.load()
             username_str = f'{os.sep}{from_username}{os.sep}'
-            if username_str not in data:
+            if username_str not in ref_data['src']:
                 return
-            with open(file, 'w') as fd:
-                fd.write(data.replace(username_str,
-                    f'{os.sep}{to_username}{os.sep}'))
+            ref_data['src'] = ref_data['src'].replace(username_str,
+                f'{os.sep}{to_username}{os.sep}')
+            rd.save(ref_data)
 
         for path in walk_paths(self.dst_root):
             if os.path.basename(path) == savegame.REF_FILE:
@@ -177,6 +180,111 @@ class BaseTestCase(unittest.TestCase):
 
     def _restoregame(self, **kwargs):
         savegame.restoregame(**kwargs)
+
+
+class HashTestCase(BaseTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.hm = savegame.HashManager()
+
+    def _generate_file(self, filename, chunk, chunk_count=1000):
+        file = os.path.join(self.dst_root, filename)
+        chunk = chunk.encode('utf-8')
+        with open(file, 'wb') as fd:
+            for i in range(1000):
+                fd.write(chunk)
+        return file
+
+    def test_hash(self):
+        file = self._generate_file('file1', chunk='a' * 10000)
+        hash1 = self.hm.get(file, use_cache=False)
+        self.assertFalse(self.hm.cache)
+
+        og_hash_file = self.hm.hash_file
+        with patch.object(self.hm, 'hash_file') as mock_hash_file:
+            mock_hash_file.return_value = og_hash_file(file)
+            hash2 = self.hm.get(file, use_cache=True)
+        self.assertTrue(mock_hash_file.called)
+        self.assertEqual(hash2, hash1)
+
+        with patch.object(self.hm, 'hash_file') as mock_hash_file:
+            hash2 = self.hm.get(file, use_cache=True)
+        self.assertFalse(mock_hash_file.called)
+        self.assertEqual(hash2, hash1)
+
+        file2 = self._generate_file('file2', chunk='b' * 10000)
+        hash3 = self.hm.get(file2, use_cache=True)
+
+        cache = deepcopy(self.hm.cache)
+        self.assertEqual(self.hm.cache[file][0], hash1)
+        self.assertEqual(self.hm.cache[file2][0], hash3)
+        self.hm.save()
+        self.hm.cache = {}
+        self.hm.load()
+        pprint(self.hm.cache)
+        self.assertEqual(self.hm.cache, cache)
+        self.hm.cache[file][1] = time.time() - savegame.HASH_CACHE_TTL - 1
+        self.hm.save()
+        self.hm.cache = {}
+        self.hm.load()
+        pprint(self.hm.cache)
+        self.assertFalse(file in self.hm.cache.keys())
+
+
+class ReferenceDataTestCase(BaseTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.rd = savegame.ReferenceData(self.dst_root)
+
+    def _get_mtime_ts(self):
+        return os.stat(self.rd.file).st_mtime
+
+    def test_1(self):
+        ref_data = {
+            'src': 'src',
+            'files': [
+                ('file2', 'hash2'),
+                ('file1', 'hash1'),
+            ],
+        }
+        self.rd.save(ref_data)
+        res = self.rd.load()
+        self.assertEqual(res, ref_data)
+        ts1 = self._get_mtime_ts()
+
+        time.sleep(.1)
+        self.rd.save(ref_data)
+        res = self.rd.load()
+        self.assertEqual(res, ref_data)
+        ts2 = self._get_mtime_ts()
+        self.assertEqual(ts2, ts1)
+
+        time.sleep(.1)
+        ref_data['files'].append(['new_file', 'new_hash'])
+        self.rd.save(ref_data)
+        res = self.rd.load()
+        self.assertEqual(res, ref_data)
+        ts3 = self._get_mtime_ts()
+        self.assertTrue(ts3 > ts2)
+
+
+class SaveItemTestCase(BaseTestCase):
+
+    def test_dst_path(self):
+        dst_path = os.path.expanduser('~')
+        src_paths = glob(os.path.join(dst_path, '*'))[:3]
+        self.assertTrue(src_paths)
+        si = savegame.SaveItem(src_paths=src_paths, dst_path=dst_path)
+        self.assertTrue(list(si.iterate_savers()))
+
+        if os.name == 'nt':
+            dst_path = '/home/jererc/data'
+        else:
+            dst_path = r'C:\Users\jerer\data'
+        self.assertRaises(savegame.UnhandledPath,
+            savegame.SaveItem, src_paths=src_paths, dst_path=dst_path)
 
 
 class SavegameTestCase(BaseTestCase):
@@ -418,7 +526,11 @@ class SavegameTestCase(BaseTestCase):
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=5)))
 
     def test_restore_invalid_files(self):
-        self._savegame(index_start=1, file_count=2)
+        self._savegame(index_start=1, file_count=2, file_version=1)
+        remove_path(self.src_root)
+        self._savegame(index_start=1, file_count=2, file_version=1)
+        remove_path(self.src_root)
+        self._savegame(index_start=1, file_count=2, file_version=2)
         src_paths = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths)
