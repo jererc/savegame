@@ -415,7 +415,7 @@ class LocalSaver(BaseSaver):
                 elif not dst_h:
                     errors['missing_at_dst'].add(os.path.join(self.dst, path))
                 elif src_h != dst_h:
-                    errors['mismatching'].add(os.path.join(src, path))
+                    errors['hash_mismatched'].add(os.path.join(src, path))
             report['errors'] = {k: sorted(v) for k, v in errors.items()}
         return report
 
