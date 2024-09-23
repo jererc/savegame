@@ -322,6 +322,9 @@ class BaseSaver:
     def do_run(self):
         raise NotImplementedError()
 
+    def check(self):
+        raise NotImplementedError()
+
     def run(self, force=False):
         if not force and not self._must_save():
             return
@@ -376,16 +379,48 @@ class ReferenceData:
 class LocalSaver(BaseSaver):
     src_type = 'local'
 
+    def _get_src_and_files(self):
+        src = self.src
+        if os.path.isfile(src):
+            files = [src]
+            src = os.path.dirname(src)
+        else:
+            files = list(walk_files(src))
+        files = [f for f in files
+            if not is_path_excluded(f, self.inclusions, self.exclusions)]
+        return src, files
+
+    def check(self):
+        src, src_files = self._get_src_and_files()
+        ref_data = ReferenceData(self.dst).load()
+        hm = HashManager()
+        src_hashes = {os.path.relpath(f, src): hm.get(f)
+            for f in src_files}
+        dst_hashes = {p: hm.get(os.path.join(self.dst, p))
+            for p, h in ref_data['files']}
+        success = src_hashes == dst_hashes
+        report = {
+            'status': 'OK' if success else 'KO',
+        }
+        if not success:
+            errors = defaultdict(set)
+            for path in set(list(src_hashes.keys()) + list(dst_hashes.keys())):
+                src_h = src_hashes.get(path)
+                dst_h = dst_hashes.get(path)
+                if not src_h:
+                    errors['missing_at_src'].add(os.path.join(src, path))
+                elif not dst_h:
+                    errors['missing_at_dst'].add(os.path.join(self.dst, path))
+                elif src_h != dst_h:
+                    errors['mismatches'].add(os.path.join(src, path))
+            report['errors'] = {k: sorted(v) for k, v in errors.items()}
+        return report
+
     def generate_dst(self):
         return os.path.join(self.dst_path, HOSTNAME, clean_str(self.src))
 
     def do_run(self):
-        src = self.src
-        if os.path.isfile(src):
-            src_files = [src]
-            src = os.path.dirname(src)
-        else:
-            src_files = list(walk_files(src))
+        src, src_files = self._get_src_and_files()
 
         for dst_path in walk_paths(self.dst):
             if os.path.basename(dst_path) == REF_FILE:
@@ -400,9 +435,6 @@ class LocalSaver(BaseSaver):
 
         ref_data = {'src': src, 'files': []}
         for src_file in src_files:
-            if is_path_excluded(src_file, self.inclusions, self.exclusions):
-                self.report['excluded'].add(src_file)
-                continue
             self.report['files'].add(src_file)
             file_rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, file_rel_path)
@@ -578,7 +610,6 @@ class SaveItem:
 class SaveHandler:
     def __init__(self, force=False):
         self.force = force
-        self.report = defaultdict(lambda: defaultdict(set))
 
     def _iterate_savers(self):
         for save in SAVES:
@@ -593,10 +624,20 @@ class SaveHandler:
             for saver in save_item.iterate_savers():
                 yield saver
 
-    def _generate_report(self):
+    def check(self):
+        report = {}
+        savers = list(self._iterate_savers())
+        for saver in savers:
+            try:
+                report[saver.src] = saver.check()
+            except NotImplementedError:
+                continue
+        logger.info(f'report:\n{to_json(report)}')
+
+    def _generate_summary(self, report):
         summary = defaultdict(int)
         keys = {'saved', 'removed'}
-        for src, data in self.report.items():
+        for src, data in report.items():
             path_summary = {k: len(v) for k, v in data.items()
                 if k in keys and v}
             if path_summary:
@@ -607,6 +648,7 @@ class SaveHandler:
     def run(self):
         start_ts = time.time()
         savers = list(self._iterate_savers())
+        report = defaultdict(lambda: defaultdict(set))
         for saver in savers:
             try:
                 saver.run(force=self.force)
@@ -614,11 +656,11 @@ class SaveHandler:
                 logger.exception(f'failed to save {saver.src}')
                 notify(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
-            self.report[saver.src] = saver.report
+            report[saver.src] = saver.report
         HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
         MetaManager().check()
-        self._generate_report()
+        self._generate_summary(report)
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
 
@@ -829,6 +871,10 @@ def savegame(**kwargs):
     return SaveHandler(**kwargs).run()
 
 
+def checkgame(**kwargs):
+    return SaveHandler(**kwargs).check()
+
+
 def restoregame(**kwargs):
     return RestoreHandler(**kwargs).run()
 
@@ -886,6 +932,7 @@ def _parse_args():
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
+    subparsers.add_parser('check')
     restore_parser = subparsers.add_parser('restore')
     restore_parser.add_argument('--from-hostname')
     restore_parser.add_argument('--from-username')
@@ -908,6 +955,7 @@ def main():
             savegame(force=True)
     else:
         callable_ = {
+            'check': checkgame,
             'restore': restoregame,
             'hostnames': list_hostnames,
             'google_oauth': google_oauth,

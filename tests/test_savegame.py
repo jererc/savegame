@@ -1,6 +1,5 @@
 from copy import deepcopy
 from glob import glob
-import gzip
 import json
 import logging
 import os
@@ -382,6 +381,53 @@ class SavegameTestCase(BaseTestCase):
         src_paths = self._list_src_root_src_paths()
         remove_path(self.src_root)
         self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)))
+
+    def test_check(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src1'),
+                ],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src2'),
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        savegame.savegame()
+        src_paths = self._list_src_root_paths()
+        print('src data:')
+        pprint(src_paths)
+        dst_paths = self._list_dst_root_paths()
+        print('dst data:')
+        pprint(dst_paths)
+
+        savegame.checkgame()
+
+        for file in walk_files(self.src_root):
+            if file.endswith('/dir1/file1'):
+                with open(file) as fd:
+                    content = fd.read()
+                with open(file, 'w') as fd:
+                    fd.write(content + 'a')
+            if file.endswith('/dir1/file2'):
+                remove_path(file)
+
+        for file in walk_files(self.dst_root):
+            if file.endswith('/dir3/file3'):
+                with open(file) as fd:
+                    content = fd.read()
+                with open(file, 'w') as fd:
+                    fd.write(content + 'b')
+            if file.endswith('/dir3/file2'):
+                remove_path(file)
+
+        savegame.checkgame()
 
     def test_restore_skipped_identical(self):
         self._savegame(index_start=1, file_count=2)
