@@ -302,7 +302,7 @@ class BaseSaver:
         return dst
 
     def needs_purge(self, path):
-        return time.time() - os.stat(path).st_mtime > self.retention_delta
+        return os.stat(path).st_mtime < time.time() - self.retention_delta
 
     def notify_error(self, message, exc):
         notify(title=f'{NAME} error', body=message)
@@ -419,28 +419,29 @@ class LocalSaver(BaseSaver):
     def generate_dst(self):
         return os.path.join(self.dst_path, HOSTNAME, clean_str(self.src))
 
-    def do_run(self):
-        src, src_files = self._get_src_and_files()
-
+    def _clean_dst(self, src):
         for dst_path in walk_paths(self.dst):
             if os.path.basename(dst_path) == REF_FILE:
                 continue
             src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
             if (not os.path.exists(src_path) and self.needs_purge(dst_path)) \
-                    or is_path_excluded(src_path,
-                        self.inclusions, self.exclusions):
+                    or is_path_excluded(src_path, self.inclusions,
+                        self.exclusions):
                 remove_path(dst_path)
                 self.report['removed'].add(dst_path)
                 logger.debug(f'removed {dst_path}')
 
+    def do_run(self):
+        src, src_files = self._get_src_and_files()
+        self.report['files'] = set(src_files)
+        self._clean_dst(src)
         ref_data = {'src': src, 'files': []}
         for src_file in src_files:
-            self.report['files'].add(src_file)
             file_rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, file_rel_path)
             src_hash = self.hash_man.get(src_file)
-            dst_hash = self.hash_man.get(dst_file, use_cache=True)
             ref_data['files'].append([file_rel_path, src_hash])
+            dst_hash = self.hash_man.get(dst_file, use_cache=True)
             if dst_hash == src_hash:
                 continue
             try:
@@ -451,9 +452,8 @@ class LocalSaver(BaseSaver):
                 logger.debug(f'saved {src_file}')
             except Exception:
                 logger.exception(f'failed to save {src_file}')
-
         ReferenceData(self.dst).save(ref_data)
-        self.result['file_count'] = len(self.report['files'])
+        self.result['file_count'] = len(src_files)
 
 
 class GoogleDriveSaver(BaseSaver):
