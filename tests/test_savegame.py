@@ -23,7 +23,11 @@ HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 
 savegame.logger.setLevel(logging.DEBUG)
-makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
+
+
+def makedirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def remove_path(path):
@@ -362,16 +366,17 @@ class SavegameTestCase(BaseTestCase):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
-    def test_multiple_versions(self):
-        self._savegame(index_start=1, file_count=6, file_version=1)
+    def test_retention(self):
+        self._savegame(index_start=1, file_count=4, file_version=1)
         remove_path(self.src_root)
-        self._savegame(index_start=1, file_count=3, file_version=2)
-        remove_path(self.src_root)
-        self._savegame(index_start=1, file_count=1, file_version=3)
+        self._savegame(index_start=1, file_count=2, file_version=2)
         remove_path(self.src_root)
 
         print('dst data:')
-        pprint(self._list_dst_root_paths())
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertTrue(any_str_contains(dst_paths, 'file3'))
+        self.assertTrue(any_str_contains(dst_paths, 'file4'))
 
         self._restoregame(from_hostname=None)
         src_paths = self._list_src_root_src_paths()

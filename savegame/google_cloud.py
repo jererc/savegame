@@ -35,7 +35,10 @@ MIME_TYPE_MAP = {   # https://developers.google.com/drive/api/guides/ref-export-
 }
 
 logger = logging.getLogger(__name__)
-get_file = lambda x: x if (x and os.path.exists(x)) else None
+
+
+def get_file(x):
+    return x if (x and os.path.exists(x)) else None
 
 
 class AuthError(Exception):
@@ -45,10 +48,10 @@ class AuthError(Exception):
 class GoogleCloud:
     def __init__(self, service_creds_file=None, oauth_creds_file=None,
             creds_file=None):
-        self.service_creds_file = get_file(service_creds_file
-            or SERVICE_CREDS_FILE)
-        self.oauth_creds_file = get_file(oauth_creds_file
-            or OAUTH_CREDS_FILE)
+        self.service_creds_file = get_file(
+            service_creds_file or SERVICE_CREDS_FILE)
+        self.oauth_creds_file = get_file(
+            oauth_creds_file or OAUTH_CREDS_FILE)
         self.creds_file = creds_file or CREDS_FILE
         self.service_creds = None
         self.oauth_creds = None

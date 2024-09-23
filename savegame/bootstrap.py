@@ -51,7 +51,7 @@ class Bootstrapper:
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode != 0:
             return False
-        venv_modules = {l.split('==')[0] for l in res.stdout.splitlines()}
+        venv_modules = {r.split('==')[0] for r in res.stdout.splitlines()}
         return venv_modules >= set(PY_MODULES)
 
     def _setup_venv(self):

@@ -45,8 +45,6 @@ RE_SPECIAL = re.compile(r'\W+')
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
 REF_FILE = f'.{NAME}'
-MIN_SIZE_RATIO = .5
-MAX_DST_FILE_VERSIONS = 4
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -58,7 +56,9 @@ except ImportError:
     pass
 
 
-makedirs = lambda x: None if os.path.exists(x) else os.makedirs(x)
+def makedirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def setup_logging(logger, path):
@@ -84,10 +84,17 @@ makedirs(WORK_PATH)
 setup_logging(logger, WORK_PATH)
 
 
-get_filename = lambda x: RE_SPECIAL.sub('_', x).strip('_')
-get_file_mtime = lambda x: datetime.fromtimestamp(os.stat(x).st_mtime,
-    tz=timezone.utc) if os.path.exists(x) else None
-to_json = lambda x: json.dumps(x, indent=4, sort_keys=True)
+def clean_filename(filename):
+    return RE_SPECIAL.sub('_', filename).strip('_')
+
+
+def get_file_mtime(file):
+    if os.path.exists(file):
+        return datetime.fromtimestamp(os.stat(file).st_mtime, tz=timezone.utc)
+
+
+def to_json(data):
+    return json.dumps(data, indent=4, sort_keys=True)
 
 
 def get_path_size(path):
@@ -173,6 +180,7 @@ def is_path_excluded(path, inclusions, exclusions, file_only=True):
 
 class InvalidPath(Exception):
     pass
+
 
 class UnhandledPath(Exception):
     pass
@@ -276,7 +284,7 @@ class BaseSaver:
         self.min_delta = min_delta
         self.retention_delta = retention_delta
         self.creds_file = creds_file
-        self.dst = self.get_dst()
+        self.dst = self._get_dst()
         self.hash_man = HashManager()
         self.meta_man = MetaManager()
         self.report = defaultdict(set)
@@ -285,8 +293,11 @@ class BaseSaver:
         self.success = None
         self.result = {}
 
-    def get_dst(self):
-        dst =  os.path.join(self.dst_path, self.src_type)
+    def generate_dst(self):
+        return os.path.join(self.dst_path, self.src_type)
+
+    def _get_dst(self):
+        dst = self.generate_dst()
         makedirs(dst)
         return dst
 
@@ -365,18 +376,8 @@ class ReferenceData:
 class LocalSaver(BaseSaver):
     src_type = 'local'
 
-    def get_dst(self):
-        target_name = get_filename(self.src)
-        src_size = get_path_size(self.src)
-        for index in range(1, MAX_DST_FILE_VERSIONS + 1):
-            suffix = '' if index == 1 else f'-{index}'
-            dst = os.path.join(self.dst_path, HOSTNAME,
-                f'{target_name}{suffix}')
-            size = get_path_size(dst)
-            if not size or src_size / size > MIN_SIZE_RATIO:
-                break
-        makedirs(dst)
-        return dst
+    def generate_dst(self):
+        return os.path.join(self.dst_path, HOSTNAME, clean_filename(self.src))
 
     def do_run(self):
         src = self.src
@@ -505,7 +506,7 @@ class GoogleBookmarksSaver(BaseSaver):
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
-            dst_file = f'{os.path.join(dst_path, get_filename(name))}.html'
+            dst_file = f'{os.path.join(dst_path, clean_filename(name))}.html'
             self._create_bookmark_file(title=name, url=bookmark['url'],
                 file=dst_file)
             paths.add(dst_path)
@@ -634,7 +635,10 @@ class LocalRestorer:
         self.report = defaultdict(lambda: defaultdict(set))
 
     def _get_src_file_for_user(self, path):
-        with_end_sep = lambda x: f'{x.rstrip(os.sep)}{os.sep}'
+
+        def with_end_sep(x):
+            return f'{x.rstrip(os.sep)}{os.sep}'
+
         home_path = os.path.expanduser('~')
         home = os.path.dirname(home_path)
         if not path.startswith(with_end_sep(home)):
@@ -808,8 +812,11 @@ def with_lockfile():
     return decorator
 
 
+def is_idle():
+    return psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
+
+
 def must_run(last_run_ts):
-    is_idle = lambda: psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
     now_ts = time.time()
     if now_ts > last_run_ts + FORCE_RUN_DELTA:
         return True
