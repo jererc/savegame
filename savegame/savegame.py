@@ -319,10 +319,10 @@ class BaseSaver:
         meta['duration'] = self.end_ts - self.start_ts
         self.meta_man.set(self.src, meta)
 
-    def do_run(self):
+    def check(self):
         raise NotImplementedError()
 
-    def check(self):
+    def do_run(self):
         raise NotImplementedError()
 
     def run(self, force=False):
@@ -379,6 +379,9 @@ class ReferenceData:
 class LocalSaver(BaseSaver):
     src_type = 'local'
 
+    def generate_dst(self):
+        return os.path.join(self.dst_path, HOSTNAME, clean_str(self.src))
+
     def _get_src_and_files(self):
         src = self.src
         if os.path.isfile(src):
@@ -415,9 +418,6 @@ class LocalSaver(BaseSaver):
                     errors['mismatches'].add(os.path.join(src, path))
             report['errors'] = {k: sorted(v) for k, v in errors.items()}
         return report
-
-    def generate_dst(self):
-        return os.path.join(self.dst_path, HOSTNAME, clean_str(self.src))
 
     def _clean_dst(self, src):
         for dst_path in walk_paths(self.dst):
