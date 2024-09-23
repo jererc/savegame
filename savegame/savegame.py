@@ -84,8 +84,8 @@ makedirs(WORK_PATH)
 setup_logging(logger, WORK_PATH)
 
 
-def clean_filename(filename):
-    return RE_SPECIAL.sub('_', filename).strip('_')
+def clean_str(x):
+    return RE_SPECIAL.sub('_', x).strip('_')
 
 
 def get_file_mtime(file):
@@ -377,7 +377,7 @@ class LocalSaver(BaseSaver):
     src_type = 'local'
 
     def generate_dst(self):
-        return os.path.join(self.dst_path, HOSTNAME, clean_filename(self.src))
+        return os.path.join(self.dst_path, HOSTNAME, clean_str(self.src))
 
     def do_run(self):
         src = self.src
@@ -506,7 +506,7 @@ class GoogleBookmarksSaver(BaseSaver):
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
-            dst_file = f'{os.path.join(dst_path, clean_filename(name))}.html'
+            dst_file = f'{os.path.join(dst_path, clean_str(name))}.html'
             self._create_bookmark_file(title=name, url=bookmark['url'],
                 file=dst_file)
             paths.add(dst_path)
