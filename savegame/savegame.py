@@ -13,13 +13,13 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 from pprint import pprint
-import re
 import shutil
 import signal
 import socket
 import subprocess
 import sys
 import time
+import urllib.parse
 
 import psutil
 
@@ -41,7 +41,6 @@ DST_PATH = os.path.join(os.path.expanduser('~'), 'OneDrive')
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 HOSTNAME = socket.gethostname()
-RE_SPECIAL = re.compile(r'\W+')
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
 REF_FILE = f'.{NAME}'
@@ -84,8 +83,8 @@ makedirs(WORK_PATH)
 setup_logging(logger, WORK_PATH)
 
 
-def clean_str(x):
-    return RE_SPECIAL.sub('_', x).strip('_')
+def path_to_filename(path):
+    return urllib.parse.quote(path, safe='')
 
 
 def get_file_mtime(file):
@@ -380,7 +379,8 @@ class LocalSaver(BaseSaver):
     src_type = 'local'
 
     def generate_dst(self):
-        return os.path.join(self.dst_path, HOSTNAME, clean_str(self.src))
+        return os.path.join(self.dst_path, HOSTNAME,
+            path_to_filename(self.src))
 
     def _get_src_and_files(self):
         src = self.src
@@ -538,7 +538,7 @@ class GoogleBookmarksSaver(BaseSaver):
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
-            dst_file = f'{os.path.join(dst_path, clean_str(name))}.html'
+            dst_file = f'{os.path.join(dst_path, path_to_filename(name))}.html'
             self._create_bookmark_file(title=name, url=bookmark['url'],
                 file=dst_file)
             paths.add(dst_path)

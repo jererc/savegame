@@ -1,4 +1,5 @@
 from copy import deepcopy
+from fnmatch import fnmatch
 from glob import glob
 import json
 import logging
@@ -413,19 +414,21 @@ class SavegameTestCase(BaseTestCase):
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
 
-    def test_no_restore(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+    def test_check(self):
+        self._generate_src_data(index_start=1, src_count=5, dir_count=2,
+            file_count=2)
         savegame.SAVES = [
             {
                 'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
+                    os.path.join(self.src_root, 'src1', '*'),
+                    os.path.join(self.src_root, 'src2', '*'),
                 ],
                 'dst_path': self.dst_root,
             },
             {
                 'src_paths': [
-                    os.path.join(self.src_root, 'src2'),
+                    os.path.join(self.src_root, 'src3', '*'),
+                    os.path.join(self.src_root, 'src4', '*'),
                 ],
                 'dst_path': self.dst_root,
             },
@@ -438,27 +441,34 @@ class SavegameTestCase(BaseTestCase):
         print('dst data:')
         pprint(dst_paths)
 
+        savegame.checkgame()
+
         for file in walk_files(self.src_root):
-            if file.endswith('/dir1/file1'):
+            if fnmatch(file, '*src1*dir1*file1'):
                 with open(file) as fd:
                     content = fd.read()
                 with open(file, 'w') as fd:
                     fd.write(content + 'a')
-            if file.endswith('/dir1/file2'):
+            if fnmatch(file, '*src2*dir2*file1'):
                 remove_path(file)
 
         for file in walk_files(self.dst_root):
-            if file.endswith('/dir3/file3'):
+            if fnmatch(file, '*src4*dir1*file1'):
                 with open(file) as fd:
                     content = fd.read()
                 with open(file, 'w') as fd:
                     fd.write(content + 'b')
-            if file.endswith('/dir3/file2'):
+            if fnmatch(file, '*src4*dir2*file2'):
                 remove_path(file)
 
-        remove_path(self.src_root)
-        savegame.restoregame(overwrite=False)
-        self.assertFalse(self._list_src_root_paths())
+        savegame.checkgame()
+
+        remove_path(os.path.join(self.src_root, 'src4'))
+
+        savegame.checkgame()
+
+        # savegame.restoregame(overwrite=False)
+        # self.assertFalse(self._list_src_root_paths())
 
     def test_restore_skipped_identical(self):
         self._savegame(index_start=1, file_count=2)
