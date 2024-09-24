@@ -665,10 +665,12 @@ class SaveHandler:
 
 class LocalRestorer:
     def __init__(self, dst_path, from_hostname=None, from_username=None,
-            overwrite=False, dry_run=False):
+            include=None, exclude=None, overwrite=False, dry_run=False):
         self.dst_path = dst_path
         self.from_hostname = from_hostname or HOSTNAME
         self.from_username = from_username or os.getlogin()
+        self.include = include
+        self.exclude = exclude
         self.overwrite = overwrite
         self.dry_run = dry_run
         self.hostnames = sorted(os.listdir(self.dst_path))
@@ -730,6 +732,10 @@ class LocalRestorer:
         return report
 
     def _requires_restore(self, dst_file, src_file, src):
+        if self.include and not fnmatch(src_file, self.include):
+            return False
+        if self.exclude and fnmatch(src_file, self.exclude):
+            return False
         if not os.path.exists(src_file):
             return True
         if self.hash_man.get(src_file) == self.hash_man.get(dst_file):
@@ -745,7 +751,6 @@ class LocalRestorer:
             return
         if self.dry_run:
             self.report[src]['to_restore'].add(src_file)
-            logger.debug(f'to restore: {src_file} from {dst_file}')
             return
         try:
             if os.path.exists(src_file):
@@ -849,6 +854,8 @@ class RestoreHandler:
 
 
 class CheckHandler:
+    def __init__(self, hostname=None):
+        self.hostname = hostname
 
     def _clean_report(self, report):
         res = defaultdict(dict)
@@ -866,7 +873,8 @@ class CheckHandler:
 
     def run(self):
         save_report = self._clean_report(SaveHandler().check())
-        restore_report = self._clean_report(RestoreHandler().check())
+        restore_report = self._clean_report(
+            RestoreHandler(from_hostname=self.hostname).check())
         logger.info(f'save report:\n{to_json(save_report)}')
         logger.info(f'restore report:\n{to_json(restore_report)}')
         logger.info(f'save summary:\n{to_json(self._get_summary(save_report))}')
@@ -989,10 +997,13 @@ def _parse_args():
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
-    subparsers.add_parser('check')
+    check_parser = subparsers.add_parser('check')
+    check_parser.add_argument('--hostname')
     restore_parser = subparsers.add_parser('restore')
     restore_parser.add_argument('--from-hostname')
     restore_parser.add_argument('--from-username')
+    restore_parser.add_argument('--include')
+    restore_parser.add_argument('--exclude')
     restore_parser.add_argument('--overwrite', action='store_true')
     restore_parser.add_argument('--dry-run', action='store_true')
     subparsers.add_parser('hostnames')
