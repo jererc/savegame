@@ -411,7 +411,8 @@ class LocalSaver(BaseSaver):
                 if not src_h:
                     report['missing_at_src'][src].add(os.path.join(src, path))
                 elif not dst_h:
-                    report['missing_at_dst'][src].add(os.path.join(self.dst, path))
+                    report['missing_at_dst'][src].add(
+                        os.path.join(self.dst, path))
                 elif src_h != dst_h:
                     report['hash_mismatched'][src].add(os.path.join(src, path))
         return report
@@ -566,7 +567,8 @@ class SaveItem:
 
     def _get_dst_path(self, dst_path):
         if os.sep not in dst_path:
-            raise UnhandledPath(f'unhandled dst_path {dst_path}: not {os.name}')
+            raise UnhandledPath(f'unhandled dst_path {dst_path}: '
+                f'not {os.name}')
         if not os.path.exists(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
         if dst_path != os.path.expanduser(dst_path):
@@ -881,8 +883,10 @@ class CheckHandler:
             RestoreHandler(from_hostname=self.hostname).check())
         logger.info(f'save report:\n{to_json(save_report)}')
         logger.info(f'restore report:\n{to_json(restore_report)}')
-        logger.info(f'save summary:\n{to_json(self._get_summary(save_report))}')
-        logger.info(f'restore summary:\n{to_json(self._get_summary(restore_report))}')
+        logger.info(f'save summary:\n{to_json(
+            self._get_summary(save_report))}')
+        logger.info(f'restore summary:\n{to_json(
+            self._get_summary(restore_report))}')
 
 
 def with_lockfile():

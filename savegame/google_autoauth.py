@@ -37,7 +37,7 @@ class GoogleAutoauth:
     def _get_driver(self):
         if not os.path.exists(self.data_dir):
             raise Exception(f'chrome data dir {self.data_dir} does not exist')
-        subprocess.call(KILL_CHROME_CMD, shell=True)   # weird results if chrome is running
+        subprocess.call(KILL_CHROME_CMD, shell=True)
         options = Options()
         options.add_argument(f'--user-data-dir={self.data_dir}')
         options.add_argument(f'--profile-directory={self.profile_dir}')

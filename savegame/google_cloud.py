@@ -22,13 +22,16 @@ SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/drive.readonly',
 ]
-MIME_TYPE_MAP = {   # https://developers.google.com/drive/api/guides/ref-export-formats
+MIME_TYPE_MAP = {
+    # https://developers.google.com/drive/api/guides/ref-export-formats
     'application/vnd.google-apps.document': {
-        'mime_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'mime_type': 'application/vnd.openxmlformats-officedocument'
+            '.wordprocessingml.document',
         'ext': '.docx',
     },
     'application/vnd.google-apps.spreadsheet': {
-        'mime_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'mime_type': 'application/vnd.openxmlformats-officedocument'
+            '.spreadsheetml.sheet',
         'ext': '.xlsx',
     },
 
@@ -135,7 +138,8 @@ class GoogleCloud:
                 .list(
                     q='trashed=false',
                     spaces='drive',
-                    fields='nextPageToken, files(id, name, mimeType, modifiedTime, parents)',
+                    fields='nextPageToken, '
+                        'files(id, name, mimeType, modifiedTime, parents)',
                     pageToken=page_token,
                 )
                 .execute()
