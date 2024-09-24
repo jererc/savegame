@@ -657,3 +657,13 @@ class SavegameTestCase(BaseTestCase):
         print('src data:')
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
+
+        savegame.restoregame(include=['*dir1*'])
+        src_paths2 = self._list_src_root_paths()
+        print('src data:')
+        pprint(src_paths2)
+
+        savegame.restoregame(exclude=['*dir1*'])
+        src_paths2 = self._list_src_root_paths()
+        print('src data:')
+        pprint(src_paths2)

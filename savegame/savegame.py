@@ -731,18 +731,22 @@ class LocalRestorer:
                     report['missing_at_src'][src].add(src_file)
         return report
 
+    def _update_report(self, k1, k2, v):
+        if isinstance(v, set):
+            self.report[k1][k2].update(v)
+        else:
+            self.report[k1][k2].add(v)
+
     def _requires_restore(self, dst_file, src_file, src):
-        if self.include and not fnmatch(src_file, self.include):
-            return False
-        if self.exclude and fnmatch(src_file, self.exclude):
+        if is_path_excluded(src_file, self.include, self.exclude):
             return False
         if not os.path.exists(src_file):
             return True
         if self.hash_man.get(src_file) == self.hash_man.get(dst_file):
-            self.report[src]['skipped_identical'].add(src_file)
+            self._update_report('skipped_identical', src, src_file)
             return False
         if not self.overwrite:
-            self.report[src]['skipped_hash_mismatched'].add(src_file)
+            self._update_report('skipped_hash_mismatched', src, src_file)
             return False
         return True
 
@@ -750,7 +754,7 @@ class LocalRestorer:
         if not self._requires_restore(dst_file, src_file, src):
             return
         if self.dry_run:
-            self.report[src]['to_restore'].add(src_file)
+            self._update_report('to_restore', src, src_file)
             return
         try:
             if os.path.exists(src_file):
@@ -761,14 +765,14 @@ class LocalRestorer:
                     os.rename(src_file, src_file_bak)
                     logger.warning(f'renamed existing src file '
                         f'{src_file} to {src_file_bak}')
-                self.report[src]['restored_overwritten'].add(src_file)
+                self._update_report('restored_overwritten', src, src_file)
             else:
-                self.report[src]['restored'].add(src_file)
+                self._update_report('restored', src, src_file)
             makedirs(os.path.dirname(src_file))
             shutil.copyfile(dst_file, src_file)
             logger.info(f'restored {src_file} from {dst_file}')
         except Exception as exc:
-            self.report[src]['failed'].add(src_file)
+            self._update_report('failed', src, src_file)
             logger.error(f'failed to restore {src_file} '
                 f'from {dst_file}: {exc}')
 
@@ -785,10 +789,10 @@ class LocalRestorer:
                     rel_paths.add(rel_path)
 
             if invalid_files:
-                self.report[src]['invalid_files'].update(invalid_files)
+                self._update_report('invalid_files', src, invalid_files)
                 continue
             if not rel_paths:
-                self.report[src]['empty_dst'].add(dst)
+                self._update_report('empty_dst', src, dst)
                 continue
             for rel_path in rel_paths:
                 src_file = self._get_src_file_for_user(
@@ -1002,8 +1006,8 @@ def _parse_args():
     restore_parser = subparsers.add_parser('restore')
     restore_parser.add_argument('--from-hostname')
     restore_parser.add_argument('--from-username')
-    restore_parser.add_argument('--include')
-    restore_parser.add_argument('--exclude')
+    restore_parser.add_argument('--include', nargs='*')
+    restore_parser.add_argument('--exclude', nargs='*')
     restore_parser.add_argument('--overwrite', action='store_true')
     restore_parser.add_argument('--dry-run', action='store_true')
     subparsers.add_parser('hostnames')
