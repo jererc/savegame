@@ -56,6 +56,13 @@ def any_str_contains(strings, substring):
     return False
 
 
+def any_str_matches(strings, pattern):
+    for s in strings:
+        if fnmatch(s, pattern):
+            return True
+    return False
+
+
 def print_dst_data():
     meta = savegame.MetaManager().meta
     pprint(meta)
@@ -186,8 +193,41 @@ class BaseTestCase(unittest.TestCase):
         savegame.restoregame(**kwargs)
 
 
-class HashTestCase(BaseTestCase):
+class PatternTestCase(unittest.TestCase):
+    def setUp(self):
+        self.file = os.path.join(os.path.expanduser('~'),
+            'first_dir', 'second_dir', 'savegame.py')
 
+    def test_ko(self):
+        self.assertFalse(savegame.check_patterns(self.file,
+            inclusions=['*third_dir*'],
+        ))
+        self.assertFalse(savegame.check_patterns(self.file,
+            inclusions=['*.bin'],
+        ))
+        self.assertFalse(savegame.check_patterns(self.file,
+            exclusions=['*dir*'],
+        ))
+        self.assertFalse(savegame.check_patterns(self.file,
+            exclusions=['*.py'],
+        ))
+
+    def test_ok(self):
+        self.assertTrue(savegame.check_patterns(self.file,
+            inclusions=['*game*'],
+        ))
+        self.assertTrue(savegame.check_patterns(self.file,
+            inclusions=['*.py'],
+        ))
+        self.assertTrue(savegame.check_patterns(self.file,
+            exclusions=['*third*'],
+        ))
+        self.assertTrue(savegame.check_patterns(self.file,
+            exclusions=['*.bin'],
+        ))
+
+
+class HashTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.hm = savegame.HashManager()
@@ -237,7 +277,6 @@ class HashTestCase(BaseTestCase):
 
 
 class ReferenceDataTestCase(BaseTestCase):
-
     def setUp(self):
         super().setUp()
         self.rd = savegame.ReferenceData(self.dst_root)
@@ -275,7 +314,6 @@ class ReferenceDataTestCase(BaseTestCase):
 
 
 class SaveItemTestCase(BaseTestCase):
-
     def test_dst_path(self):
         dst_path = os.path.expanduser('~')
         src_paths = glob(os.path.join(dst_path, '*'))[:3]
@@ -413,6 +451,75 @@ class SavegameTestCase(BaseTestCase):
         print('src data:')
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
+
+    def test_src_path_patterns(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3,
+            file_count=3)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, '*'),
+                        [],
+                        ['*src1'],
+                    ],
+                ],
+                'dst_path': self.dst_root,
+                'retention_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+
+    def test_remove_dst_path_patterns(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3,
+            file_count=3)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src1'),
+                        [],
+                        [],
+                    ],
+                ],
+                'dst_path': self.dst_root,
+                'retention_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src1'),
+                        [],
+                        ['*dir1*'],
+                    ],
+                ],
+                'dst_path': self.dst_root,
+                'retention_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*dir1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
 
     def test_check(self):
         self._generate_src_data(index_start=1, src_count=5, dir_count=2,

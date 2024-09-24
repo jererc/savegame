@@ -167,14 +167,12 @@ def match_any_pattern(path, patterns):
     return False
 
 
-def is_path_excluded(path, inclusions, exclusions, file_only=True):
-    if file_only and os.path.isdir(path):
+def check_patterns(path, inclusions=None, exclusions=None):
+    if exclusions and match_any_pattern(path, exclusions):
         return False
     if inclusions and not match_any_pattern(path, inclusions):
-        return True
-    if exclusions and match_any_pattern(path, exclusions):
-        return True
-    return False
+        return False
+    return True
 
 
 class InvalidPath(Exception):
@@ -390,7 +388,7 @@ class LocalSaver(BaseSaver):
         else:
             files = list(walk_files(src))
         files = [f for f in files
-            if not is_path_excluded(f, self.inclusions, self.exclusions)]
+            if check_patterns(f, self.inclusions, self.exclusions)]
         return src, files
 
     def check(self):
@@ -417,14 +415,19 @@ class LocalSaver(BaseSaver):
                     report['hash_mismatched'][src].add(os.path.join(src, path))
         return report
 
+    def _requires_deletion(self, dst_path, src):
+        if os.path.basename(dst_path) == REF_FILE:
+            return False
+        src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
+        if not os.path.exists(src_path) and self.needs_purge(dst_path):
+            return True
+        if not check_patterns(src_path, self.inclusions, self.exclusions):
+            return True
+        return False
+
     def _clean_dst(self, src):
         for dst_path in walk_paths(self.dst):
-            if os.path.basename(dst_path) == REF_FILE:
-                continue
-            src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
-            if (not os.path.exists(src_path) and self.needs_purge(dst_path)) \
-                    or is_path_excluded(src_path, self.inclusions,
-                        self.exclusions):
+            if self._requires_deletion(dst_path, src):
                 remove_path(dst_path)
                 self.report['removed'].add(dst_path)
                 logger.debug(f'removed {dst_path}')
@@ -588,7 +591,10 @@ class SaveItem:
         if self.src_type == LocalSaver.src_type:
             for src_path, inclusions, exclusions in self.src_paths:
                 for src in glob(os.path.expanduser(src_path)):
-                    if is_path_excluded(src, [], exclusions, file_only=False):
+                    if not check_patterns(src, exclusions=exclusions):
+                        # Skip to avoid an empty dst created by the saver.
+                        # Must not check inclusions since they could apply only
+                        # to files inside the path and not the path itself
                         logger.debug(f'excluded src_path {src}')
                         continue
                     yield src, inclusions, exclusions
@@ -740,7 +746,7 @@ class LocalRestorer:
             self.report[k1][k2].add(v)
 
     def _requires_restore(self, dst_file, src_file, src):
-        if is_path_excluded(src_file, self.include, self.exclude):
+        if not check_patterns(src_file, self.include, self.exclude):
             return False
         if not os.path.exists(src_file):
             return True
