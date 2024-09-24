@@ -451,7 +451,6 @@ class SavegameTestCase(BaseTestCase):
                     fd.write(content + 'a')
             if fnmatch(file, '*src2*dir2*file1'):
                 remove_path(file)
-
         for file in walk_files(self.dst_root):
             if fnmatch(file, '*src4*dir1*file1'):
                 with open(file) as fd:
@@ -464,7 +463,9 @@ class SavegameTestCase(BaseTestCase):
         savegame.checkgame()
 
         remove_path(os.path.join(self.src_root, 'src4'))
+        savegame.checkgame()
 
+        remove_path(os.path.join(self.src_root))
         savegame.checkgame()
 
         # savegame.restoregame(overwrite=False)
