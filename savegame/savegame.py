@@ -167,17 +167,16 @@ def text_file_exists(file, data, encoding='utf-8',
     return False
 
 
-def match_any_pattern(path, patterns):
-    for pattern in patterns:
-        if fnmatch(path, pattern):
-            return True
-    return False
-
-
 def check_patterns(path, inclusions=None, exclusions=None):
-    if exclusions and match_any_pattern(path, exclusions):
-        return False
-    if inclusions and not match_any_pattern(path, inclusions):
+    if exclusions:
+        for pattern in exclusions:
+            if fnmatch(path, pattern):
+                return False
+        return True
+    if inclusions:
+        for pattern in inclusions:
+            if fnmatch(path, pattern):
+                return True
         return False
     return True
 
