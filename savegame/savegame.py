@@ -598,7 +598,7 @@ class GoogleBookmarksSaver(BaseSaver):
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
             min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
-            restorable=True):
+            restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
@@ -606,6 +606,7 @@ class SaveItem:
         self.retention_delta = retention_delta
         self.creds_file = creds_file
         self.restorable = restorable
+        self.os_name = os_name
         self.saver_cls = self._get_saver_class()
 
     def _get_src_paths(self, src_paths):
@@ -640,6 +641,8 @@ class SaveItem:
             yield self.src_type, None, None
 
     def iterate_savers(self):
+        if self.os_name and os.name != self.os_name:
+            return
         makedirs(self.dst_path)
         for src_and_patterns in self._iterate_src_and_patterns():
             yield self.saver_cls(*src_and_patterns,
