@@ -12,6 +12,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+from pathlib import PurePath
 from pprint import pprint
 import shutil
 import signal
@@ -572,10 +573,9 @@ class SaveItem:
         if os.sep not in dst_path:
             raise UnhandledPath(f'unhandled dst_path {dst_path}: '
                 f'not {os.name}')
+        dst_path = os.path.expanduser(dst_path)
         if not os.path.exists(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
-        if dst_path != os.path.expanduser(dst_path):
-            raise InvalidPath(f'invalid dst_path {dst_path}: must be absolute')
         return os.path.join(dst_path, NAME, self.src_type)
 
     def _get_saver_class(self):
@@ -587,7 +587,7 @@ class SaveItem:
                         return obj
         raise Exception(f'invalid src_type {self.src_type}')
 
-    def _iterate_src_and_filters(self):
+    def _iterate_src_and_patterns(self):
         if self.src_type == LocalSaver.src_type:
             for src_path, inclusions, exclusions in self.src_paths:
                 for src in glob(os.path.expanduser(src_path)):
@@ -595,7 +595,7 @@ class SaveItem:
                         # Skip to avoid an empty dst created by the saver.
                         # Must not check inclusions since they could apply only
                         # to files inside the path and not the path itself
-                        logger.debug(f'excluded src_path {src}')
+                        logger.debug(f'excluded src {src} from {src_path}')
                         continue
                     yield src, inclusions, exclusions
         else:
@@ -603,8 +603,8 @@ class SaveItem:
 
     def iterate_savers(self):
         makedirs(self.dst_path)
-        for src_and_filters in self._iterate_src_and_filters():
-            yield self.saver_cls(*src_and_filters,
+        for src_and_patterns in self._iterate_src_and_patterns():
+            yield self.saver_cls(*src_and_patterns,
                 dst_path=self.dst_path,
                 min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
@@ -686,24 +686,21 @@ class LocalRestorer:
         self.report = defaultdict(lambda: defaultdict(set))
 
     def _get_src_file_for_user(self, path):
-
-        def with_end_sep(x):
-            return f'{x.rstrip(os.sep)}{os.sep}'
-
+        pp = PurePath(path)
         home_path = os.path.expanduser('~')
-        home = os.path.dirname(home_path)
-        if not path.startswith(with_end_sep(home)):
+        if pp.is_relative_to(home_path):
             return path
-        if path.startswith(with_end_sep(home_path)):
+        home_root = os.path.dirname(home_path)
+        if not pp.is_relative_to(home_root):
             return path
-        username = path.split(os.sep)[2]
+        if len(pp.parts) < 3:
+            return path
+        username = pp.parts[2]
         if username in SHARED_USERNAMES:
             return path
         if username == self.from_username:
-            return path.replace(with_end_sep(os.path.join(home, username)),
-                with_end_sep(home_path), 1)
-        logger.debug(f'skipped {path}: the path username '
-            f'does not match {self.from_username}')
+            return path.replace(os.path.join(home_root, username),
+                home_path, 1)
         return None
 
     def _iterate_dst_and_ref_data(self):
@@ -728,8 +725,11 @@ class LocalRestorer:
                 dst_hash = self.hash_man.get(dst_file)
                 if dst_hash != ref_hash:
                     report['invalid_dst_files'][dst].add(dst_file)
-                src_file = self._get_src_file_for_user(
-                    os.path.join(src, rel_path))
+                src_file_raw = os.path.join(src, rel_path)
+                src_file = self._get_src_file_for_user(src_file_raw)
+                if not src_file:
+                    report['skipped_other_username'][src].add(src_file_raw)
+                    continue
                 if os.path.exists(src_file):
                     if self.hash_man.get(src_file) == dst_hash == ref_hash:
                         report['ok'][src].add(src_file)
@@ -803,11 +803,14 @@ class LocalRestorer:
                 self._update_report('empty_dst', src, dst)
                 continue
             for rel_path in rel_paths:
-                src_file = self._get_src_file_for_user(
-                    os.path.join(src, rel_path))
-                if src_file:
-                    self._restore_file(os.path.join(dst, rel_path),
-                        src_file, src)
+                src_file_raw = os.path.join(src, rel_path)
+                src_file = self._get_src_file_for_user(src_file_raw)
+                if not src_file:
+                    self._update_report('skipped_other_username', src,
+                        src_file_raw)
+                    continue
+                self._restore_file(os.path.join(dst, rel_path),
+                    src_file, src)
 
 
 class RestoreHandler:

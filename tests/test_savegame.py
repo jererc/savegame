@@ -21,6 +21,8 @@ import user_settings
 
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
+SRC_DIR = 'src_root'
+DST_DIR = 'dst_root'
 
 savegame.logger.setLevel(logging.DEBUG)
 
@@ -63,6 +65,14 @@ def any_str_matches(strings, pattern):
     return False
 
 
+def count_matches(strings, pattern):
+    res = 0
+    for s in strings:
+        if fnmatch(s, pattern):
+            res += 1
+    return res
+
+
 def print_dst_data():
     meta = savegame.MetaManager().meta
     pprint(meta)
@@ -79,30 +89,78 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win(self):
         obj = savegame.LocalRestorer(self.dst_path)
-        path = r'C:\Program Files\some_dir'
+
+        path = 'C:\\Program Files\\dir'
         self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = r'C:\Users\Public\some_dir'
+        path = 'C:\\Program Files\\'
         self.assertEqual(obj._get_src_file_for_user(path), path)
+
+        path = 'C:\\Users\\Public\\dir'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\{self.username}\\dir'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\{self.username}\\'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\{self.username}'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+
+        path = f'C:\\Users\\{self.other_username}\\dir'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.other_username}\\'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.other_username}'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
 
         obj = savegame.LocalRestorer(self.dst_path,
             from_username=self.other_username)
-        path = rf'C:\Users\{self.other_username}\some_dir'
+        path = f'C:\\Users\\{self.other_username}\\dir'
         self.assertEqual(obj._get_src_file_for_user(path),
-            rf'C:\Users\{self.username}\some_dir')
+            f'C:\\Users\\{self.username}\\dir')
+        path = f'C:\\Users\\{self.other_username}'
+        self.assertEqual(obj._get_src_file_for_user(path),
+            f'C:\\Users\\{self.username}')
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
-    def test_posix(self):
+    def test_linux(self):
         obj = savegame.LocalRestorer(self.dst_path)
-        path = '/var/some_dir'
+
+        path = '/var/dir'
         self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = '/home/shared/some_dir'
+        path = '/var'
         self.assertEqual(obj._get_src_file_for_user(path), path)
+
+        path = '/home/shared/dir'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'/home/{self.username}/dir'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'/home/{self.username}/'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'/home/{self.username}'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = '/home/'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = '/home'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+
+        path = f'/home/{self.other_username}/dir'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.other_username}/'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.other_username}'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
 
         obj = savegame.LocalRestorer(self.dst_path,
             from_username=self.other_username)
-        path = f'/home/{self.other_username}/some_dir'
+        path = f'/home/{self.other_username}/dir'
         self.assertEqual(obj._get_src_file_for_user(path),
-            f'/home/{self.username}/some_dir')
+            f'/home/{self.username}/dir')
+        path = f'/home/{self.other_username}'
+        self.assertEqual(obj._get_src_file_for_user(path),
+            f'/home/{self.username}')
 
 
 class BaseTestCase(unittest.TestCase):
@@ -115,8 +173,8 @@ class BaseTestCase(unittest.TestCase):
             remove_path(path)
         makedirs(user_settings.WORK_PATH)
 
-        self.src_root = os.path.join(savegame.WORK_PATH, 'src_root')
-        self.dst_root = os.path.join(savegame.WORK_PATH, 'dst_root')
+        self.src_root = os.path.join(savegame.WORK_PATH, SRC_DIR)
+        self.dst_root = os.path.join(savegame.WORK_PATH, DST_DIR)
         makedirs(self.dst_root)
 
         savegame.MetaManager().meta = {}
@@ -520,6 +578,44 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*dir1*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+
+    def test_home_path_other_os(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
+        src_path = {
+            'posix': f'~\\{user_settings.TEST_DIR}\\*',
+            'nt': f'~/{user_settings.TEST_DIR}/*',
+        }[os.name]
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    src_path,
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        src_paths = self._list_src_root_paths()
+        savegame.savegame()
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*src*'))
+
+    def test_home_paths(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=2,
+            file_count=2)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join('~', user_settings.TEST_DIR, SRC_DIR),
+                ],
+                'dst_path': os.path.join('~', user_settings.TEST_DIR, DST_DIR),
+            },
+        ]
+        src_paths = self._list_src_root_paths()
+        savegame.savegame()
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
 
     def test_check(self):
         self._generate_src_data(index_start=1, src_count=5, dir_count=2,

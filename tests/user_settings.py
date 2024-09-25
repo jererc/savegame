@@ -1,3 +1,4 @@
 import os.path
 
-WORK_PATH = os.path.join(os.path.expanduser('~'), '_test_savegame')
+TEST_DIR = '_test_savegame'
+WORK_PATH = os.path.join(os.path.expanduser('~'), TEST_DIR)
