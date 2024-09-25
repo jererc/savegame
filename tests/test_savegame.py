@@ -51,13 +51,6 @@ def walk_files(path):
             yield os.path.join(root, file)
 
 
-def any_str_contains(strings, substring):
-    for s in strings:
-        if substring in s:
-            return True
-    return False
-
-
 def any_str_matches(strings, pattern):
     for s in strings:
         if fnmatch(s, pattern):
@@ -400,7 +393,7 @@ class SavegameTestCase(BaseTestCase):
                     [
                         os.path.join(self.src_root, '*'),
                         [],
-                        ['*/src2', '*/dir2/*', '*/file2'],
+                        ['*/src2*', '*/dir2/*', '*/file2'],
                     ],
                 ],
                 'dst_path': self.dst_root,
@@ -409,15 +402,15 @@ class SavegameTestCase(BaseTestCase):
         savegame.savegame()
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
-        self.assertFalse(any_str_contains(dst_paths, 'src2'))
-        self.assertFalse(any_str_contains(dst_paths, 'dir2'))
-        self.assertFalse(any_str_contains(dst_paths, 'file2'))
-        self.assertTrue(any_str_contains(dst_paths, 'src1'))
-        self.assertTrue(any_str_contains(dst_paths, 'src3'))
-        self.assertTrue(any_str_contains(dst_paths, 'dir1'))
-        self.assertTrue(any_str_contains(dst_paths, 'dir3'))
-        self.assertTrue(any_str_contains(dst_paths, 'file1'))
-        self.assertTrue(any_str_contains(dst_paths, 'file3'))
+        self.assertFalse(any_str_matches(dst_paths, '*src2*'))
+        self.assertFalse(any_str_matches(dst_paths, '*dir2*'))
+        self.assertFalse(any_str_matches(dst_paths, '*file2*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src3*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*'))
+        self.assertTrue(any_str_matches(dst_paths, '*file1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*file3*'))
 
     def test_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
@@ -445,12 +438,12 @@ class SavegameTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         print('dst data:')
         pprint(dst_paths)
-        self.assertTrue(any_str_contains(dst_paths, 'src1'))
-        self.assertTrue(any_str_contains(dst_paths, 'src2'))
-        self.assertTrue(any_str_contains(dst_paths, 'dir1'))
-        self.assertTrue(any_str_contains(dst_paths, 'dir2'))
-        self.assertTrue(any_str_contains(dst_paths, 'file1'))
-        self.assertTrue(any_str_contains(dst_paths, 'file2'))
+        self.assertTrue(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*'))
+        self.assertTrue(any_str_matches(dst_paths, '*file1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*file2*'))
         meta = deepcopy(savegame.MetaManager().meta)
         pprint(meta)
         for data in sorted(meta.values(), key=lambda x: x['dst']):
@@ -487,8 +480,8 @@ class SavegameTestCase(BaseTestCase):
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
-        self.assertTrue(any_str_contains(dst_paths, 'file3'))
-        self.assertTrue(any_str_contains(dst_paths, 'file4'))
+        self.assertTrue(any_str_matches(dst_paths, '*file3*'))
+        self.assertTrue(any_str_matches(dst_paths, '*file4*'))
 
         savegame.SAVES = [
             {
@@ -503,8 +496,8 @@ class SavegameTestCase(BaseTestCase):
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
-        self.assertFalse(any_str_contains(dst_paths, 'file3'))
-        self.assertFalse(any_str_contains(dst_paths, 'file4'))
+        self.assertFalse(any_str_matches(dst_paths, '*file3*'))
+        self.assertFalse(any_str_matches(dst_paths, '*file4*'))
 
         remove_path(self.src_root)
         self._restoregame(hostname=None)
@@ -522,7 +515,7 @@ class SavegameTestCase(BaseTestCase):
                     [
                         os.path.join(self.src_root, '*'),
                         [],
-                        ['*src1'],
+                        ['*src1*'],
                     ],
                 ],
                 'dst_path': self.dst_root,
@@ -544,7 +537,7 @@ class SavegameTestCase(BaseTestCase):
             {
                 'src_paths': [
                     [
-                        os.path.join(self.src_root, 'src1'),
+                        os.path.join(self.src_root, '*'),
                         [],
                         [],
                     ],
@@ -565,7 +558,7 @@ class SavegameTestCase(BaseTestCase):
             {
                 'src_paths': [
                     [
-                        os.path.join(self.src_root, 'src1'),
+                        os.path.join(self.src_root, '*'),
                         [],
                         ['*dir1*'],
                     ],
@@ -579,6 +572,30 @@ class SavegameTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertFalse(any_str_matches(dst_paths, '*dir1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src1'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, '*'),
+                        [],
+                        ['*src1*'],
+                    ],
+                ],
+                'dst_path': self.dst_root,
+                'retention_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
 

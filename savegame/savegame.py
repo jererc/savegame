@@ -119,10 +119,11 @@ def get_path_size(path):
 
 
 def remove_path(path):
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    else:
-        os.remove(path)
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
 
 
 def walk_paths(path):
@@ -303,7 +304,7 @@ class BaseSaver:
         self.min_delta = min_delta
         self.retention_delta = retention_delta
         self.creds_file = creds_file
-        self.dst = self._get_dst()
+        self.dst = self.get_dst()
         self.hash_man = HashManager()
         self.meta_man = MetaManager()
         self.report = defaultdict(lambda: defaultdict(set))
@@ -312,13 +313,8 @@ class BaseSaver:
         self.success = None
         self.result = {}
 
-    def generate_dst(self):
+    def get_dst(self):
         return os.path.join(self.dst_path, self.src_type)
-
-    def _get_dst(self):
-        dst = self.generate_dst()
-        makedirs(dst)
-        return dst
 
     def _update_report(self, k1, k2, v):
         if isinstance(v, set):
@@ -404,7 +400,7 @@ class ReferenceData:
 class LocalSaver(BaseSaver):
     src_type = 'local'
 
-    def generate_dst(self):
+    def get_dst(self):
         return os.path.join(self.dst_path, HOSTNAME,
             path_to_filename(self.src))
 
@@ -462,6 +458,10 @@ class LocalSaver(BaseSaver):
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
+        if not src_files:
+            remove_path(self.dst)
+            return
+
         self._update_report('files', self.src, set(src_files))
         self._clean_dst(src)
         ref_data = {'src': src, 'files': []}
@@ -514,6 +514,7 @@ class GoogleDriveSaver(BaseSaver):
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
                 continue
+            makedirs(os.path.dirname(dst_file))
             with open(dst_file, 'wb') as fd:
                 fd.write(content)
 
@@ -541,6 +542,7 @@ class GoogleContactsSaver(BaseSaver):
         if text_file_exists(file, data):
             self._update_report('skipped', self.src, file)
         else:
+            makedirs(os.path.dirname(file))
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
             self._update_report('saved', self.src, file)
@@ -619,12 +621,6 @@ class SaveItem:
         if self.src_type == LocalSaver.src_type:
             for src_path, inclusions, exclusions in self.src_paths:
                 for src in glob(os.path.expanduser(src_path)):
-                    if not check_patterns(src, exclusions=exclusions):
-                        # Skip to avoid an empty dst created by the saver.
-                        # Must not check inclusions since they could apply only
-                        # to files inside the path and not the path itself
-                        logger.debug(f'excluded src {src} from {src_path}')
-                        continue
                     yield src, inclusions, exclusions
         else:
             yield self.src_type, None, None
