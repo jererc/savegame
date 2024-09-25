@@ -550,9 +550,9 @@ class SavegameTestCase(BaseTestCase):
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
-        self.assertTrue(any_str_matches(dst_paths, '*dir1*file1'))
-        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
-        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
         savegame.SAVES = [
             {
@@ -573,9 +573,11 @@ class SavegameTestCase(BaseTestCase):
         pprint(dst_paths)
         self.assertFalse(any_str_matches(dst_paths, '*dir1*'))
         self.assertTrue(any_str_matches(dst_paths, '*src1'))
+        self.assertTrue(any_str_matches(dst_paths, '*src1*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*src2'))
-        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
-        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
         savegame.SAVES = [
             {
@@ -596,8 +598,10 @@ class SavegameTestCase(BaseTestCase):
         pprint(dst_paths)
         self.assertFalse(any_str_matches(dst_paths, '*src1*'))
         self.assertTrue(any_str_matches(dst_paths, '*src2*'))
-        self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
-        self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
     def test_home_path_other_os(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,

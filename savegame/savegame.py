@@ -128,13 +128,13 @@ def remove_path(path):
 
 def walk_paths(path):
     for root, dirs, files in os.walk(path, topdown=False):
-        for item in sorted(files + dirs):
+        for item in files + dirs:
             yield os.path.join(root, item)
 
 
 def walk_files(path):
     for root, dirs, files in os.walk(path):
-        for file in sorted(files):
+        for file in files:
             yield os.path.join(root, file)
 
 
@@ -279,13 +279,13 @@ class Report:
     def __init__(self):
         self.data = defaultdict(lambda: defaultdict(set))
 
-    def set(self, k1, k2, v):
+    def add(self, k1, k2, v):
         if isinstance(v, set):
             self.data[k1][k2].update(v)
         else:
             self.data[k1][k2].add(v)
 
-    def update(self, report):
+    def merge(self, report):
         for k, v in report.data.items():
             for k2, v2 in v.items():
                 self.data[k][k2].update(v2)
@@ -331,7 +331,7 @@ class BaseSaver:
     def get_dst(self):
         return os.path.join(self.dst_path, self.src_type)
 
-    def needs_purge(self, path):
+    def can_be_purged(self, path):
         return os.stat(path).st_mtime < time.time() - self.retention_delta
 
     def notify_error(self, message, exc):
@@ -420,8 +420,8 @@ class LocalSaver(BaseSaver):
             src = os.path.dirname(src)
         else:
             files = list(walk_files(src))
-        files = [f for f in files
-            if check_patterns(f, self.inclusions, self.exclusions)]
+        files = {f for f in files
+            if check_patterns(f, self.inclusions, self.exclusions)}
         return src, files
 
     def check(self):
@@ -435,46 +435,49 @@ class LocalSaver(BaseSaver):
         dst_hashes = {p: hm.get(os.path.join(self.dst, p))
             for p, h in ref_data['files']}
         if src_hashes == dst_hashes:
-            self.report.set('ok', src, set(src_files))
+            self.report.add('ok', src, set(src_files))
         else:
             for path in set(list(src_hashes.keys()) + list(dst_hashes.keys())):
                 src_h = src_hashes.get(path)
                 dst_h = dst_hashes.get(path)
                 if not src_h:
-                    self.report.set('missing_at_src', src,
+                    self.report.add('missing_at_src', src,
                         os.path.join(src, path))
                 elif not dst_h:
-                    self.report.set('missing_at_dst', src,
+                    self.report.add('missing_at_dst', src,
                         os.path.join(self.dst, path))
                 elif src_h != dst_h:
-                    self.report.set('hash_mismatched', src,
+                    self.report.add('hash_mismatched', src,
                         os.path.join(src, path))
 
-    def _requires_deletion(self, dst_path, src):
-        if os.path.basename(dst_path) == REF_FILE:
-            return False
-        src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
-        if not os.path.exists(src_path) and self.needs_purge(dst_path):
+    def _needs_removal(self, dst_path, src, src_files):
+        if os.path.isdir(dst_path) and not os.listdir(dst_path):
             return True
-        if not check_patterns(src_path, self.inclusions, self.exclusions):
+        src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
+        if os.path.isfile(dst_path) and src_path not in src_files \
+                and self.can_be_purged(dst_path):
             return True
         return False
 
-    def _clean_dst(self, src):
-        for dst_path in walk_paths(self.dst):
-            if self._requires_deletion(dst_path, src):
-                remove_path(dst_path)
-                self.report.set('removed', self.src, dst_path)
-                logger.debug(f'removed {dst_path}')
-
     def do_run(self):
         src, src_files = self._get_src_and_files()
+        self.report.add('files', self.src, set(src_files))
+
+        dst_files = set()
+        for dst_path in walk_paths(self.dst):
+            if os.path.basename(dst_path) == REF_FILE:
+                continue
+            if self._needs_removal(dst_path, src, src_files):
+                remove_path(dst_path)
+                self.report.add('removed', self.src, dst_path)
+            elif os.path.isfile(dst_path):
+                dst_files.add(dst_path)
+
         if not src_files:
-            remove_path(self.dst)
+            if not dst_files:
+                remove_path(self.dst)
             return
 
-        self.report.set('files', self.src, set(src_files))
-        self._clean_dst(src)
         ref_data = {'src': src, 'files': []}
         for src_file in src_files:
             file_rel_path = os.path.relpath(src_file, src)
@@ -488,7 +491,7 @@ class LocalSaver(BaseSaver):
                 makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
                 self.hash_man.set(dst_file, src_hash)
-                self.report.set('saved', self.src, src_file)
+                self.report.add('saved', self.src, src_file)
                 logger.debug(f'saved {src_file}')
             except Exception:
                 logger.exception(f'failed to save {src_file}')
@@ -514,14 +517,14 @@ class GoogleDriveSaver(BaseSaver):
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
-                self.report.set('skipped', self.src, dst_file)
+                self.report.add('skipped', self.src, dst_file)
                 continue
             try:
                 content = gc.fetch_file_content(file_id=file_data['id'],
                     mime_type=file_data['mime_type'])
-                self.report.set('saved', self.src, dst_file)
+                self.report.add('saved', self.src, dst_file)
             except Exception as exc:
-                self.report.set('failed', self.src, dst_file)
+                self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
                 continue
@@ -530,7 +533,7 @@ class GoogleDriveSaver(BaseSaver):
                 fd.write(content)
 
         for dst_path in walk_paths(self.dst):
-            if dst_path not in paths and self.needs_purge(dst_path):
+            if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
         self.result['file_count'] = len(paths)
 
@@ -551,12 +554,12 @@ class GoogleContactsSaver(BaseSaver):
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
         if text_file_exists(file, data):
-            self.report.set('skipped', self.src, file)
+            self.report.add('skipped', self.src, file)
         else:
             makedirs(os.path.dirname(file))
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report.set('saved', self.src, file)
+            self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
         self.result['file_count'] = 1
 
@@ -567,11 +570,11 @@ class GoogleBookmarksSaver(BaseSaver):
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
         if text_file_exists(file, data, log_content_changed=True):
-            self.report.set('skipped', self.src, file)
+            self.report.add('skipped', self.src, file)
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report.set('saved', self.src, file)
+            self.report.add('saved', self.src, file)
 
     def do_run(self):
         bookmarks = google_chrome.get_bookmarks()
@@ -587,7 +590,7 @@ class GoogleBookmarksSaver(BaseSaver):
             paths.add(dst_file)
 
         for dst_path in walk_paths(self.dst):
-            if dst_path not in paths and self.needs_purge(dst_path):
+            if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
         self.result['file_count'] = len(bookmarks)
 
@@ -666,13 +669,12 @@ class SaveHandler:
 
     def check(self):
         report = Report()
-        savers = list(self._iterate_savers())
-        for saver in savers:
+        for saver in self._iterate_savers():
             try:
                 saver.check()
             except NotImplementedError:
                 continue
-            report.update(saver.report)
+            report.merge(saver.report)
         return report
 
     def run(self):
@@ -686,7 +688,7 @@ class SaveHandler:
                 logger.exception(f'failed to save {saver.src}')
                 notify(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
-            report.update(saver.report)
+            report.merge(saver.report)
         HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
         MetaManager().check()
@@ -748,26 +750,26 @@ class LocalRestorer:
             try:
                 check_path(src)
             except UnhandledPath:
-                self.report.set('skipped_unhandled', src, src)
+                self.report.add('skipped_unhandled', src, src)
                 continue
             for rel_path, ref_hash in ref_data['files']:
                 dst_file = os.path.join(dst, rel_path)
                 dst_hash = self.hash_man.get(dst_file)
                 if dst_hash != ref_hash:
-                    self.report.set('invalid_dst_files', dst, dst_file)
+                    self.report.add('invalid_dst_files', dst, dst_file)
                 src_file_raw = os.path.join(src, rel_path)
                 src_file = self._get_src_file_for_user(src_file_raw)
                 if not src_file:
-                    self.report.set('skipped_other_username', src,
+                    self.report.add('skipped_other_username', src,
                         src_file_raw)
                     continue
                 if os.path.exists(src_file):
                     if self.hash_man.get(src_file) == dst_hash == ref_hash:
-                        self.report.set('ok', src, src_file)
+                        self.report.add('ok', src, src_file)
                     else:
-                        self.report.set('hash_mismatched', src, src_file)
+                        self.report.add('hash_mismatched', src, src_file)
                 else:
-                    self.report.set('missing_at_src', src, src_file)
+                    self.report.add('missing_at_src', src, src_file)
 
     def _requires_restore(self, dst_file, src_file, src):
         if not check_patterns(src_file, self.include, self.exclude):
@@ -775,10 +777,10 @@ class LocalRestorer:
         if not os.path.exists(src_file):
             return True
         if self.hash_man.get(src_file) == self.hash_man.get(dst_file):
-            self.report.set('skipped_identical', src, src_file)
+            self.report.add('skipped_identical', src, src_file)
             return False
         if not self.overwrite:
-            self.report.set('skipped_hash_mismatched', src, src_file)
+            self.report.add('skipped_hash_mismatched', src, src_file)
             return False
         return True
 
@@ -786,7 +788,7 @@ class LocalRestorer:
         if not self._requires_restore(dst_file, src_file, src):
             return
         if self.dry_run:
-            self.report.set('to_restore', src, src_file)
+            self.report.add('to_restore', src, src_file)
             return
         try:
             if os.path.exists(src_file):
@@ -797,14 +799,14 @@ class LocalRestorer:
                     os.rename(src_file, src_file_bak)
                     logger.warning(f'renamed existing src file '
                         f'{src_file} to {src_file_bak}')
-                self.report.set('restored_overwritten', src, src_file)
+                self.report.add('restored_overwritten', src, src_file)
             else:
-                self.report.set('restored', src, src_file)
+                self.report.add('restored', src, src_file)
             makedirs(os.path.dirname(src_file))
             shutil.copyfile(dst_file, src_file)
             logger.info(f'restored {src_file} from {dst_file}')
         except Exception as exc:
-            self.report.set('failed', src, src_file)
+            self.report.add('failed', src, src_file)
             logger.error(f'failed to restore {src_file} '
                 f'from {dst_file}: {exc}')
 
@@ -814,7 +816,7 @@ class LocalRestorer:
             try:
                 check_path(src)
             except UnhandledPath:
-                self.report.set('skipped_unhandled', src, src)
+                self.report.add('skipped_unhandled', src, src)
                 continue
             rel_paths = set()
             invalid_files = set()
@@ -825,16 +827,16 @@ class LocalRestorer:
                 else:
                     rel_paths.add(rel_path)
             if invalid_files:
-                self.report.set('invalid_files', src, invalid_files)
+                self.report.add('invalid_files', src, invalid_files)
                 continue
             if not rel_paths:
-                self.report.set('empty_dst', src, dst)
+                self.report.add('empty_dst', src, dst)
                 continue
             for rel_path in rel_paths:
                 src_file_raw = os.path.join(src, rel_path)
                 src_file = self._get_src_file_for_user(src_file_raw)
                 if not src_file:
-                    self.report.set('skipped_other_username', src,
+                    self.report.add('skipped_other_username', src,
                         src_file_raw)
                     continue
                 self._restore_file(os.path.join(dst, rel_path),
@@ -876,7 +878,7 @@ class RestoreHandler:
                 restorer.check()
             except Exception:
                 logger.exception(f'failed to check9 {restorer.dst_path}')
-            report.update(restorer.report)
+            report.merge(restorer.report)
         return report
 
     def run(self):
@@ -886,7 +888,7 @@ class RestoreHandler:
                 restorer.run()
             except Exception:
                 logger.exception(f'failed to restore {restorer.dst_path}')
-            report.update(restorer.report)
+            report.merge(restorer.report)
         logger.info(f'report:\n{to_json(report.clean())}')
         logger.info(f'summary:\n{to_json(report.get_summary())}')
 
