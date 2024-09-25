@@ -84,6 +84,11 @@ makedirs(WORK_PATH)
 setup_logging(logger, WORK_PATH)
 
 
+def check_path(path):
+    if os.sep not in path:
+        raise UnhandledPath(f'unhandled path {path}: not {os.name}')
+
+
 def path_to_filename(path):
     return urllib.parse.quote(path, safe='')
 
@@ -174,6 +179,22 @@ def check_patterns(path, inclusions=None, exclusions=None):
     if inclusions and not match_any_pattern(path, inclusions):
         return False
     return True
+
+
+def clean_report(report):
+    res = defaultdict(dict)
+    for k, v in report.items():
+        for k2, v2 in v.items():
+            res[k][k2] = sorted(v2)
+    return res
+
+
+def get_report_summary(report):
+    res = defaultdict(dict)
+    for k, v in report.items():
+        for k2, v2 in v.items():
+            res[k][k2] = len(v2)
+    return res
 
 
 class InvalidPath(Exception):
@@ -285,7 +306,7 @@ class BaseSaver:
         self.dst = self._get_dst()
         self.hash_man = HashManager()
         self.meta_man = MetaManager()
-        self.report = defaultdict(set)
+        self.report = defaultdict(lambda: defaultdict(set))
         self.start_ts = None
         self.end_ts = None
         self.success = None
@@ -298,6 +319,12 @@ class BaseSaver:
         dst = self.generate_dst()
         makedirs(dst)
         return dst
+
+    def _update_report(self, k1, k2, v):
+        if isinstance(v, set):
+            self.report[k1][k2].update(v)
+        else:
+            self.report[k1][k2].add(v)
 
     def needs_purge(self, path):
         return os.stat(path).st_mtime < time.time() - self.retention_delta
@@ -400,21 +427,21 @@ class LocalSaver(BaseSaver):
             for f in src_files}
         dst_hashes = {p: hm.get(os.path.join(self.dst, p))
             for p, h in ref_data['files']}
-        report = defaultdict(lambda: defaultdict(set))
         if src_hashes == dst_hashes:
-            report['ok'][src] = set(src_files)
+            self._update_report('ok', src, set(src_files))
         else:
             for path in set(list(src_hashes.keys()) + list(dst_hashes.keys())):
                 src_h = src_hashes.get(path)
                 dst_h = dst_hashes.get(path)
                 if not src_h:
-                    report['missing_at_src'][src].add(os.path.join(src, path))
+                    self._update_report('missing_at_src', src,
+                        os.path.join(src, path))
                 elif not dst_h:
-                    report['missing_at_dst'][src].add(
+                    self._update_report('missing_at_dst', src,
                         os.path.join(self.dst, path))
                 elif src_h != dst_h:
-                    report['hash_mismatched'][src].add(os.path.join(src, path))
-        return report
+                    self._update_report('hash_mismatched', src,
+                        os.path.join(src, path))
 
     def _requires_deletion(self, dst_path, src):
         if os.path.basename(dst_path) == REF_FILE:
@@ -430,12 +457,12 @@ class LocalSaver(BaseSaver):
         for dst_path in walk_paths(self.dst):
             if self._requires_deletion(dst_path, src):
                 remove_path(dst_path)
-                self.report['removed'].add(dst_path)
+                self._update_report('removed', self.src, dst_path)
                 logger.debug(f'removed {dst_path}')
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
-        self.report['files'] = set(src_files)
+        self._update_report('files', self.src, set(src_files))
         self._clean_dst(src)
         ref_data = {'src': src, 'files': []}
         for src_file in src_files:
@@ -450,7 +477,7 @@ class LocalSaver(BaseSaver):
                 makedirs(os.path.dirname(dst_file))
                 shutil.copyfile(src_file, dst_file)
                 self.hash_man.set(dst_file, src_hash)
-                self.report['saved'].add(dst_file)
+                self._update_report('saved', self.src, src_file)
                 logger.debug(f'saved {src_file}')
             except Exception:
                 logger.exception(f'failed to save {src_file}')
@@ -476,14 +503,14 @@ class GoogleDriveSaver(BaseSaver):
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
-                self.report['skipped'].add(dst_file)
+                self._update_report('skipped', self.src, dst_file)
                 continue
             try:
                 content = gc.fetch_file_content(file_id=file_data['id'],
                     mime_type=file_data['mime_type'])
-                self.report['saved'].add(dst_file)
+                self._update_report('saved', self.src, dst_file)
             except Exception as exc:
-                self.report['failed'].add(dst_file)
+                self._update_report('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
                 continue
@@ -512,11 +539,11 @@ class GoogleContactsSaver(BaseSaver):
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
         if text_file_exists(file, data):
-            self.report['skipped'].add(file)
+            self._update_report('skipped', self.src, file)
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report['saved'].add(file)
+            self._update_report('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
         self.result['file_count'] = 1
 
@@ -527,11 +554,11 @@ class GoogleBookmarksSaver(BaseSaver):
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
         if text_file_exists(file, data, log_content_changed=True):
-            self.report['skipped'].add(file)
+            self._update_report('skipped', self.src, file)
         else:
             with open(file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report['saved'].add(file)
+            self._update_report('saved', self.src, file)
 
     def do_run(self):
         bookmarks = google_chrome.get_bookmarks()
@@ -570,6 +597,7 @@ class SaveItem:
             else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
+        check_path(dst_path)
         if os.sep not in dst_path:
             raise UnhandledPath(f'unhandled dst_path {dst_path}: '
                 f'not {os.name}')
@@ -615,6 +643,7 @@ class SaveItem:
 class SaveHandler:
     def __init__(self, force=False):
         self.force = force
+        self.report = defaultdict(lambda: defaultdict(set))
 
     def _iterate_savers(self):
         for save in SAVES:
@@ -634,28 +663,30 @@ class SaveHandler:
         savers = list(self._iterate_savers())
         for saver in savers:
             try:
-                for k, v in saver.check().items():
-                    for k2, v2 in v.items():
-                        report[k][k2].update(v2)
+                saver.check()
             except NotImplementedError:
                 continue
+            for k, v in saver.report.items():
+                for k2, v2 in v.items():
+                    report[k][k2].update(v2)
         return report
 
-    def _generate_summary(self, report):
-        summary = defaultdict(int)
+    def _generate_report(self):
+        report = defaultdict(lambda: defaultdict(set))
         keys = {'saved', 'removed'}
-        for src, data in report.items():
-            path_summary = {k: len(v) for k, v in data.items()
-                if k in keys and v}
-            if path_summary:
-                summary[src] = path_summary
-        if summary:
-            logger.info(f'summary:\n{to_json(summary)}')
+        for k, v in self.report.items():
+            if k not in keys:
+                continue
+            for k2, v2 in v.items():
+                if not v2:
+                    continue
+                report[k][k2].update(v2)
+        if report:
+            logger.info(f'report:\n{to_json(clean_report(report))}')
 
     def run(self):
         start_ts = time.time()
         savers = list(self._iterate_savers())
-        report = defaultdict(lambda: defaultdict(set))
         for saver in savers:
             try:
                 saver.run(force=self.force)
@@ -663,20 +694,22 @@ class SaveHandler:
                 logger.exception(f'failed to save {saver.src}')
                 notify(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
-            report[saver.src] = saver.report
+            for k, v in saver.report.items():
+                for k2, v2 in v.items():
+                    self.report[k][k2].update(v2)
         HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
         MetaManager().check()
-        self._generate_summary(report)
+        self._generate_report()
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
 
 class LocalRestorer:
-    def __init__(self, dst_path, from_hostname=None, from_username=None,
+    def __init__(self, dst_path, hostname=None, username=None,
             include=None, exclude=None, overwrite=False, dry_run=False):
         self.dst_path = dst_path
-        self.from_hostname = from_hostname or HOSTNAME
-        self.from_username = from_username or os.getlogin()
+        self.hostname = hostname or HOSTNAME
+        self.username = username or os.getlogin()
         self.include = include
         self.exclude = exclude
         self.overwrite = overwrite
@@ -699,14 +732,14 @@ class LocalRestorer:
             return path
         if username in SHARED_USERNAMES:
             return path
-        if username == self.from_username:
+        if username == self.username:
             return path.replace(os.path.join(home_root, username),
                 home_path, 1)
         return None
 
     def _iterate_dst_and_ref_data(self):
         for hostname in self.hostnames:
-            if hostname != self.from_hostname:
+            if hostname != self.hostname:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
                 dst = os.path.join(self.dst_path, hostname, dst_dir)
@@ -718,27 +751,31 @@ class LocalRestorer:
                 yield dst, ref_data
 
     def check(self):
-        report = defaultdict(lambda: defaultdict(set))
         for dst, ref_data in self._iterate_dst_and_ref_data():
             src = ref_data['src']
+            try:
+                check_path(src)
+            except UnhandledPath:
+                self._update_report('skipped_unhandled', src, src)
+                continue
             for rel_path, ref_hash in ref_data['files']:
                 dst_file = os.path.join(dst, rel_path)
                 dst_hash = self.hash_man.get(dst_file)
                 if dst_hash != ref_hash:
-                    report['invalid_dst_files'][dst].add(dst_file)
+                    self._update_report('invalid_dst_files', dst, dst_file)
                 src_file_raw = os.path.join(src, rel_path)
                 src_file = self._get_src_file_for_user(src_file_raw)
                 if not src_file:
-                    report['skipped_other_username'][src].add(src_file_raw)
+                    self._update_report('skipped_other_username', src,
+                        src_file_raw)
                     continue
                 if os.path.exists(src_file):
                     if self.hash_man.get(src_file) == dst_hash == ref_hash:
-                        report['ok'][src].add(src_file)
+                        self._update_report('ok', src, src_file)
                     else:
-                        report['hash_mismatched'][src].add(src_file)
+                        self._update_report('hash_mismatched', src, src_file)
                 else:
-                    report['missing_at_src'][src].add(src_file)
-        return report
+                    self._update_report('missing_at_src', src, src_file)
 
     def _update_report(self, k1, k2, v):
         if isinstance(v, set):
@@ -788,6 +825,11 @@ class LocalRestorer:
     def run(self):
         for dst, ref_data in self._iterate_dst_and_ref_data():
             src = ref_data['src']
+            try:
+                check_path(src)
+            except UnhandledPath:
+                self._update_report('skipped_unhandled', src, src)
+                continue
             rel_paths = set()
             invalid_files = set()
             for rel_path, file_hash in ref_data['files']:
@@ -796,7 +838,6 @@ class LocalRestorer:
                     invalid_files.add(dst_file)
                 else:
                     rel_paths.add(rel_path)
-
             if invalid_files:
                 self._update_report('invalid_files', src, invalid_files)
                 continue
@@ -843,16 +884,14 @@ class RestoreHandler:
             hostnames.update(restorer.hostnames)
         return hostnames
 
-    def _generate_report(self):
-        report = {}
-        for path, data in self.report.items():
-            report[path] = {k: sorted(v) for k, v in data.items() if v}
-        logger.info(f'report:\n{to_json(report)}')
-
     def check(self):
         report = defaultdict(lambda: defaultdict(set))
         for restorer in self._iterate_restorers():
-            for k, v in restorer.check().items():
+            try:
+                restorer.check()
+            except Exception:
+                logger.exception(f'failed to check9 {restorer.dst_path}')
+            for k, v in restorer.report.items():
                 for k2, v2 in v.items():
                     report[k][k2].update(v2)
         return report
@@ -866,37 +905,23 @@ class RestoreHandler:
             for path, data in restorer.report.items():
                 for k, v in data.items():
                     self.report[path][k].update(v)
-        self._generate_report()
+        logger.info(f'report:\n{to_json(clean_report(self.report))}')
 
 
 class CheckHandler:
     def __init__(self, hostname=None):
         self.hostname = hostname
 
-    def _clean_report(self, report):
-        res = defaultdict(dict)
-        for k, v in report.items():
-            for k2, v2 in v.items():
-                res[k][k2] = sorted(v2)
-        return res
-
-    def _get_summary(self, report):
-        res = defaultdict(dict)
-        for k, v in report.items():
-            for k2, v2 in v.items():
-                res[k][k2] = len(v2)
-        return res
-
     def run(self):
-        save_report = self._clean_report(SaveHandler().check())
-        restore_report = self._clean_report(
-            RestoreHandler(from_hostname=self.hostname).check())
+        save_report = clean_report(SaveHandler().check())
+        restore_report = clean_report(RestoreHandler(
+            hostname=self.hostname).check())
         logger.info(f'save report:\n{to_json(save_report)}')
         logger.info(f'restore report:\n{to_json(restore_report)}')
         logger.info(f'save summary:\n{to_json(
-            self._get_summary(save_report))}')
+            get_report_summary(save_report))}')
         logger.info(f'restore summary:\n{to_json(
-            self._get_summary(restore_report))}')
+            get_report_summary(restore_report))}')
 
 
 def with_lockfile():
@@ -1018,8 +1043,8 @@ def _parse_args():
     check_parser = subparsers.add_parser('check')
     check_parser.add_argument('--hostname')
     restore_parser = subparsers.add_parser('restore')
-    restore_parser.add_argument('--from-hostname')
-    restore_parser.add_argument('--from-username')
+    restore_parser.add_argument('--hostname')
+    restore_parser.add_argument('--username')
     restore_parser.add_argument('--include', nargs='*')
     restore_parser.add_argument('--exclude', nargs='*')
     restore_parser.add_argument('--overwrite', action='store_true')
