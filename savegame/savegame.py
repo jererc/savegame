@@ -693,9 +693,10 @@ class LocalRestorer:
         home_root = os.path.dirname(home_path)
         if not pp.is_relative_to(home_root):
             return path
-        if len(pp.parts) < 3:
+        try:
+            username = pp.parts[2]
+        except IndexError:
             return path
-        username = pp.parts[2]
         if username in SHARED_USERNAMES:
             return path
         if username == self.from_username:
