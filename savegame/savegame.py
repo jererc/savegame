@@ -706,7 +706,7 @@ class LocalRestorer:
             include=None, exclude=None, overwrite=False, dry_run=False):
         self.dst_path = dst_path
         self.hostname = hostname or HOSTNAME
-        self.username = username or os.getlogin()
+        self.username = username
         self.include = include
         self.exclude = exclude
         self.overwrite = overwrite
@@ -716,10 +716,10 @@ class LocalRestorer:
         self.report = Report()
 
     def _get_src_file_for_user(self, path):
+        if not self.username:
+            return path
         pp = PurePath(path)
         home_path = os.path.expanduser('~')
-        if pp.is_relative_to(home_path):
-            return path
         home_root = os.path.dirname(home_path)
         if not pp.is_relative_to(home_root):
             return path
