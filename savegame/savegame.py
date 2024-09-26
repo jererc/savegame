@@ -744,7 +744,7 @@ class LocalRestorer:
                 try:
                     ref_data = ReferenceData(dst).load()
                 except Exception as exc:
-                    logger.error(str(exc))
+                    logger.error(exc)
                     continue
                 yield dst, ref_data
 
@@ -859,10 +859,10 @@ class RestoreHandler:
                 if si.saver_cls == LocalSaver and si.restorable:
                     dst_paths.add(si.dst_path)
             except UnhandledPath as exc:
-                logger.warning(str(exc))
+                logger.warning(exc)
                 continue
             except InvalidPath as exc:
-                logger.warning(str(exc))
+                logger.warning(exc)
                 continue
         if not dst_paths:
             logger.info('nothing to restore')
