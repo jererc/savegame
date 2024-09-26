@@ -903,14 +903,14 @@ class CheckHandler:
     def run(self):
         save_report = SaveHandler().check()
         restore_report = RestoreHandler(hostname=self.hostname).check()
-        logger.info(f'save report:\n{to_json(
-            save_report.clean())}')
-        logger.info(f'restore report:\n{to_json(
-            restore_report.clean())}')
-        logger.info(f'save summary:\n{to_json(
-            save_report.get_summary())}')
-        logger.info(f'restore summary:\n{to_json(
-            restore_report.get_summary())}')
+        logger.info('save report:\n'
+            f'{to_json(save_report.clean())}')
+        logger.info('restore report:\n'
+            f'{to_json(restore_report.clean())}')
+        logger.info('save summary:\n'
+            f'{to_json(save_report.get_summary())}')
+        logger.info('restore summary:\n'
+            f'{to_json(restore_report.get_summary())}')
 
 
 def with_lockfile():
