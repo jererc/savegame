@@ -38,7 +38,7 @@ RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 RETENTION_DELTA = 7 * 24 * 3600
 DAEMON_LOOP_DELAY = 10
-DST_PATH = os.path.join(os.path.expanduser('~'), 'OneDrive')
+DST_PATH = os.path.join('~', 'OneDrive')
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 HOSTNAME = socket.gethostname()
@@ -250,6 +250,12 @@ class MetaManager:
             cls.instance.load()
         return cls.instance
 
+    def set(self, key, value: dict):
+        self.meta[key] = value
+
+    def get(self, key):
+        return self.meta.get(key, {})
+
     def load(self):
         if os.path.exists(self.meta_file):
             with open(self.meta_file) as fd:
@@ -260,12 +266,6 @@ class MetaManager:
         self.meta = {k: v for k, v in self.meta.items() if k in keys}
         with open(self.meta_file, 'w') as fd:
             fd.write(to_json(self.meta))
-
-    def set(self, key, value: dict):
-        self.meta[key] = value
-
-    def get(self, key):
-        return self.meta.get(key, {})
 
     def check(self):
         now_ts = time.time()
@@ -383,6 +383,16 @@ class ReferenceData:
     def _normalize_json(self, ref_data):
         return json.dumps(ref_data, sort_keys=True)
 
+    def load(self):
+        if not os.path.exists(self.file):
+            raise Exception(f'missing ref file {self.file}')
+        try:
+            with open(self.file, 'rb') as fd:
+                data = gzip.decompress(fd.read())
+            return json.loads(data.decode('utf-8'))
+        except Exception as exc:
+            raise Exception(f'failed to load ref data from {self.file}: {exc}')
+
     def save(self, ref_data):
         self._normalize_ref_data(ref_data)
         try:
@@ -394,16 +404,6 @@ class ReferenceData:
         with open(self.file, 'wb') as fd:
             fd.write(data)
         logger.debug(f'updated ref file {self.file}')
-
-    def load(self):
-        if not os.path.exists(self.file):
-            raise Exception(f'missing ref file {self.file}')
-        try:
-            with open(self.file, 'rb') as fd:
-                data = gzip.decompress(fd.read())
-            return json.loads(data.decode('utf-8'))
-        except Exception as exc:
-            raise Exception(f'failed to load ref data from {self.file}: {exc}')
 
 
 class LocalSaver(BaseSaver):
