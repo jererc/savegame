@@ -42,14 +42,14 @@ DST_PATH = os.path.join(os.path.expanduser('~'), 'OneDrive')
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 HOSTNAME = socket.gethostname()
-GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
-    os.path.realpath(__file__)), 'run_google_oauth.pyw')
-GOOGLE_SECRETS_FILE = None
 REF_FILE = f'.{NAME}'
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
 }.get(os.name, set())
+GOOGLE_SECRETS_FILE = None
+GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), 'run_google_oauth.pyw')
 
 try:
     from user_settings import *
