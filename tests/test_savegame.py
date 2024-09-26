@@ -66,13 +66,6 @@ def count_matches(strings, pattern):
     return res
 
 
-def print_dst_data():
-    meta = savegame.MetaManager().meta
-    pprint(meta)
-    for data in sorted(meta.values(), key=lambda x: x['dst']):
-        pprint(set(walk_paths(data['dst'])))
-
-
 class RestoregamePathUsernameTestCase(unittest.TestCase):
     def setUp(self):
         self.username = os.getlogin()

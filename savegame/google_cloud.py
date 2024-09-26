@@ -13,10 +13,7 @@ from googleapiclient.errors import HttpError
 from google_autoauth import GoogleAutoauth
 
 
-ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
-SERVICE_CREDS_FILE = os.path.join(ROOT_PATH, 'credentials_service.json')
-OAUTH_CREDS_FILE = os.path.join(ROOT_PATH, 'credentials_oauth.json')
-CREDS_FILE = os.path.join(ROOT_PATH, 'credentials.json')
+CREDS_FILENAME = 'gc.json'
 OAUTH_TIMEOUT = 60   # seconds
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
@@ -40,8 +37,12 @@ MIME_TYPE_MAP = {
 logger = logging.getLogger(__name__)
 
 
-def get_file(x):
-    return x if (x and os.path.exists(x)) else None
+def get_file(path):
+    if not path:
+        return None
+    if os.path.exists(path):
+        return path
+    raise Exception(f'{path} does not exist')
 
 
 class AuthError(Exception):
@@ -49,33 +50,31 @@ class AuthError(Exception):
 
 
 class GoogleCloud:
-    def __init__(self, service_creds_file=None, oauth_creds_file=None,
-            creds_file=None):
-        self.service_creds_file = get_file(
-            service_creds_file or SERVICE_CREDS_FILE)
-        self.oauth_creds_file = get_file(
-            oauth_creds_file or OAUTH_CREDS_FILE)
-        self.creds_file = creds_file or CREDS_FILE
+    def __init__(self, service_secrets_file=None, oauth_secrets_file=None):
+        self.service_secrets_file = get_file(service_secrets_file)
+        self.oauth_secrets_file = get_file(oauth_secrets_file)
+        if not (self.service_secrets_file or self.oauth_secrets_file):
+            raise Exception('requires a secrets file')
+        self.creds_file = os.path.join(os.path.dirname(
+            self.service_secrets_file or self.oauth_secrets_file),
+            CREDS_FILENAME)
         self.service_creds = None
         self.oauth_creds = None
 
     def _get_service_creds(self):
-        if not self.service_creds_file:
-            raise Exception('missing service account credentials')
-        creds = service_account.Credentials.from_service_account_file(
-            self.service_creds_file, scopes=SCOPES,
-        )
-        # creds = creds.with_subject(self.user_id)
-        return creds
+        if not self.service_secrets_file:
+            raise Exception('missing service account secrets')
+        return service_account.Credentials.from_service_account_file(
+            self.service_secrets_file, scopes=SCOPES)
 
     def _auth(self):
         try:
-            creds = GoogleAutoauth(self.oauth_creds_file, SCOPES
+            creds = GoogleAutoauth(self.oauth_secrets_file, SCOPES
                 ).acquire_credentials()
         except Exception as exc:
             logger.error(f'failed to auto: {exc}')
             flow = InstalledAppFlow.from_client_secrets_file(
-                self.oauth_creds_file, SCOPES)
+                self.oauth_secrets_file, SCOPES)
             try:
                 creds = flow.run_local_server(port=0, open_browser=True,
                     timeout_seconds=OAUTH_TIMEOUT)
@@ -87,9 +86,8 @@ class GoogleCloud:
         """
         https://google-auth-oauthlib.readthedocs.io/en/latest/reference/google_auth_oauthlib.flow.html
         """
-        if not self.oauth_creds_file:
-            raise Exception('missing oauth credentials')
-
+        if not self.oauth_secrets_file:
+            raise Exception('missing oauth secrets')
         creds = None
         if os.path.exists(self.creds_file):
             creds = Credentials.from_authorized_user_file(self.creds_file,

@@ -8,7 +8,7 @@ res = subprocess.run([
     os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'),
     os.path.join(root_path, 'bootstrap.py'),
     'google_oauth',
-    '--oauth-creds-file', os.path.join(root_path, 'credentials_oauth.json')
+    '--oauth-secrets-file', os.path.join(root_path, 'gcs.json')
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     cwd=root_path)
 print(res.stdout)

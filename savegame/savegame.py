@@ -311,14 +311,15 @@ class BaseSaver:
     src_type = None
 
     def __init__(self, src, inclusions, exclusions, dst_path, min_delta=0,
-            retention_delta=RETENTION_DELTA, creds_file=None):
+            retention_delta=RETENTION_DELTA, secrets_file=None):
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
         self.dst_path = dst_path
         self.min_delta = min_delta
         self.retention_delta = retention_delta
-        self.creds_file = creds_file
+        self.secrets_file = os.path.expanduser(secrets_file) \
+            if secrets_file else None
         self.dst = self.get_dst()
         self.hash_man = HashManager()
         self.meta_man = MetaManager()
@@ -507,10 +508,10 @@ class GoogleDriveSaver(BaseSaver):
             notify(title=f'{NAME} google auth error', body=message,
                 on_click=GOOGLE_OAUTH_WIN_SCRIPT)
         else:
-            super().notify(message, exc)
+            super().notify_error(message, exc)
 
     def do_run(self):
-        gc = GoogleCloud(oauth_creds_file=self.creds_file)
+        gc = GoogleCloud(oauth_secrets_file=self.secrets_file)
         paths = set()
         for file_data in gc.iterate_files():
             dst_file = os.path.join(self.dst, file_data['filename'])
@@ -546,10 +547,10 @@ class GoogleContactsSaver(BaseSaver):
             notify(title=f'{NAME} google auth error', body=message,
                 on_click=GOOGLE_OAUTH_WIN_SCRIPT)
         else:
-            super().notify(message, exc)
+            super().notify_error(message, exc)
 
     def do_run(self):
-        gc = GoogleCloud(oauth_creds_file=self.creds_file)
+        gc = GoogleCloud(oauth_secrets_file=self.secrets_file)
         contacts = gc.list_contacts()
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
@@ -597,14 +598,14 @@ class GoogleBookmarksSaver(BaseSaver):
 
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
-            min_delta=0, retention_delta=RETENTION_DELTA, creds_file=None,
+            min_delta=0, retention_delta=RETENTION_DELTA, secrets_file=None,
             restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
         self.min_delta = min_delta
         self.retention_delta = retention_delta
-        self.creds_file = creds_file
+        self.secrets_file = secrets_file
         self.restorable = restorable
         self.os_name = os_name
         self.saver_cls = self._get_saver_class()
@@ -649,7 +650,7 @@ class SaveItem:
                 dst_path=self.dst_path,
                 min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
-                creds_file=self.creds_file,
+                secrets_file=self.secrets_file,
             )
 
 
@@ -1040,7 +1041,7 @@ def _parse_args():
     restore_parser.add_argument('--dry-run', action='store_true')
     subparsers.add_parser('hostnames')
     google_oauth_parser = subparsers.add_parser('google_oauth')
-    google_oauth_parser.add_argument('--oauth-creds-file')
+    google_oauth_parser.add_argument('--oauth-secrets-file')
     return parser.parse_args()
 
 

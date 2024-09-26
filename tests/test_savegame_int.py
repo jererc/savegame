@@ -2,7 +2,7 @@ import os
 from pprint import pprint
 import unittest
 
-from .test_savegame import BaseTestCase, print_dst_data
+from .test_savegame import BaseTestCase, walk_paths
 import savegame
 import google_cloud
 
@@ -26,7 +26,8 @@ WIN_SAVE = {
     ],
     'dst_path': r'C:\Users\jerer\OneDrive\data',
 }
-
+GC_SECRETS_FILE = os.path.realpath(os.path.expanduser('~/data/gcs.json'))
+print(GC_SECRETS_FILE)
 
 class SavegameIntegrationTestCase(BaseTestCase):
     @unittest.skipIf(os.name != 'nt', 'not windows')
@@ -44,57 +45,54 @@ class SavegameIntegrationTestCase(BaseTestCase):
             },
         ]
         for i in range(2):
-            savegame.savegame()
-            print_dst_data()
+            savegame.savegame(force=True)
+            pprint(self._list_dst_root_paths())
 
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.savegame()
+        for i in range(2):
+            savegame.savegame(force=True)
+            pprint(self._list_dst_root_paths())
 
 
 class RestoregameIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
         savegame.restoregame(dry_run=True)
+        pprint(self._list_src_root_paths())
 
 
 class GoogleDriveIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        creds_file = os.path.realpath(os.path.expanduser(
-            '~/data/credentials_oauth.json'))
-        google_cloud.GoogleCloud(oauth_creds_file=creds_file
-            ).get_oauth_creds(interact=True)
+        # google_cloud.GoogleCloud(oauth_secrets_file=GC_SECRETS_FILE
+        #     ).get_oauth_creds(interact=True)
         savegame.SAVES = [
             {
                 'src_type': 'google_drive',
                 'dst_path': self.dst_root,
-                'creds_file': creds_file,
+                'secrets_file': GC_SECRETS_FILE,
                 'retention_delta': 0,
-                'min_delta': 0,
             },
         ]
         for i in range(2):
-            savegame.savegame()
-            print_dst_data()
+            savegame.savegame(force=True)
+            pprint(self._list_dst_root_paths())
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        creds_file = os.path.realpath(os.path.expanduser(
-            '~/data/credentials_oauth.json'))
-        google_cloud.GoogleCloud(oauth_creds_file=creds_file
-            ).get_oauth_creds(interact=True)
+        # google_cloud.GoogleCloud(oauth_secrets_file=GC_SECRETS_FILE
+        #     ).get_oauth_creds(interact=True)
         savegame.SAVES = [
             {
                 'src_type': 'google_contacts',
                 'dst_path': self.dst_root,
-                'creds_file': creds_file,
-                'min_delta': 0,
+                'secrets_file': GC_SECRETS_FILE,
             },
         ]
         for i in range(2):
-            savegame.savegame()
-            print_dst_data()
+            savegame.savegame(force=True)
+            pprint(self._list_dst_root_paths())
 
 
 class GoogleBookmarksIntegrationTestCase(BaseTestCase):
@@ -104,9 +102,8 @@ class GoogleBookmarksIntegrationTestCase(BaseTestCase):
                 'src_type': 'google_bookmarks',
                 'dst_path': self.dst_root,
                 'retention_delta': 0,
-                'min_delta': 0,
             },
         ]
         for i in range(2):
-            savegame.savegame()
-            print_dst_data()
+            savegame.savegame(force=True)
+            pprint(self._list_dst_root_paths())
