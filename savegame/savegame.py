@@ -44,6 +44,7 @@ WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 HOSTNAME = socket.gethostname()
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
+GOOGLE_SECRETS_FILE = None
 REF_FILE = f'.{NAME}'
 SHARED_USERNAMES = {
     'nt': {'Public'},
@@ -311,15 +312,13 @@ class BaseSaver:
     src_type = None
 
     def __init__(self, src, inclusions, exclusions, dst_path, min_delta=0,
-            retention_delta=RETENTION_DELTA, secrets_file=None):
+            retention_delta=RETENTION_DELTA):
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
         self.dst_path = dst_path
         self.min_delta = min_delta
         self.retention_delta = retention_delta
-        self.secrets_file = os.path.expanduser(secrets_file) \
-            if secrets_file else None
         self.dst = self.get_dst()
         self.hash_man = HashManager()
         self.meta_man = MetaManager()
@@ -500,9 +499,14 @@ class LocalSaver(BaseSaver):
         self.result['file_count'] = len(src_files)
 
 
-class GoogleDriveSaver(BaseSaver):
-    src_type = 'google_drive'
+def get_google_cloud():
+    secrets_file = os.path.expanduser(GOOGLE_SECRETS_FILE)
+    if not os.path.exists(secrets_file):
+        raise Exception('missing google secrets file')
+    return GoogleCloud(oauth_secrets_file=secrets_file)
 
+
+class GoogleCloudSaver(BaseSaver):
     def notify_error(self, message, exc):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
@@ -510,8 +514,12 @@ class GoogleDriveSaver(BaseSaver):
         else:
             super().notify_error(message, exc)
 
+
+class GoogleDriveSaver(GoogleCloudSaver):
+    src_type = 'google_drive'
+
     def do_run(self):
-        gc = GoogleCloud(oauth_secrets_file=self.secrets_file)
+        gc = get_google_cloud()
         paths = set()
         for file_data in gc.iterate_files():
             dst_file = os.path.join(self.dst, file_data['filename'])
@@ -539,18 +547,11 @@ class GoogleDriveSaver(BaseSaver):
         self.result['file_count'] = len(paths)
 
 
-class GoogleContactsSaver(BaseSaver):
+class GoogleContactsSaver(GoogleCloudSaver):
     src_type = 'google_contacts'
 
-    def notify_error(self, message, exc):
-        if isinstance(exc, (AuthError, RefreshError)):
-            notify(title=f'{NAME} google auth error', body=message,
-                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
-        else:
-            super().notify_error(message, exc)
-
     def do_run(self):
-        gc = GoogleCloud(oauth_secrets_file=self.secrets_file)
+        gc = get_google_cloud()
         contacts = gc.list_contacts()
         data = to_json(contacts)
         file = os.path.join(self.dst, f'{self.src_type}.json')
@@ -598,14 +599,13 @@ class GoogleBookmarksSaver(BaseSaver):
 
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
-            min_delta=0, retention_delta=RETENTION_DELTA, secrets_file=None,
+            min_delta=0, retention_delta=RETENTION_DELTA,
             restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
         self.min_delta = min_delta
         self.retention_delta = retention_delta
-        self.secrets_file = secrets_file
         self.restorable = restorable
         self.os_name = os_name
         self.saver_cls = self._get_saver_class()
@@ -627,10 +627,10 @@ class SaveItem:
     def _get_saver_class(self):
         module = sys.modules[__name__]
         for name, obj in inspect.getmembers(module, inspect.isclass):
-            if obj.__module__ == module.__name__:
-                if issubclass(obj, BaseSaver) and obj is not BaseSaver:
-                    if obj.src_type == self.src_type:
-                        return obj
+            if obj.__module__ == module.__name__ \
+                    and issubclass(obj, BaseSaver) \
+                    and obj.src_type == self.src_type:
+                return obj
         raise Exception(f'invalid src_type {self.src_type}')
 
     def _iterate_src_and_patterns(self):
@@ -650,7 +650,6 @@ class SaveItem:
                 dst_path=self.dst_path,
                 min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
-                secrets_file=self.secrets_file,
             )
 
 
@@ -983,7 +982,7 @@ def list_hostnames(**kwargs):
 
 
 def google_oauth(**kwargs):
-    GoogleCloud(**kwargs).get_oauth_creds(interact=True)
+    get_google_cloud().get_oauth_creds(interact=True)
 
 
 class Daemon:
@@ -1040,8 +1039,7 @@ def _parse_args():
     restore_parser.add_argument('--overwrite', action='store_true')
     restore_parser.add_argument('--dry-run', action='store_true')
     subparsers.add_parser('hostnames')
-    google_oauth_parser = subparsers.add_parser('google_oauth')
-    google_oauth_parser.add_argument('--oauth-secrets-file')
+    subparsers.add_parser('google_oauth')
     return parser.parse_args()
 
 

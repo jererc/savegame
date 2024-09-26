@@ -50,13 +50,13 @@ class AuthError(Exception):
 
 
 class GoogleCloud:
-    def __init__(self, service_secrets_file=None, oauth_secrets_file=None):
-        self.service_secrets_file = get_file(service_secrets_file)
+    def __init__(self, oauth_secrets_file=None, service_secrets_file=None):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
-        if not (self.service_secrets_file or self.oauth_secrets_file):
+        self.service_secrets_file = get_file(service_secrets_file)
+        if not (self.oauth_secrets_file or self.service_secrets_file):
             raise Exception('requires a secrets file')
         self.creds_file = os.path.join(os.path.dirname(
-            self.service_secrets_file or self.oauth_secrets_file),
+            self.oauth_secrets_file or self.service_secrets_file),
             CREDS_FILENAME)
         self.service_creds = None
         self.oauth_creds = None
