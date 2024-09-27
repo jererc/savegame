@@ -374,7 +374,6 @@ class BaseSaver:
 
 
 class ReferenceData:
-
     def __init__(self, dst):
         self.dst = dst
         self.file = os.path.join(self.dst, REF_FILE)
