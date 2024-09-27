@@ -16,6 +16,7 @@ REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
 import savegame
 import user_settings
+assert savegame.WORK_PATH, user_settings.WORK_PATH
 
 
 HOSTNAME = socket.gethostname()
@@ -136,8 +137,6 @@ class RestoregamePathUsernameTestCase(unittest.TestCase):
 
 class BaseTestCase(unittest.TestCase):
     def setUp(self):
-        assert savegame.WORK_PATH, user_settings.WORK_PATH
-
         for path in glob(os.path.join(savegame.WORK_PATH, '*')):
             if os.path.splitext(path)[1] == '.log':
                 continue
