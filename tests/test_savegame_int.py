@@ -2,9 +2,7 @@ import os
 from pprint import pprint
 import unittest
 
-from .test_savegame import BaseTestCase, walk_paths
-import savegame
-import google_cloud
+from .test_savegame import BaseTestCase, savegame
 
 
 LINUX_SAVE = {

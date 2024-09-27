@@ -38,15 +38,17 @@ RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 RETENTION_DELTA = 7 * 24 * 3600
 DAEMON_LOOP_DELAY = 10
-DST_PATH = os.path.join('~', 'OneDrive')
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
-WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
+HOME_PATH = os.path.expanduser('~')
+WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
+USERNAME = os.getlogin()
 REF_FILE = f'.{NAME}'
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
 }.get(os.name, set())
+DST_PATH = os.path.join('~', 'OneDrive')
 GOOGLE_SECRETS_FILE = None
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
@@ -85,7 +87,7 @@ makedirs(WORK_PATH)
 setup_logging(logger, WORK_PATH)
 
 
-def check_path(path):
+def validate_path(path):
     if os.sep not in path:
         raise UnhandledPath(f'unhandled path {path}: not {os.name}')
 
@@ -615,10 +617,7 @@ class SaveItem:
             else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
-        check_path(dst_path)
-        if os.sep not in dst_path:
-            raise UnhandledPath(f'unhandled dst_path {dst_path}: '
-                f'not {os.name}')
+        validate_path(dst_path)
         dst_path = os.path.expanduser(dst_path)
         if not os.path.exists(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
@@ -636,6 +635,11 @@ class SaveItem:
     def _iterate_src_and_patterns(self):
         if self.src_type == LocalSaver.src_type:
             for src_path, inclusions, exclusions in self.src_paths:
+                try:
+                    validate_path(src_path)
+                except UnhandledPath as exc:
+                    logger.debug(exc)
+                    continue
                 for src in glob(os.path.expanduser(src_path)):
                     yield src, inclusions, exclusions
         else:
@@ -706,7 +710,7 @@ class LocalRestorer:
             include=None, exclude=None, overwrite=False, dry_run=False):
         self.dst_path = dst_path
         self.hostname = hostname or HOSTNAME
-        self.username = username
+        self.username = username or USERNAME
         self.include = include
         self.exclude = exclude
         self.overwrite = overwrite
@@ -716,11 +720,8 @@ class LocalRestorer:
         self.report = Report()
 
     def _get_src_file_for_user(self, path):
-        if not self.username:
-            return path
         pp = PurePath(path)
-        home_path = os.path.expanduser('~')
-        home_root = os.path.dirname(home_path)
+        home_root = os.path.dirname(HOME_PATH)
         if not pp.is_relative_to(home_root):
             return path
         try:
@@ -731,7 +732,7 @@ class LocalRestorer:
             return path
         if username == self.username:
             return path.replace(os.path.join(home_root, username),
-                home_path, 1)
+                HOME_PATH, 1)
         return None
 
     def _iterate_dst_and_ref_data(self):
@@ -751,7 +752,7 @@ class LocalRestorer:
         for dst, ref_data in self._iterate_dst_and_ref_data():
             src = ref_data['src']
             try:
-                check_path(src)
+                validate_path(src)
             except UnhandledPath:
                 self.report.add('skipped_unhandled', src, src)
                 continue
@@ -817,7 +818,7 @@ class LocalRestorer:
         for dst, ref_data in self._iterate_dst_and_ref_data():
             src = ref_data['src']
             try:
-                check_path(src)
+                validate_path(src)
             except UnhandledPath:
                 self.report.add('skipped_unhandled', src, src)
                 continue

@@ -11,13 +11,12 @@ import sys
 import time
 import unittest
 from unittest.mock import patch
-
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-MODULE_PATH = os.path.join(REPO_PATH, 'savegame')
-sys.path.append(MODULE_PATH)
+sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
 import savegame
 import user_settings
+
 
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
@@ -68,39 +67,71 @@ def count_matches(strings, pattern):
 
 class RestoregamePathUsernameTestCase(unittest.TestCase):
     def setUp(self):
-        self.username = os.getlogin()
-        self.other_username = f'not{self.username}'
+        self.own_username = os.getlogin()
+        self.username2 = f'not{self.own_username}2'
+        self.username3 = f'not{self.own_username}3'
         self.dst_path = os.path.dirname(__file__)
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win(self):
-        obj = savegame.LocalRestorer(self.dst_path,
-            username=self.other_username)
+        obj = savegame.LocalRestorer(self.dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
         path = 'C:\\Users\\Public\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = f'C:\\Users\\{self.username}\\name'
+        path = f'C:\\Users\\{self.username2}\\name'
         self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'C:\\Users\\{self.other_username}\\name'
+        path = f'C:\\Users\\{self.own_username}\\name'
         self.assertEqual(obj._get_src_file_for_user(path),
-            f'C:\\Users\\{self.username}\\dir')
+            f'C:\\Users\\{self.own_username}\\name')
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_linux(self):
-        obj = savegame.LocalRestorer(self.dst_path,
-            username=self.other_username)
+        obj = savegame.LocalRestorer(self.dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
         path = '/home/shared/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = f'/home/{self.username}/name'
+        path = f'/home/{self.username2}/name'
         self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'/home/{self.other_username}/name'
+        path = f'/home/{self.own_username}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+
+    @unittest.skipIf(os.name != 'nt', 'not windows')
+    def test_win_other_username(self):
+        obj = savegame.LocalRestorer(self.dst_path,
+            username=self.username2)
+
+        path = 'C:\\Program Files\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = 'C:\\Users\\Public\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\{self.own_username}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.username3}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.username2}\\name'
         self.assertEqual(obj._get_src_file_for_user(path),
-            f'/home/{self.username}/name')
+            f'C:\\Users\\{self.own_username}\\name')
+
+    @unittest.skipIf(os.name != 'posix', 'not linux')
+    def test_linux_other_username(self):
+        obj = savegame.LocalRestorer(self.dst_path,
+            username=self.username2)
+
+        path = '/var/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = '/home/shared/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'/home/{self.own_username}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.username3}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.username2}/name'
+        self.assertEqual(obj._get_src_file_for_user(path),
+            f'/home/{self.own_username}/name')
 
 
 class BaseTestCase(unittest.TestCase):
@@ -723,39 +754,6 @@ class SavegameTestCase(BaseTestCase):
         remove_path(self.src_root)
         self.assertEqual(src_paths, set())
         savegame.list_hostnames()
-
-    @unittest.skipIf(os.name != 'nt', 'not windows')
-    def test_restore_shared_username_path(self):
-        username2 = 'Public' if os.name == 'nt' else 'shared'
-        username3 = 'username3'
-
-        self._savegame(index_start=1)
-        remove_path(self.src_root)
-        self._switch_dst_data_username(from_username=USERNAME,
-            to_username=username2)
-        self._savegame(index_start=3)
-        remove_path(self.src_root)
-        self._switch_dst_data_username(from_username=USERNAME,
-            to_username=username3)
-        self._savegame(index_start=5)
-        remove_path(self.src_root)
-
-        print('src data:')
-        pprint(self._list_src_root_paths())
-        print('dst data:')
-        pprint(self._list_dst_root_paths())
-
-        self._restoregame(username=None)
-        src_paths = self._list_src_root_src_paths()
-        remove_path(self.src_root)
-        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
-            + self._get_src_paths(index_start=5)))
-        self._restoregame(username=username3)
-        src_paths = self._list_src_root_src_paths()
-        remove_path(self.src_root)
-        self.assertEqual(src_paths, set(self._get_src_paths(index_start=1)
-            + self._get_src_paths(index_start=3)
-            + self._get_src_paths(index_start=5)))
 
     def test_restore_username(self):
         username2 = 'username2'
