@@ -65,6 +65,7 @@ class Bootstrapper:
             subprocess.check_call(['virtualenv', VENV_PATH])
         subprocess.check_call([PIP_PATH, 'install'] + PY_MODULES,
             cwd=ROOT_PATH)
+        print(f'Created the virtualenv in {VENV_PATH}')
 
     def _setup_linux_crontab(self, cmd):
         res = subprocess.run(['crontab', '-l'],
@@ -123,7 +124,7 @@ class Bootstrapper:
             else:
                 self.run_savegame_cmd()
         except IndexError:
-            print(f'missing command: {COMMAND} or any savegame command')
+            print(f'Missing command: {COMMAND} or any savegame command')
 
 
 def main():
