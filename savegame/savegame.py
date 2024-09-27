@@ -328,7 +328,7 @@ class BaseSaver:
         self.start_ts = None
         self.end_ts = None
         self.success = None
-        self.result = {}
+        self.stats = {}
 
     def get_dst(self):
         return os.path.join(self.dst_path, self.src_type)
@@ -345,7 +345,7 @@ class BaseSaver:
 
     def _update_meta(self):
         meta = {k: getattr(self, k) for k in ('dst', 'start_ts', 'end_ts',
-            'success', 'result')}
+            'success', 'stats')}
         meta['next_ts'] = time.time() + (self.min_delta if self.success
             else RETRY_DELTA)
         meta['duration'] = self.end_ts - self.start_ts
@@ -368,7 +368,7 @@ class BaseSaver:
             self.success = False
             logger.exception(f'failed to save {self.src}')
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
-        self.result['size_MB'] = get_path_size(self.dst) / 1024 / 1024
+        self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
         self.end_ts = time.time()
         self._update_meta()
 
@@ -497,7 +497,7 @@ class LocalSaver(BaseSaver):
             except Exception:
                 logger.exception(f'failed to save {src_file}')
         ReferenceData(self.dst).save(ref_data)
-        self.result['file_count'] = len(src_files)
+        self.stats['file_count'] = len(src_files)
 
 
 def get_google_cloud():
@@ -545,7 +545,7 @@ class GoogleDriveSaver(GoogleCloudSaver):
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
-        self.result['file_count'] = len(paths)
+        self.stats['file_count'] = len(paths)
 
 
 class GoogleContactsSaver(GoogleCloudSaver):
@@ -564,7 +564,7 @@ class GoogleContactsSaver(GoogleCloudSaver):
                 fd.write(data)
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
-        self.result['file_count'] = 1
+        self.stats['file_count'] = 1
 
 
 class GoogleBookmarksSaver(BaseSaver):
@@ -595,7 +595,7 @@ class GoogleBookmarksSaver(BaseSaver):
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
-        self.result['file_count'] = len(bookmarks)
+        self.stats['file_count'] = len(bookmarks)
 
 
 class SaveItem:
