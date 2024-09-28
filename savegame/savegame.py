@@ -680,7 +680,7 @@ class SaveHandler:
                 continue
             savers = list(save_item.iterate_savers())
             if not savers:
-                logger.warning(f'can\'t save {save}')
+                logger.warning(f'unhandled save: {save}')
                 continue
             for saver in savers:
                 yield saver
