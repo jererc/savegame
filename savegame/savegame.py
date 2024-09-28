@@ -338,13 +338,13 @@ class ReferenceData:
 class BaseSaver:
     src_type = None
 
-    def __init__(self, src, inclusions, exclusions, dst_path, min_delta=0,
+    def __init__(self, src, inclusions, exclusions, dst_path, run_delta=0,
             retention_delta=RETENTION_DELTA):
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
         self.dst_path = dst_path
-        self.min_delta = min_delta
+        self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
         self.hash_man = HashManager()
@@ -375,7 +375,7 @@ class BaseSaver:
             'first_start_ts': meta.get('first_start_ts', self.start_ts),
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
-            'next_ts': time.time() + (self.min_delta
+            'next_ts': time.time() + (self.run_delta
                 if self.success else RETRY_DELTA),
             'success_ts': self.end_ts if self.success
                 else meta.get('success_ts', 0),
@@ -390,7 +390,7 @@ class BaseSaver:
         first_start_ts = meta.get('first_start_ts')
         success_ts = meta.get('success_ts') or 0
         if first_start_ts and time.time() > max(first_start_ts, success_ts) \
-                + self.min_delta + OLD_DELTA:
+                + self.run_delta + OLD_DELTA:
             self.notify_error(f'{self.src} has not been saved recently')
 
     def do_run(self):
@@ -606,12 +606,12 @@ class GoogleBookmarksSaver(BaseSaver):
 
 class SaveItem:
     def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
-            min_delta=0, retention_delta=RETENTION_DELTA,
+            run_delta=0, retention_delta=RETENTION_DELTA,
             restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
         self.src_type = src_type or LocalSaver.src_type
         self.dst_path = self._get_dst_path(dst_path)
-        self.min_delta = min_delta
+        self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.restorable = restorable
         self.os_name = os_name
@@ -658,7 +658,7 @@ class SaveItem:
             yield self.saver_cls(
                 *src_and_patterns,
                 dst_path=self.dst_path,
-                min_delta=self.min_delta,
+                run_delta=self.run_delta,
                 retention_delta=self.retention_delta,
             )
 
@@ -680,7 +680,7 @@ class SaveHandler:
                 continue
             savers = list(save_item.iterate_savers())
             if not savers:
-                logger.warning(f'unhandled save: {save}')
+                logger.debug(f'unhandled save: {save}')
                 continue
             for saver in savers:
                 yield saver

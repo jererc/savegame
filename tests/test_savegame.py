@@ -209,13 +209,13 @@ class BaseTestCase(unittest.TestCase):
             if os.path.basename(path) == savegame.REF_FILE:
                 switch_ref_path(path)
 
-    def _savegame(self, min_delta=0, **kwargs):
+    def _savegame(self, run_delta=0, **kwargs):
         self._generate_src_data(**kwargs)
         savegame.SAVES = [
             {
                 'src_paths': self._get_src_paths(**kwargs),
                 'dst_path': self.dst_root,
-                'min_delta': min_delta,
+                'run_delta': run_delta,
             },
         ]
         savegame.savegame()
@@ -398,14 +398,14 @@ class SavegameTestCase(BaseTestCase):
                     os.path.join(self.src_root, 'src1'),
                 ],
                 'dst_path': self.dst_root,
-                'min_delta': 600,
+                'run_delta': 600,
             },
             {
                 'src_paths': [
                     os.path.join(self.src_root, 'src2'),
                 ],
                 'dst_path': self.dst_root,
-                'min_delta': 600,
+                'run_delta': 600,
             },
         ]
         savegame.savegame()
