@@ -678,11 +678,7 @@ class SaveHandler:
             except InvalidPath as exc:
                 logger.warning(exc)
                 continue
-            savers = list(save_item.iterate_savers())
-            if not savers:
-                logger.debug(f'unhandled save: {save}')
-                continue
-            for saver in savers:
+            for saver in save_item.iterate_savers():
                 yield saver
 
     def check_data(self):

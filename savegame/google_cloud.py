@@ -35,6 +35,7 @@ MIME_TYPE_MAP = {
 }
 
 logger = logging.getLogger(__name__)
+logging.getLogger('googleapiclient').setLevel(logging.INFO)
 
 
 def get_file(path):
