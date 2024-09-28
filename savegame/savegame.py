@@ -388,10 +388,10 @@ class BaseSaver:
     def check_health(self):
         meta = self.meta_man.get(self.src)
         first_start_ts = meta.get('first_start_ts')
-        if first_start_ts and time.time() > first_start_ts + OLD_DELTA:
-            success_ts = meta.get('success_ts') or 0
-            if time.time() > success_ts + self.min_delta + OLD_DELTA:
-                self.notify_error(f'{self.src} has not been saved recently')
+        success_ts = meta.get('success_ts') or 0
+        if first_start_ts and time.time() > max(first_start_ts, success_ts) \
+                + self.min_delta + OLD_DELTA:
+            self.notify_error(f'{self.src} has not been saved recently')
 
     def do_run(self):
         raise NotImplementedError()

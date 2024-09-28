@@ -445,31 +445,37 @@ class SavegameTestCase(BaseTestCase):
                 ],
                 'dst_path': self.dst_root,
             },
-            {
-                'src_type': 'google_drive',
-                'dst_path': self.dst_root,
-            },
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'invalid'),
-                ],
-                'dst_path': self.dst_root,
-            },
         ]
-        with patch.object(savegame.BaseSaver, 'notify_error') as mock_notify_error:
+
+        def side_do_run(*args, **kwargs):
+            raise Exception('failed')
+
+        def get_first_start_ts():
+            return list(savegame.MetaManager()
+                .meta.values())[0]['first_start_ts']
+
+        with patch.object(savegame.BaseSaver,
+                    'notify_error') as mock_notify_error, \
+                patch.object(savegame.LocalSaver,
+                    'do_run') as mock_do_run:
+            mock_do_run.side_effect = side_do_run
             savegame.savegame()
-        pprint(savegame.MetaManager().meta)
-        with patch.object(savegame.BaseSaver, 'notify_error') as mock_notify_error:
+        ts1 = get_first_start_ts()
+        self.assertTrue(mock_notify_error.call_args_list)
+
+        time.sleep(.1)
+        with patch.object(savegame.BaseSaver,
+                'notify_error') as mock_notify_error:
             savegame.savegame()
-        pprint(savegame.MetaManager().meta)
+        ts2 = get_first_start_ts()
+        self.assertEqual(ts2, ts1)
         self.assertFalse(mock_notify_error.call_args_list)
 
         for k, v in savegame.MetaManager().meta.items():
             v['first_start_ts'] = time.time() - 7 * 24 * 3600
-
-        with patch.object(savegame.BaseSaver, 'notify_error') as mock_notify_error:
+        with patch.object(savegame.BaseSaver,
+                'notify_error') as mock_notify_error:
             savegame.savegame()
-        pprint(savegame.MetaManager().meta)
         self.assertTrue(mock_notify_error.call_args_list)
 
     def test_stats(self):
@@ -491,7 +497,6 @@ class SavegameTestCase(BaseTestCase):
         ]
         savegame.savegame(stats=True)
         pprint(savegame.MetaManager().meta)
-        # pprint(savegame.HashManager().cache)
 
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
