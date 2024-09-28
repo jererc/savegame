@@ -233,9 +233,9 @@ class HashManager:
 
     def save(self):
         start_ts = time.time()
-        limit_ts = time.time() - HASH_CACHE_TTL
+        min_ts = time.time() - HASH_CACHE_TTL
         self.cache = {k: v for k, v in self.cache.items()
-            if os.path.exists(k) and v[1] > limit_ts}
+            if os.path.exists(k) and v[1] > min_ts}
         with open(self.cache_file, 'wb') as fd:
             fd.write(gzip.compress(json.dumps(self.cache).encode('utf-8')))
         logger.debug(f'saved {len(self.cache)} cached items'
@@ -275,7 +275,7 @@ class MetaManager:
             if meta['next_ts'] and now_ts > meta['next_ts'] + OLD_DELTA:
                 logger.warning(f'{src} has not been saved recently')
                 notify(title=f'{NAME} warning',
-                    body=f'{meta["source"]} has not been saved recently')
+                    body=f'{src} has not been saved recently')
 
 
 class Report:
@@ -345,10 +345,11 @@ class BaseSaver:
 
     def _update_meta(self):
         meta = {k: getattr(self, k) for k in ('dst', 'start_ts', 'end_ts',
-            'success', 'stats')}
+            'success')}
         meta['next_ts'] = time.time() + (self.min_delta if self.success
             else RETRY_DELTA)
-        meta['duration'] = self.end_ts - self.start_ts
+        if self.success:
+            meta['last_success_ts'] = self.end_ts
         self.meta_man.set(self.src, meta)
 
     def check(self):
@@ -368,8 +369,9 @@ class BaseSaver:
             self.success = False
             logger.exception(f'failed to save {self.src}')
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
-        self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
         self.end_ts = time.time()
+        self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
+        self.stats['duration'] = self.end_ts - self.start_ts
         self._update_meta()
 
 
@@ -657,8 +659,9 @@ class SaveItem:
 
 
 class SaveHandler:
-    def __init__(self, force=False):
+    def __init__(self, force=False, stats=False):
         self.force = force
+        self.stats = stats
 
     def _iterate_savers(self):
         for save in SAVES:
@@ -687,6 +690,7 @@ class SaveHandler:
         start_ts = time.time()
         savers = list(self._iterate_savers())
         report = Report()
+        stats = {}
         for saver in savers:
             try:
                 saver.run(force=self.force)
@@ -694,6 +698,7 @@ class SaveHandler:
                 logger.exception(f'failed to save {saver.src}')
                 notify(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
+            stats[saver.src] = saver.stats
             report.merge(saver.report)
         HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
@@ -701,6 +706,8 @@ class SaveHandler:
         res = report.clean(keys={'saved', 'removed'})
         if res:
             logger.info(f'report:\n{to_json(res)}')
+        if self.stats:
+            logger.info(f'stats:\n{to_json(stats)}')
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
 
@@ -1029,6 +1036,7 @@ def _parse_args():
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
+    save_parser.add_argument('--stats', action='store_true')
     check_parser = subparsers.add_parser('check')
     check_parser.add_argument('--hostname')
     restore_parser = subparsers.add_parser('restore')
@@ -1051,7 +1059,7 @@ def main():
         elif args.task:
             Task().run()
         else:
-            savegame(force=True)
+            savegame(force=True, stats=args.stats)
     else:
         callable_ = {
             'check': checkgame,

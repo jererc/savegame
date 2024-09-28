@@ -435,6 +435,27 @@ class SavegameTestCase(BaseTestCase):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
+    def test_stats(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src1'),
+                ],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src2'),
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        savegame.savegame(stats=True)
+        pprint(savegame.MetaManager().meta)
+        pprint(savegame.HashManager().cache)
+
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
             file_count=4)
