@@ -435,6 +435,43 @@ class SavegameTestCase(BaseTestCase):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
+    def test_meta(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=2,
+            file_count=2)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src1'),
+                ],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_type': 'google_drive',
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'invalid'),
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        with patch.object(savegame.BaseSaver, 'notify_error') as mock_notify_error:
+            savegame.savegame()
+        pprint(savegame.MetaManager().meta)
+        with patch.object(savegame.BaseSaver, 'notify_error') as mock_notify_error:
+            savegame.savegame()
+        pprint(savegame.MetaManager().meta)
+        self.assertFalse(mock_notify_error.call_args_list)
+
+        for k, v in savegame.MetaManager().meta.items():
+            v['first_start_ts'] = time.time() - 7 * 24 * 3600
+
+        with patch.object(savegame.BaseSaver, 'notify_error') as mock_notify_error:
+            savegame.savegame()
+        pprint(savegame.MetaManager().meta)
+        self.assertTrue(mock_notify_error.call_args_list)
+
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
@@ -454,7 +491,7 @@ class SavegameTestCase(BaseTestCase):
         ]
         savegame.savegame(stats=True)
         pprint(savegame.MetaManager().meta)
-        pprint(savegame.HashManager().cache)
+        # pprint(savegame.HashManager().cache)
 
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,

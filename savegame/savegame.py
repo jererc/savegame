@@ -13,7 +13,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 from pathlib import PurePath
-from pprint import pprint
 import shutil
 import signal
 import socket
@@ -269,14 +268,6 @@ class MetaManager:
         with open(self.meta_file, 'w') as fd:
             fd.write(to_json(self.meta))
 
-    def check(self):
-        now_ts = time.time()
-        for src, meta in self.meta.items():
-            if meta['next_ts'] and now_ts > meta['next_ts'] + OLD_DELTA:
-                logger.warning(f'{src} has not been saved recently')
-                notify(title=f'{NAME} warning',
-                    body=f'{src} has not been saved recently')
-
 
 class Report:
     def __init__(self):
@@ -308,71 +299,6 @@ class Report:
             for k2, v2 in v.items():
                 res[k][k2] = len(v2)
         return res
-
-
-class BaseSaver:
-    src_type = None
-
-    def __init__(self, src, inclusions, exclusions, dst_path, min_delta=0,
-            retention_delta=RETENTION_DELTA):
-        self.src = src
-        self.inclusions = inclusions
-        self.exclusions = exclusions
-        self.dst_path = dst_path
-        self.min_delta = min_delta
-        self.retention_delta = retention_delta
-        self.dst = self.get_dst()
-        self.hash_man = HashManager()
-        self.meta_man = MetaManager()
-        self.report = Report()
-        self.start_ts = None
-        self.end_ts = None
-        self.success = None
-        self.stats = {}
-
-    def get_dst(self):
-        return os.path.join(self.dst_path, self.src_type)
-
-    def can_be_purged(self, path):
-        return os.stat(path).st_mtime < time.time() - self.retention_delta
-
-    def notify_error(self, message, exc):
-        notify(title=f'{NAME} error', body=message)
-
-    def _must_save(self):
-        meta = self.meta_man.get(self.src)
-        return not meta or time.time() > meta['next_ts']
-
-    def _update_meta(self):
-        meta = {k: getattr(self, k) for k in ('dst', 'start_ts', 'end_ts',
-            'success')}
-        meta['next_ts'] = time.time() + (self.min_delta if self.success
-            else RETRY_DELTA)
-        if self.success:
-            meta['last_success_ts'] = self.end_ts
-        self.meta_man.set(self.src, meta)
-
-    def check(self):
-        raise NotImplementedError()
-
-    def do_run(self):
-        raise NotImplementedError()
-
-    def run(self, force=False):
-        if not force and not self._must_save():
-            return
-        self.start_ts = time.time()
-        try:
-            self.do_run()
-            self.success = True
-        except Exception as exc:
-            self.success = False
-            logger.exception(f'failed to save {self.src}')
-            self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
-        self.end_ts = time.time()
-        self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
-        self.stats['duration'] = self.end_ts - self.start_ts
-        self._update_meta()
 
 
 class ReferenceData:
@@ -409,6 +335,84 @@ class ReferenceData:
         logger.debug(f'updated ref file {self.file}')
 
 
+class BaseSaver:
+    src_type = None
+
+    def __init__(self, src, inclusions, exclusions, dst_path, min_delta=0,
+            retention_delta=RETENTION_DELTA):
+        self.src = src
+        self.inclusions = inclusions
+        self.exclusions = exclusions
+        self.dst_path = dst_path
+        self.min_delta = min_delta
+        self.retention_delta = retention_delta
+        self.dst = self.get_dst()
+        self.hash_man = HashManager()
+        self.meta_man = MetaManager()
+        self.report = Report()
+        self.start_ts = None
+        self.end_ts = None
+        self.success = None
+        self.stats = {}
+
+    def get_dst(self):
+        return os.path.join(self.dst_path, self.src_type)
+
+    def can_be_purged(self, path):
+        return os.stat(path).st_mtime < time.time() - self.retention_delta
+
+    def notify_error(self, message, exc=None):
+        notify(title=f'{NAME} error', body=message)
+
+    def _must_save(self):
+        meta = self.meta_man.get(self.src)
+        return not meta or time.time() > meta['next_ts']
+
+    def _update_meta(self):
+        meta = self.meta_man.get(self.src)
+        new_meta = {
+            'dst': self.dst,
+            'first_start_ts': meta.get('first_start_ts', self.start_ts),
+            'start_ts': self.start_ts,
+            'end_ts': self.end_ts,
+            'next_ts': time.time() + (self.min_delta
+                if self.success else RETRY_DELTA),
+            'success_ts': self.end_ts if self.success
+                else meta.get('success_ts', 0),
+        }
+        self.meta_man.set(self.src, new_meta)
+
+    def check_data(self):
+        raise NotImplementedError()
+
+    def check_health(self):
+        meta = self.meta_man.get(self.src)
+        first_start_ts = meta.get('first_start_ts')
+        if first_start_ts and time.time() > first_start_ts + OLD_DELTA:
+            success_ts = meta.get('success_ts') or 0
+            if time.time() > success_ts + self.min_delta + OLD_DELTA:
+                self.notify_error(f'{self.src} has not been saved recently')
+
+    def do_run(self):
+        raise NotImplementedError()
+
+    def run(self, force=False):
+        if not force and not self._must_save():
+            return
+        self.start_ts = time.time()
+        try:
+            self.do_run()
+            self.success = True
+        except Exception as exc:
+            self.success = False
+            logger.exception(f'failed to save {self.src}')
+            self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
+        self.end_ts = time.time()
+        self._update_meta()
+        self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
+        self.stats['duration'] = self.end_ts - self.start_ts
+
+
 class LocalSaver(BaseSaver):
     src_type = 'local'
 
@@ -427,7 +431,7 @@ class LocalSaver(BaseSaver):
             if check_patterns(f, self.inclusions, self.exclusions)}
         return src, files
 
-    def check(self):
+    def check_data(self):
         src, src_files = self._get_src_and_files()
         if not src_files:
             return
@@ -510,7 +514,7 @@ def get_google_cloud():
 
 
 class GoogleCloudSaver(BaseSaver):
-    def notify_error(self, message, exc):
+    def notify_error(self, message, exc=None):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
                 on_click=GOOGLE_OAUTH_WIN_SCRIPT)
@@ -651,7 +655,8 @@ class SaveItem:
             return
         makedirs(self.dst_path)
         for src_and_patterns in self._iterate_src_and_patterns():
-            yield self.saver_cls(*src_and_patterns,
+            yield self.saver_cls(
+                *src_and_patterns,
                 dst_path=self.dst_path,
                 min_delta=self.min_delta,
                 retention_delta=self.retention_delta,
@@ -673,14 +678,18 @@ class SaveHandler:
             except InvalidPath as exc:
                 logger.warning(exc)
                 continue
-            for saver in save_item.iterate_savers():
+            savers = list(save_item.iterate_savers())
+            if not savers:
+                logger.warning(f'can\'t save {save}')
+                continue
+            for saver in savers:
                 yield saver
 
-    def check(self):
+    def check_data(self):
         report = Report()
         for saver in self._iterate_savers():
             try:
-                saver.check()
+                saver.check_data()
             except NotImplementedError:
                 continue
             report.merge(saver.report)
@@ -700,9 +709,9 @@ class SaveHandler:
                     body=f'failed to save {saver.src}: {exc}')
             stats[saver.src] = saver.stats
             report.merge(saver.report)
+            saver.check_health()
         HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
-        MetaManager().check()
         res = report.clean(keys={'saved', 'removed'})
         if res:
             logger.info(f'report:\n{to_json(res)}')
@@ -754,7 +763,7 @@ class LocalRestorer:
                     continue
                 yield dst, ref_data
 
-    def check(self):
+    def check_data(self):
         for dst, ref_data in self._iterate_dst_and_ref_data():
             src = ref_data['src']
             try:
@@ -881,11 +890,11 @@ class RestoreHandler:
             hostnames.update(restorer.hostnames)
         return hostnames
 
-    def check(self):
+    def check_data(self):
         report = Report()
         for restorer in self._iterate_restorers():
             try:
-                restorer.check()
+                restorer.check_data()
             except Exception:
                 logger.exception(f'failed to check9 {restorer.dst_path}')
             report.merge(restorer.report)
@@ -908,8 +917,8 @@ class CheckHandler:
         self.hostname = hostname
 
     def run(self):
-        save_report = SaveHandler().check()
-        restore_report = RestoreHandler(hostname=self.hostname).check()
+        save_report = SaveHandler().check_data()
+        restore_report = RestoreHandler(hostname=self.hostname).check_data()
         logger.info('save report:\n'
             f'{to_json(save_report.clean())}')
         logger.info('restore report:\n'
