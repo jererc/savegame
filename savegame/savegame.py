@@ -499,8 +499,8 @@ class LocalSaver(BaseSaver):
                 shutil.copyfile(src_file, dst_file)
                 self.hash_man.set(dst_file, src_hash)
                 self.report.add('saved', self.src, src_file)
-                logger.debug(f'saved {src_file}')
             except Exception:
+                self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
         ReferenceData(self.dst).save(ref_data)
         self.stats['file_count'] = len(src_files)
@@ -643,7 +643,6 @@ class SaveItem:
                 try:
                     validate_path(src_path)
                 except UnhandledPath as exc:
-                    logger.debug(exc)
                     continue
                 for src in glob(os.path.expanduser(src_path)):
                     yield src, inclusions, exclusions
