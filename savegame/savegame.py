@@ -672,7 +672,6 @@ class SaveHandler:
             try:
                 save_item = SaveItem(**save)
             except UnhandledPath as exc:
-                logger.debug(exc)
                 continue
             except InvalidPath as exc:
                 logger.warning(exc)
