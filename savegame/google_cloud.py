@@ -2,7 +2,6 @@ import io
 import logging
 import mimetypes
 import os
-from pprint import pprint
 
 from dateutil.parser import parse as parse_dt
 from google.auth.exceptions import RefreshError
@@ -33,6 +32,12 @@ MIME_TYPE_MAP = {
 
 logger = logging.getLogger(__name__)
 
+# Windows fix
+mimetypes.add_type('application/'
+    'vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx')
+mimetypes.add_type('application/'
+    'vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx')
+
 
 def get_file(path):
     if not path:
@@ -40,6 +45,14 @@ def get_file(path):
     if os.path.exists(path):
         return path
     raise Exception(f'{path} does not exist')
+
+
+def get_file_ext(mime_type):
+    ext = mimetypes.guess_extension(mime_type)
+    if not ext:
+        logger.warning(f'failed to guess {mime_type} extension')
+        return ''
+    return ext
 
 
 class AuthError(Exception):
@@ -177,8 +190,7 @@ class GoogleCloud:
         for file in self._list_files():
             try:
                 mime_type = MIME_TYPE_MAP[file['mimeType']]
-                ext = mimetypes.guess_extension(mime_type)
-                path = f'{file["path"]}{ext}'
+                path = f'{file["path"]}{get_file_ext(mime_type)}'
             except KeyError:
                 mime_type = None
                 path = file['path']
