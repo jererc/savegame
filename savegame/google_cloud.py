@@ -31,7 +31,6 @@ MIME_TYPE_MAP = {
             '.spreadsheetml.sheet',
         'ext': '.xlsx',
     },
-
 }
 
 logger = logging.getLogger(__name__)

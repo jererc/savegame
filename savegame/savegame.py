@@ -48,7 +48,7 @@ SHARED_USERNAMES = {
     'posix': {'shared'},
 }.get(os.name, set())
 DST_PATH = os.path.join('~', 'OneDrive')
-GOOGLE_SECRETS_FILE = None
+GOOGLE_CLOUD_SECRETS_FILE = None
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
 
@@ -507,7 +507,7 @@ class LocalSaver(BaseSaver):
 
 
 def get_google_cloud():
-    secrets_file = os.path.expanduser(GOOGLE_SECRETS_FILE)
+    secrets_file = os.path.expanduser(GOOGLE_CLOUD_SECRETS_FILE)
     if not os.path.exists(secrets_file):
         raise Exception('missing google secrets file')
     return GoogleCloud(oauth_secrets_file=secrets_file)
