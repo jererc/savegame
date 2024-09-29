@@ -32,7 +32,6 @@ MAX_LOG_FILE_SIZE = 1000 * 1024
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 2 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
-IDLE_CPU_THRESHOLD = 3
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 RETENTION_DELTA = 7 * 24 * 3600
@@ -957,7 +956,7 @@ def with_lockfile():
 
 
 def is_idle():
-    return psutil.cpu_percent(interval=3) < IDLE_CPU_THRESHOLD
+    return psutil.cpu_times_percent(interval=1).idle > 95
 
 
 def must_run(last_run_ts):
