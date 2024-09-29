@@ -71,7 +71,6 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
         for i in range(2):
             savegame.savegame(force=True)
             pprint(self._list_dst_root_paths())
-            break
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
