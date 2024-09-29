@@ -309,18 +309,14 @@ class ReferenceData:
     def _normalize_ref_data(self, ref_data):
         ref_data['files'] = sorted(map(list, ref_data['files']))
 
-    def _normalize_json(self, ref_data):
-        return json.dumps(ref_data, sort_keys=True)
-
     def load(self):
         if not os.path.exists(self.file):
             raise Exception(f'missing ref file {self.file}')
         try:
             with open(self.file, 'rb') as fd:
-                data = gzip.decompress(fd.read())
-            return json.loads(data.decode('utf-8'))
+                return json.loads(gzip.decompress(fd.read()).decode('utf-8'))
         except Exception as exc:
-            raise Exception(f'failed to load ref data from {self.file}: {exc}')
+            raise Exception(f'failed to load ref file {self.file}: {exc}')
 
     def save(self, ref_data):
         self._normalize_ref_data(ref_data)
@@ -329,9 +325,8 @@ class ReferenceData:
                 return
         except Exception:
             pass
-        data = gzip.compress(self._normalize_json(ref_data).encode('utf-8'))
         with open(self.file, 'wb') as fd:
-            fd.write(data)
+            fd.write(gzip.compress(to_json(ref_data).encode('utf-8')))
         logger.debug(f'updated ref file {self.file}')
 
 
