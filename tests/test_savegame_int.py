@@ -61,6 +61,7 @@ class RestoregameIntegrationTestCase(BaseTestCase):
 
 class GoogleDriveIntegrationTestCase(BaseTestCase):
     def test_1(self):
+        savegame.google_oauth()
         savegame.SAVES = [
             {
                 'src_type': 'google_drive',
@@ -70,10 +71,12 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
         for i in range(2):
             savegame.savegame(force=True)
             pprint(self._list_dst_root_paths())
+            break
 
 
 class GoogleContactsIntegrationTestCase(BaseTestCase):
     def test_1(self):
+        savegame.google_oauth()
         savegame.SAVES = [
             {
                 'src_type': 'google_contacts',

@@ -377,8 +377,8 @@ class BaseSaver:
             'end_ts': self.end_ts,
             'next_ts': time.time() + (self.run_delta
                 if self.success else RETRY_DELTA),
-            'success_ts': self.end_ts if self.success
-                else meta.get('success_ts', 0),
+            'success_ts': self.end_ts
+                if self.success else meta.get('success_ts', 0),
         }
         self.meta_man.set(self.src, new_meta)
 
@@ -529,24 +529,24 @@ class GoogleDriveSaver(GoogleCloudSaver):
         gc = get_google_cloud()
         paths = set()
         for file_data in gc.iterate_files():
-            dst_file = os.path.join(self.dst, file_data['filename'])
+            if not file_data['exportable']:
+                self.report.add('skipped', self.src, file_data['path'])
+                continue
+            dst_file = os.path.join(self.dst, file_data['path'])
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
             if mtime and mtime > file_data['modified_time']:
                 self.report.add('skipped', self.src, dst_file)
                 continue
+            makedirs(os.path.dirname(dst_file))
             try:
-                content = gc.fetch_file_content(file_id=file_data['id'],
-                    mime_type=file_data['mime_type'])
+                gc.download_file(file_id=file_data['id'],
+                    path=dst_file, mime_type=file_data['mime_type'])
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
-                continue
-            makedirs(os.path.dirname(dst_file))
-            with open(dst_file, 'wb') as fd:
-                fd.write(content)
 
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
@@ -642,7 +642,7 @@ class SaveItem:
             for src_path, inclusions, exclusions in self.src_paths:
                 try:
                     validate_path(src_path)
-                except UnhandledPath as exc:
+                except UnhandledPath:
                     continue
                 for src in glob(os.path.expanduser(src_path)):
                     yield src, inclusions, exclusions
@@ -671,7 +671,7 @@ class SaveHandler:
         for save in SAVES:
             try:
                 save_item = SaveItem(**save)
-            except UnhandledPath as exc:
+            except UnhandledPath:
                 continue
             except InvalidPath as exc:
                 logger.warning(exc)

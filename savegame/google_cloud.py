@@ -1,5 +1,8 @@
+import io
 import logging
+import mimetypes
 import os
+from pprint import pprint
 
 from dateutil.parser import parse as parse_dt
 from google.auth.exceptions import RefreshError
@@ -8,7 +11,7 @@ from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseDownload
 
 from google_autoauth import GoogleAutoauth
 
@@ -19,18 +22,13 @@ SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/drive.readonly',
 ]
+SIZE_LIMIT = 50000000
 MIME_TYPE_MAP = {
     # https://developers.google.com/drive/api/guides/ref-export-formats
-    'application/vnd.google-apps.document': {
-        'mime_type': 'application/vnd.openxmlformats-officedocument'
-            '.wordprocessingml.document',
-        'ext': '.docx',
-    },
-    'application/vnd.google-apps.spreadsheet': {
-        'mime_type': 'application/vnd.openxmlformats-officedocument'
-            '.spreadsheetml.sheet',
-        'ext': '.xlsx',
-    },
+    'application/vnd.google-apps.document': 'application/'
+        'vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.google-apps.spreadsheet': 'application/'
+        'vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 }
 
 logger = logging.getLogger(__name__)
@@ -49,6 +47,7 @@ class AuthError(Exception):
 
 
 class GoogleCloud:
+
     def __init__(self, oauth_secrets_file=None, service_secrets_file=None):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
         self.service_secrets_file = get_file(service_secrets_file)
@@ -59,6 +58,7 @@ class GoogleCloud:
             CREDS_FILENAME)
         self.service_creds = None
         self.oauth_creds = None
+        self._file_cache = {}
 
     def _get_service_creds(self):
         if not self.service_secrets_file:
@@ -68,8 +68,8 @@ class GoogleCloud:
 
     def _auth(self):
         try:
-            creds = GoogleAutoauth(self.oauth_secrets_file, SCOPES
-                ).acquire_credentials()
+            creds = GoogleAutoauth(self.oauth_secrets_file,
+                SCOPES).acquire_credentials()
         except Exception as exc:
             logger.error(f'failed to auto: {exc}')
             flow = InstalledAppFlow.from_client_secrets_file(
@@ -122,56 +122,89 @@ class GoogleCloud:
             self.oauth_creds = self.get_oauth_creds()
         return build('drive', 'v3', credentials=self.oauth_creds)
 
+    def _get_file_path(self, service, file_data):
+
+        def get_parent_id(file_data):
+            try:
+                return file_data['parents'][0]
+            except KeyError:
+                return None
+
+        path = file_data['name']
+        parent_id = get_parent_id(file_data)
+        while parent_id:
+            try:
+                file_data = self._file_cache[parent_id]
+            except KeyError:
+                file_data = service.files().get(fileId=parent_id,
+                    fields='id, name, parents').execute()
+                self._file_cache[parent_id] = file_data
+            path = os.path.join(file_data['name'], path)
+            parent_id = get_parent_id(file_data)
+        return path
+
     def _list_files(self):
         """
         https://developers.google.com/drive/api/reference/rest/v3
         https://developers.google.com/drive/api/guides/search-files#python
         """
-        drive_service = self._get_drive_service()
-        files = []
+        service = self._get_drive_service()
+        res = []
         page_token = None
         while True:
-            response = (drive_service.files()
+            response = (service.files()
                 .list(
                     q='trashed=false',
                     spaces='drive',
-                    fields='nextPageToken, '
-                        'files(id, name, mimeType, modifiedTime, parents)',
+                    fields='nextPageToken, files(id, name, mimeType, '
+                        'modifiedTime, size, parents)',
                     pageToken=page_token,
                 )
                 .execute()
             )
-            files_ = response.get('files', [])
-            if files_:
-                files.extend(files_)
+            for file_data in response.get('files', []):
+                if file_data['mimeType'] == 'application/' \
+                        'vnd.google-apps.folder':
+                    continue
+                file_data['path'] = self._get_file_path(service, file_data)
+                res.append(file_data)
             page_token = response.get('nextPageToken')
             if page_token is None:
                 break
-        return files
+        return res
 
     def iterate_files(self):
         for file in self._list_files():
             try:
-                mime_data = MIME_TYPE_MAP[file['mimeType']]
-            except Exception:
-                continue
+                mime_type = MIME_TYPE_MAP[file['mimeType']]
+                ext = mimetypes.guess_extension(mime_type)
+                path = f'{file["path"]}{ext}'
+            except KeyError:
+                mime_type = None
+                path = file['path']
             yield {
                 'id': file['id'],
                 'name': file['name'],
-                'filename': f'{file["name"]}-{file["id"]}{mime_data["ext"]}',
+                'path': path,
                 'modified_time': parse_dt(file['modifiedTime']),
-                'mime_type': mime_data['mime_type'],
+                'mime_type': mime_type,
+                'exportable': int(file['size']) < SIZE_LIMIT,
             }
 
-    def fetch_file_content(self, file_id, mime_type):
-        try:
-            return self._get_drive_service().files().export(fileId=file_id,
-                mimeType=mime_type).execute()
-        except HttpError as exc:
-            logger.error(f'failed to export file id {file_id}: {exc}')
-            if exc.error_details[0]['reason'] == 'exportSizeLimitExceeded':
-                return b''
-            raise
+    def download_file(self, file_id, path, mime_type=None):
+        service = self._get_drive_service()
+        if mime_type:
+            request = service.files().export_media(fileId=file_id,
+                mimeType=mime_type)
+        else:
+            request = service.files().get_media(fileId=file_id)
+        fh = io.FileIO(path, 'wb')
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+            logger.debug('Download progress: '
+                f'{int(status.progress() * 100)}%')
 
     #
     # People
@@ -186,11 +219,10 @@ class GoogleCloud:
         """
         https://developers.google.com/people/api/rest/?apix=true
         """
-        people_service = self._get_people_service()
         contacts = []
         page_token = None
         while True:
-            response = (people_service.people()
+            response = (self._get_people_service().people()
                 .connections()
                 .list(
                     resourceName='people/me',
