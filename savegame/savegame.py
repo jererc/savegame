@@ -279,13 +279,10 @@ class ReferenceData:
                     self.data = json.loads(
                         gzip.decompress(fd.read()).decode('utf-8'))
             except Exception as exc:
-                logger.exception(f'failed to load ref file {self.file}: {exc}')
+                logger.exception(f'failed to load {self.file}: {exc}')
                 self.data = {}
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
-
-    def _normalize_json(self, data):
-        return json.dumps(data, sort_keys=True)
 
     def save(self):
         data = {'src': self.src, 'files': self.files}
@@ -293,7 +290,7 @@ class ReferenceData:
             return
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
-                self._normalize_json(data).encode('utf-8')))
+                json.dumps(data, sort_keys=True).encode('utf-8')))
         logger.debug(f'updated ref file {self.file}')
         self.data = data
 
