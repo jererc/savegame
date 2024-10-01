@@ -1,6 +1,7 @@
 import argparse
 import atexit
 from collections import defaultdict
+from copy import deepcopy
 from datetime import datetime, timezone
 from fnmatch import fnmatch
 import functools
@@ -281,17 +282,18 @@ class ReferenceData:
                 logger.exception(f'failed to load ref file {self.file}: {exc}')
                 self.data = {}
         self.src = self.data.get('src')
-        self.files = set(map(tuple, self.data.get('files', [])))
+        self.files = deepcopy(self.data.get('files', {}))
+
+    def _normalize_json(self, data):
+        return json.dumps(data, sort_keys=True)
 
     def save(self):
-        data = {
-            'src': self.src,
-            'files': sorted(map(list, self.files)),
-        }
+        data = {'src': self.src, 'files': self.files}
         if data == self.data:
             return
         with open(self.file, 'wb') as fd:
-            fd.write(gzip.compress(to_json(data).encode('utf-8')))
+            fd.write(gzip.compress(
+                self._normalize_json(data).encode('utf-8')))
         logger.debug(f'updated ref file {self.file}')
         self.data = data
 
@@ -399,7 +401,7 @@ class LocalSaver(BaseSaver):
         src_hashes = {os.path.relpath(f, src): get_file_hash(f)
             for f in src_files}
         dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
-            for p, h in rd.files}
+            for p in rd.files.keys()}
         if src_hashes == dst_hashes:
             self.report.add('ok', src, set(src_files))
         else:
@@ -446,19 +448,18 @@ class LocalSaver(BaseSaver):
 
         rd = ReferenceData(self.dst)
         rd.src = src
-        file_hashes = {f: h for f, h in rd.files}
-        rd_files = set()
+        rd_files = {}
         for src_file in src_files:
             file_rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, file_rel_path)
             src_hash = get_file_hash(src_file)
-            dst_hash = file_hashes.get(file_rel_path)
+            dst_hash = rd.files.get(file_rel_path)
             try:
                 if not os.path.exists(dst_file) or src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
                     shutil.copyfile(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                rd_files.add((file_rel_path, src_hash))
+                rd_files[file_rel_path] = src_hash
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
@@ -721,7 +722,7 @@ class LocalRestorer:
             except UnhandledPath:
                 self.report.add('skipped_unhandled', src, src)
                 continue
-            for rel_path, ref_hash in rd.files:
+            for rel_path, ref_hash in rd.files.items():
                 dst_file = os.path.join(dst, rel_path)
                 dst_hash = get_file_hash(dst_file)
                 if dst_hash != ref_hash:
@@ -789,7 +790,7 @@ class LocalRestorer:
                 continue
             rel_paths = set()
             invalid_files = set()
-            for rel_path, file_hash in rd.files:
+            for rel_path, file_hash in rd.files.items():
                 dst_file = os.path.join(dst, rel_path)
                 if get_file_hash(dst_file) != file_hash:
                     invalid_files.add(dst_file)

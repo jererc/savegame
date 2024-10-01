@@ -263,10 +263,10 @@ class ReferenceDataTestCase(BaseTestCase):
     def test_1(self):
         rd1 = savegame.ReferenceData(self.dst_root)
         rd1.src = self.src_root
-        rd1.files.update({
-            ('file1', 'hash1'),
-            ('file2', 'hash2'),
-        })
+        rd1.files = {
+            'file1': 'hash1',
+            'file2': 'hash2',
+        }
         rd1.save()
         ts1 = self._get_mtime(rd1)
 
@@ -281,7 +281,7 @@ class ReferenceDataTestCase(BaseTestCase):
         self.assertEqual(rd2.files, rd1.files)
 
         time.sleep(.1)
-        rd2.files.add(('file3', 'hash3'))
+        rd2.files['file3'] = 'hash3'
         rd2.save()
         ts3 = self._get_mtime(rd2)
         self.assertTrue(ts3 > ts2)
@@ -379,7 +379,7 @@ class SavegameTestCase(BaseTestCase):
             pprint(set(walk_paths(data['dst'])))
 
     def _get_rd_files(self):
-        return {s: {f: h for f, h in savegame.ReferenceData(d['dst']).files}
+        return {s: savegame.ReferenceData(d['dst']).files
             for s, d in savegame.MetaManager().meta.items()
         }
 
