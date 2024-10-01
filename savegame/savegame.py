@@ -43,7 +43,6 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILE = f'.{NAME}'
-USE_REF_HASH = False
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -448,20 +447,16 @@ class LocalSaver(BaseSaver):
         rd.src = src
         rd_files = {}
         for src_file in src_files:
-            file_rel_path = os.path.relpath(src_file, src)
-            dst_file = os.path.join(self.dst, file_rel_path)
+            rel_path = os.path.relpath(src_file, src)
+            dst_file = os.path.join(self.dst, rel_path)
             src_hash = get_file_hash(src_file)
-            if USE_REF_HASH:
-                dst_hash = rd.files.get(file_rel_path)
-            else:
-                dst_hash = get_file_hash(dst_file)
+            dst_hash = get_file_hash(dst_file)
             try:
-                if src_hash != dst_hash or (USE_REF_HASH
-                        and not os.path.exists(dst_file)):
+                if src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
                     shutil.copyfile(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                rd_files[file_rel_path] = src_hash
+                rd_files[rel_path] = src_hash
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
@@ -792,9 +787,9 @@ class LocalRestorer:
                 continue
             rel_paths = set()
             invalid_files = set()
-            for rel_path, file_hash in rd.files.items():
+            for rel_path, ref_hash in rd.files.items():
                 dst_file = os.path.join(dst, rel_path)
-                if get_file_hash(dst_file) != file_hash:
+                if get_file_hash(dst_file) != ref_hash:
                     invalid_files.add(dst_file)
                 else:
                     rel_paths.add(rel_path)
