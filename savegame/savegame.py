@@ -43,6 +43,7 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILE = f'.{NAME}'
+USE_REF_HASH = False
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -450,9 +451,13 @@ class LocalSaver(BaseSaver):
             file_rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, file_rel_path)
             src_hash = get_file_hash(src_file)
-            dst_hash = rd.files.get(file_rel_path)
+            if USE_REF_HASH:
+                dst_hash = rd.files.get(file_rel_path)
+            else:
+                dst_hash = get_file_hash(dst_file)
             try:
-                if not os.path.exists(dst_file) or src_hash != dst_hash:
+                if src_hash != dst_hash or (USE_REF_HASH
+                        and not os.path.exists(dst_file)):
                     makedirs(os.path.dirname(dst_file))
                     shutil.copyfile(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
