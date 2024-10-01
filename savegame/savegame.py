@@ -564,11 +564,11 @@ class GoogleBookmarksSaver(BaseSaver):
 
 
 class SaveItem:
-    def __init__(self, src_paths=None, src_type=None, dst_path=DST_PATH,
-            run_delta=0, retention_delta=RETENTION_DELTA,
+    def __init__(self, src_paths=None, src_type=LocalSaver.src_type,
+            dst_path=DST_PATH, run_delta=0, retention_delta=RETENTION_DELTA,
             restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
-        self.src_type = src_type or LocalSaver.src_type
+        self.src_type = src_type
         self.dst_path = self._get_dst_path(dst_path)
         self.run_delta = run_delta
         self.retention_delta = retention_delta
