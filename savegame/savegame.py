@@ -139,6 +139,16 @@ def walk_files(path):
             yield os.path.join(root, file)
 
 
+def get_file_hash(file, chunk_size=8192):
+    if not os.path.exists(file):
+        return None
+    md5_hash = hashlib.md5()
+    with open(file, 'rb') as fd:
+        while chunk := fd.read(chunk_size):
+            md5_hash.update(chunk)
+    return md5_hash.hexdigest()
+
+
 def notify(title, body, on_click=None):
     try:
         if os.name == 'nt':
@@ -190,56 +200,6 @@ class UnhandledPath(Exception):
     pass
 
 
-class HashManager:
-    cache_file = os.path.join(WORK_PATH, 'cache.dat')
-    cache = {}
-
-    def __new__(cls):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super().__new__(cls)
-            cls.instance.load()
-        return cls.instance
-
-    def hash_file(self, file, chunk_size=8192):
-        md5_hash = hashlib.md5()
-        with open(file, 'rb') as fd:
-            while chunk := fd.read(chunk_size):
-                md5_hash.update(chunk)
-        return md5_hash.hexdigest()
-
-    def set(self, path, value):
-        self.cache[path] = [value, int(time.time())]
-
-    def get(self, path, use_cache=False):
-        if not os.path.exists(path):
-            return None
-        if use_cache:
-            try:
-                return self.cache[path][0]
-            except KeyError:
-                pass
-        res = self.hash_file(path)
-        if use_cache:
-            self.set(path, res)
-        return res
-
-    def load(self):
-        if os.path.exists(self.cache_file):
-            with open(self.cache_file, 'rb') as fd:
-                self.cache = json.loads(gzip.decompress(fd.read()))
-            logger.debug(f'loaded {len(self.cache)} cached items')
-
-    def save(self):
-        start_ts = time.time()
-        min_ts = time.time() - HASH_CACHE_TTL
-        self.cache = {k: v for k, v in self.cache.items()
-            if os.path.exists(k) and v[1] > min_ts}
-        with open(self.cache_file, 'wb') as fd:
-            fd.write(gzip.compress(json.dumps(self.cache).encode('utf-8')))
-        logger.debug(f'saved {len(self.cache)} cached items'
-            f' in {time.time() - start_ts:.2f} seconds')
-
-
 class MetaManager:
     meta_file = os.path.join(WORK_PATH, 'meta.json')
     meta = {}
@@ -250,17 +210,17 @@ class MetaManager:
             cls.instance.load()
         return cls.instance
 
-    def set(self, key, value: dict):
-        self.meta[key] = value
-
-    def get(self, key):
-        return self.meta.get(key, {})
-
     def load(self):
         if os.path.exists(self.meta_file):
             with open(self.meta_file) as fd:
                 self.meta = json.loads(fd.read())
             logger.debug(f'loaded {len(self.meta)} meta items')
+
+    def get(self, key):
+        return self.meta.get(key, {})
+
+    def set(self, key, value: dict):
+        self.meta[key] = value
 
     def save(self, keys):
         self.meta = {k: v for k, v in self.meta.items() if k in keys}
@@ -304,29 +264,36 @@ class ReferenceData:
     def __init__(self, dst):
         self.dst = dst
         self.file = os.path.join(self.dst, REF_FILE)
+        self.data = None
+        self.src = None
+        self.files = None
+        self._load()
 
-    def _normalize_ref_data(self, ref_data):
-        ref_data['files'] = sorted(map(list, ref_data['files']))
-
-    def load(self):
+    def _load(self):
         if not os.path.exists(self.file):
-            raise Exception(f'missing ref file {self.file}')
-        try:
-            with open(self.file, 'rb') as fd:
-                return json.loads(gzip.decompress(fd.read()).decode('utf-8'))
-        except Exception as exc:
-            raise Exception(f'failed to load ref file {self.file}: {exc}')
+            self.data = {}
+        else:
+            try:
+                with open(self.file, 'rb') as fd:
+                    self.data = json.loads(
+                        gzip.decompress(fd.read()).decode('utf-8'))
+            except Exception as exc:
+                logger.exception(f'failed to load ref file {self.file}: {exc}')
+                self.data = {}
+        self.src = self.data.get('src')
+        self.files = set(map(tuple, self.data.get('files', [])))
 
-    def save(self, ref_data):
-        self._normalize_ref_data(ref_data)
-        try:
-            if ref_data == self.load():
-                return
-        except Exception:
-            pass
+    def save(self):
+        data = {
+            'src': self.src,
+            'files': sorted(map(list, self.files)),
+        }
+        if data == self.data:
+            return
         with open(self.file, 'wb') as fd:
-            fd.write(gzip.compress(to_json(ref_data).encode('utf-8')))
+            fd.write(gzip.compress(to_json(data).encode('utf-8')))
         logger.debug(f'updated ref file {self.file}')
+        self.data = data
 
 
 class BaseSaver:
@@ -341,7 +308,6 @@ class BaseSaver:
         self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
-        self.hash_man = HashManager()
         self.meta_man = MetaManager()
         self.report = Report()
         self.start_ts = None
@@ -429,12 +395,11 @@ class LocalSaver(BaseSaver):
         src, src_files = self._get_src_and_files()
         if not src_files:
             return
-        ref_data = ReferenceData(self.dst).load()
-        hm = HashManager()
-        src_hashes = {os.path.relpath(f, src): hm.get(f)
+        rd = ReferenceData(self.dst)
+        src_hashes = {os.path.relpath(f, src): get_file_hash(f)
             for f in src_files}
-        dst_hashes = {p: hm.get(os.path.join(self.dst, p))
-            for p, h in ref_data['files']}
+        dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
+            for p, h in rd.files}
         if src_hashes == dst_hashes:
             self.report.add('ok', src, set(src_files))
         else:
@@ -479,24 +444,26 @@ class LocalSaver(BaseSaver):
                 remove_path(self.dst)
             return
 
-        ref_data = {'src': src, 'files': []}
+        rd = ReferenceData(self.dst)
+        rd.src = src
+        file_hashes = {f: h for f, h in rd.files}
+        rd_files = set()
         for src_file in src_files:
             file_rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, file_rel_path)
-            src_hash = self.hash_man.get(src_file)
-            ref_data['files'].append([file_rel_path, src_hash])
-            dst_hash = self.hash_man.get(dst_file, use_cache=True)
-            if dst_hash == src_hash:
-                continue
+            src_hash = get_file_hash(src_file)
+            dst_hash = file_hashes.get(file_rel_path)
             try:
-                makedirs(os.path.dirname(dst_file))
-                shutil.copyfile(src_file, dst_file)
-                self.hash_man.set(dst_file, src_hash)
-                self.report.add('saved', self.src, src_file)
+                if not os.path.exists(dst_file) or src_hash != dst_hash:
+                    makedirs(os.path.dirname(dst_file))
+                    shutil.copyfile(src_file, dst_file)
+                    self.report.add('saved', self.src, src_file)
+                rd_files.add((file_rel_path, src_hash))
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
-        ReferenceData(self.dst).save(ref_data)
+        rd.files = rd_files
+        rd.save()
         self.stats['file_count'] = len(src_files)
 
 
@@ -698,7 +665,6 @@ class SaveHandler:
             stats[saver.src] = saver.stats
             report.merge(saver.report)
             saver.check_health()
-        HashManager().save()
         MetaManager().save(keys={s.src for s in savers})
         res = report.clean(keys={'saved', 'removed'})
         if res:
@@ -719,7 +685,6 @@ class LocalRestorer:
         self.overwrite = overwrite
         self.dry_run = dry_run
         self.hostnames = sorted(os.listdir(self.dst_path))
-        self.hash_man = HashManager()
         self.report = Report()
 
     def _get_src_file_for_user(self, path):
@@ -744,24 +709,21 @@ class LocalRestorer:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
                 dst = os.path.join(self.dst_path, hostname, dst_dir)
-                try:
-                    ref_data = ReferenceData(dst).load()
-                except Exception as exc:
-                    logger.error(exc)
-                    continue
-                yield dst, ref_data
+                rd = ReferenceData(dst)
+                if rd.src:
+                    yield dst, rd
 
     def check_data(self):
-        for dst, ref_data in self._iterate_dst_and_ref_data():
-            src = ref_data['src']
+        for dst, rd in self._iterate_dst_and_ref_data():
+            src = rd.src
             try:
                 validate_path(src)
             except UnhandledPath:
                 self.report.add('skipped_unhandled', src, src)
                 continue
-            for rel_path, ref_hash in ref_data['files']:
+            for rel_path, ref_hash in rd.files:
                 dst_file = os.path.join(dst, rel_path)
-                dst_hash = self.hash_man.get(dst_file)
+                dst_hash = get_file_hash(dst_file)
                 if dst_hash != ref_hash:
                     self.report.add('invalid_dst_files', dst, dst_file)
                 src_file_raw = os.path.join(src, rel_path)
@@ -771,7 +733,7 @@ class LocalRestorer:
                         src_file_raw)
                     continue
                 if os.path.exists(src_file):
-                    if self.hash_man.get(src_file) == dst_hash == ref_hash:
+                    if get_file_hash(src_file) == dst_hash == ref_hash:
                         self.report.add('ok', src, src_file)
                     else:
                         self.report.add('hash_mismatched', src, src_file)
@@ -783,7 +745,7 @@ class LocalRestorer:
             return False
         if not os.path.exists(src_file):
             return True
-        if self.hash_man.get(src_file) == self.hash_man.get(dst_file):
+        if get_file_hash(src_file) == get_file_hash(dst_file):
             self.report.add('skipped_identical', src, src_file)
             return False
         if not self.overwrite:
@@ -818,8 +780,8 @@ class LocalRestorer:
                 f'from {dst_file}: {exc}')
 
     def run(self):
-        for dst, ref_data in self._iterate_dst_and_ref_data():
-            src = ref_data['src']
+        for dst, rd in self._iterate_dst_and_ref_data():
+            src = rd.src
             try:
                 validate_path(src)
             except UnhandledPath:
@@ -827,9 +789,9 @@ class LocalRestorer:
                 continue
             rel_paths = set()
             invalid_files = set()
-            for rel_path, file_hash in ref_data['files']:
+            for rel_path, file_hash in rd.files:
                 dst_file = os.path.join(dst, rel_path)
-                if self.hash_man.get(dst_file) != file_hash:
+                if get_file_hash(dst_file) != file_hash:
                     invalid_files.add(dst_file)
                 else:
                     rel_paths.add(rel_path)

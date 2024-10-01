@@ -148,7 +148,6 @@ class BaseTestCase(unittest.TestCase):
         makedirs(self.dst_root)
 
         savegame.MetaManager().meta = {}
-        savegame.HashManager().cache = {}
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
@@ -197,13 +196,12 @@ class BaseTestCase(unittest.TestCase):
 
         def switch_ref_path(file):
             rd = savegame.ReferenceData(os.path.dirname(file))
-            ref_data = rd.load()
             username_str = f'{os.sep}{from_username}{os.sep}'
-            if username_str not in ref_data['src']:
+            if username_str not in rd.src:
                 return
-            ref_data['src'] = ref_data['src'].replace(username_str,
+            rd.src = rd.src.replace(username_str,
                 f'{os.sep}{to_username}{os.sep}')
-            rd.save(ref_data)
+            rd.save()
 
         for path in walk_paths(self.dst_root):
             if os.path.basename(path) == savegame.REF_FILE:
@@ -258,89 +256,34 @@ class PatternTestCase(unittest.TestCase):
         ))
 
 
-class HashTestCase(BaseTestCase):
-    def setUp(self):
-        super().setUp()
-        self.hm = savegame.HashManager()
-
-    def _generate_file(self, filename, chunk, chunk_count=1000):
-        file = os.path.join(self.dst_root, filename)
-        chunk = chunk.encode('utf-8')
-        with open(file, 'wb') as fd:
-            for i in range(1000):
-                fd.write(chunk)
-        return file
-
-    def test_hash(self):
-        file = self._generate_file('file1', chunk='a' * 10000)
-        hash1 = self.hm.get(file, use_cache=False)
-        self.assertFalse(self.hm.cache)
-
-        og_hash_file = self.hm.hash_file
-        with patch.object(self.hm, 'hash_file') as mock_hash_file:
-            mock_hash_file.return_value = og_hash_file(file)
-            hash2 = self.hm.get(file, use_cache=True)
-        self.assertTrue(mock_hash_file.called)
-        self.assertEqual(hash2, hash1)
-
-        with patch.object(self.hm, 'hash_file') as mock_hash_file:
-            hash2 = self.hm.get(file, use_cache=True)
-        self.assertFalse(mock_hash_file.called)
-        self.assertEqual(hash2, hash1)
-
-        file2 = self._generate_file('file2', chunk='b' * 10000)
-        hash3 = self.hm.get(file2, use_cache=True)
-
-        cache = deepcopy(self.hm.cache)
-        self.assertEqual(self.hm.cache[file][0], hash1)
-        self.assertEqual(self.hm.cache[file2][0], hash3)
-        self.hm.save()
-        self.hm.cache = {}
-        self.hm.load()
-        pprint(self.hm.cache)
-        self.assertEqual(self.hm.cache, cache)
-        self.hm.cache[file][1] = time.time() - savegame.HASH_CACHE_TTL - 1
-        self.hm.save()
-        self.hm.cache = {}
-        self.hm.load()
-        pprint(self.hm.cache)
-        self.assertFalse(file in self.hm.cache.keys())
-
-
 class ReferenceDataTestCase(BaseTestCase):
-    def setUp(self):
-        super().setUp()
-        self.rd = savegame.ReferenceData(self.dst_root)
-
-    def _get_mtime_ts(self):
-        return os.stat(self.rd.file).st_mtime
+    def _get_mtime(self, rd):
+        return os.stat(rd.file).st_mtime
 
     def test_1(self):
-        ref_data = {
-            'src': 'src',
-            'files': [
-                ('file2', 'hash2'),
-                ('file1', 'hash1'),
-            ],
-        }
-        self.rd.save(ref_data)
-        res = self.rd.load()
-        self.assertEqual(res, ref_data)
-        ts1 = self._get_mtime_ts()
+        rd1 = savegame.ReferenceData(self.dst_root)
+        rd1.src = self.src_root
+        rd1.files.update({
+            ('file1', 'hash1'),
+            ('file2', 'hash2'),
+        })
+        rd1.save()
+        ts1 = self._get_mtime(rd1)
 
         time.sleep(.1)
-        self.rd.save(ref_data)
-        res = self.rd.load()
-        self.assertEqual(res, ref_data)
-        ts2 = self._get_mtime_ts()
+        rd1.save()
+        ts2 = self._get_mtime(rd1)
         self.assertEqual(ts2, ts1)
 
+        rd2 = savegame.ReferenceData(self.dst_root)
+        self.assertEqual(rd2.data, rd1.data)
+        self.assertEqual(rd2.src, rd1.src)
+        self.assertEqual(rd2.files, rd1.files)
+
         time.sleep(.1)
-        ref_data['files'].append(['new_file', 'new_hash'])
-        self.rd.save(ref_data)
-        res = self.rd.load()
-        self.assertEqual(res, ref_data)
-        ts3 = self._get_mtime_ts()
+        rd2.files.add(('file3', 'hash3'))
+        rd2.save()
+        ts3 = self._get_mtime(rd2)
         self.assertTrue(ts3 > ts2)
 
 
@@ -435,6 +378,84 @@ class SavegameTestCase(BaseTestCase):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
+    def _get_rd_files(self):
+        return {s: {f: h for f, h in savegame.ReferenceData(d['dst']).files}
+            for s, d in savegame.MetaManager().meta.items()
+        }
+
+    def test_ref_data(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=2,
+            file_count=2)
+        src1 = os.path.join(self.src_root, 'src1')
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    src1,
+                ],
+                'dst_path': self.dst_root,
+                'run_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        rd_files = self._get_rd_files()[src1]
+        pprint(rd_files)
+        self.assertTrue(rd_files.get('dir1/file1'))
+        self.assertTrue(rd_files.get('dir1/file2'))
+        self.assertTrue(rd_files.get('dir2/file1'))
+        self.assertTrue(rd_files.get('dir2/file2'))
+
+        # Source file changed
+        for file in walk_files(self.src_root):
+            if os.path.basename(file) == 'file1':
+                with open(file, 'w') as fd:
+                    fd.write(f'new content for {file}')
+
+        def side_copyfile(*args, **kwargs):
+            raise Exception('copyfile failed')
+
+        with patch.object(savegame.shutil, 'copyfile') as mock_copyfile:
+            mock_copyfile.side_effect = side_copyfile
+            savegame.savegame()
+        rd_files = self._get_rd_files()[src1]
+        pprint(rd_files)
+        self.assertFalse('dir1/file1' in rd_files)
+        self.assertTrue(rd_files.get('dir1/file2'))
+        self.assertFalse('dir2/file1' in rd_files)
+        self.assertTrue(rd_files.get('dir2/file2'))
+
+        savegame.savegame()
+        rd_files = self._get_rd_files()[src1]
+        pprint(rd_files)
+        self.assertTrue(rd_files.get('dir1/file1'))
+        self.assertTrue(rd_files.get('dir1/file2'))
+        self.assertTrue(rd_files.get('dir2/file1'))
+        self.assertTrue(rd_files.get('dir2/file2'))
+
+        # Destination file removed
+        for file in walk_files(self.dst_root):
+            if os.path.basename(file) == 'file2':
+                os.remove(file)
+        dst_paths = self._list_dst_root_paths()
+        print('dst data:')
+        pprint(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*file2*'))
+
+        savegame.savegame()
+        rd_files = self._get_rd_files()[src1]
+        pprint(rd_files)
+        self.assertTrue(rd_files.get('dir1/file1'))
+        self.assertTrue(rd_files.get('dir2/file1'))
+        self.assertTrue(rd_files.get('dir1/file2'))
+        self.assertTrue(rd_files.get('dir2/file2'))
+
+        dst_paths = self._list_dst_root_paths()
+        print('dst data:')
+        pprint(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*dir1/file1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1/file2*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2/file1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2/file2*'))
+
     def test_meta(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=2,
             file_count=2)
@@ -448,7 +469,7 @@ class SavegameTestCase(BaseTestCase):
         ]
 
         def side_do_run(*args, **kwargs):
-            raise Exception('failed')
+            raise Exception('do_run failed')
 
         def get_first_start_ts():
             return list(savegame.MetaManager()
