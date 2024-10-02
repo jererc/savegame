@@ -344,7 +344,7 @@ class BaseSaver:
 
     def check_health(self):
         first_start_ts = self.meta.get('first_start_ts')
-        success_ts = self.meta.get('success_ts', 0)
+        success_ts = self.meta.get('success_ts') or 0
         if first_start_ts and time.time() > max(first_start_ts, success_ts) \
                 + self.run_delta + OLD_DELTA:
             self.notify_error(f'{self.src} has not been saved recently')
