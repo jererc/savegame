@@ -392,11 +392,11 @@ class LocalSaver(BaseSaver):
         src, src_files = self._get_src_and_files()
         if not src_files:
             return
-        rd = ReferenceData(self.dst)
+        ref_data = ReferenceData(self.dst)
         src_hashes = {os.path.relpath(f, src): get_file_hash(f)
             for f in src_files}
         dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
-            for p in rd.files.keys()}
+            for p in ref_data.files.keys()}
         if src_hashes == dst_hashes:
             self.report.add('ok', src, set(src_files))
         else:
@@ -441,9 +441,9 @@ class LocalSaver(BaseSaver):
                 remove_path(self.dst)
             return
 
-        rd = ReferenceData(self.dst)
-        rd.src = src
-        rd_files = {}
+        ref_data = ReferenceData(self.dst)
+        ref_data.src = src
+        ref_files = {}
         for src_file in src_files:
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
@@ -454,12 +454,12 @@ class LocalSaver(BaseSaver):
                     makedirs(os.path.dirname(dst_file))
                     shutil.copyfile(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                rd_files[rel_path] = src_hash
+                ref_files[rel_path] = src_hash
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
-        rd.files = rd_files
-        rd.save()
+        ref_data.files = ref_files
+        ref_data.save()
         self.stats['file_count'] = len(src_files)
 
 
@@ -705,19 +705,19 @@ class LocalRestorer:
                 continue
             for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
                 dst = os.path.join(self.dst_path, hostname, dst_dir)
-                rd = ReferenceData(dst)
-                if rd.src:
-                    yield dst, rd
+                ref_data = ReferenceData(dst)
+                if ref_data.src:
+                    yield dst, ref_data
 
     def check_data(self):
-        for dst, rd in self._iterate_dst_and_ref_data():
-            src = rd.src
+        for dst, ref_data in self._iterate_dst_and_ref_data():
+            src = ref_data.src
             try:
                 validate_path(src)
             except UnhandledPath:
                 self.report.add('skipped_unhandled', src, src)
                 continue
-            for rel_path, ref_hash in rd.files.items():
+            for rel_path, ref_hash in ref_data.files.items():
                 dst_file = os.path.join(dst, rel_path)
                 dst_hash = get_file_hash(dst_file)
                 if dst_hash != ref_hash:
@@ -776,8 +776,8 @@ class LocalRestorer:
                 f'from {dst_file}: {exc}')
 
     def run(self):
-        for dst, rd in self._iterate_dst_and_ref_data():
-            src = rd.src
+        for dst, ref_data in self._iterate_dst_and_ref_data():
+            src = ref_data.src
             try:
                 validate_path(src)
             except UnhandledPath:
@@ -785,7 +785,7 @@ class LocalRestorer:
                 continue
             rel_paths = set()
             invalid_files = set()
-            for rel_path, ref_hash in rd.files.items():
+            for rel_path, ref_hash in ref_data.files.items():
                 dst_file = os.path.join(dst, rel_path)
                 if get_file_hash(dst_file) != ref_hash:
                     invalid_files.add(dst_file)

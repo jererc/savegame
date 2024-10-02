@@ -377,8 +377,7 @@ class SavegameTestCase(BaseTestCase):
 
     def _get_rd_files(self):
         return {s: savegame.ReferenceData(d['dst']).files
-            for s, d in self.meta_man.meta.items()
-        }
+            for s, d in self.meta_man.meta.items()}
 
     def test_ref_data(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=2,
