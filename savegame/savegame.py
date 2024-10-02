@@ -989,7 +989,7 @@ class Task:
 
 def _parse_args():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(dest='command')
+    subparsers = parser.add_subparsers(dest='cmd')
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
@@ -1010,7 +1010,7 @@ def _parse_args():
 
 def main():
     args = _parse_args()
-    if args.command == 'save':
+    if args.cmd == 'save':
         if args.daemon:
             Daemon().run()
         elif args.task:
@@ -1018,14 +1018,12 @@ def main():
         else:
             savegame(force=True, stats=args.stats)
     else:
-        callable_ = {
+        {
             'check': checkgame,
             'restore': restoregame,
             'hostnames': list_hostnames,
             'google_oauth': google_oauth,
-        }[args.command]
-        callable_(**{k: v for k, v in vars(args).items()
-            if k != 'command'})
+        }[args.cmd](**{k: v for k, v in vars(args).items() if k != 'cmd'})
 
 
 if __name__ == '__main__':
