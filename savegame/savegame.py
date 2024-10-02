@@ -324,11 +324,11 @@ class BaseSaver:
     def notify_error(self, message, exc=None):
         notify(title=f'{NAME} error', body=message)
 
-    def _must_save(self):
+    def _must_run(self):
         return time.time() > self.meta.get('next_ts', 0)
 
     def _update_meta(self):
-        new_meta = {
+        self.meta_man.set(self.src, {
             'dst': self.dst,
             'first_start_ts': self.meta.get('first_start_ts', self.start_ts),
             'start_ts': self.start_ts,
@@ -337,15 +337,14 @@ class BaseSaver:
                 if self.success else RETRY_DELTA),
             'success_ts': self.end_ts
                 if self.success else self.meta.get('success_ts', 0),
-        }
-        self.meta_man.set(self.src, new_meta)
+        })
 
     def check_data(self):
         raise NotImplementedError()
 
     def check_health(self):
         first_start_ts = self.meta.get('first_start_ts')
-        success_ts = self.meta.get('success_ts') or 0
+        success_ts = self.meta.get('success_ts', 0)
         if first_start_ts and time.time() > max(first_start_ts, success_ts) \
                 + self.run_delta + OLD_DELTA:
             self.notify_error(f'{self.src} has not been saved recently')
@@ -354,7 +353,7 @@ class BaseSaver:
         raise NotImplementedError()
 
     def run(self, force=False):
-        if not force and not self._must_save():
+        if not (force or self._must_run()):
             return
         self.start_ts = time.time()
         try:
