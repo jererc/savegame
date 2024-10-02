@@ -202,7 +202,7 @@ class UnhandledPath(Exception):
 
 
 class MetaManager:
-    meta_file = os.path.join(WORK_PATH, 'meta.json')
+    file = os.path.join(WORK_PATH, 'meta.json')
     meta = {}
 
     def __new__(cls):
@@ -212,8 +212,8 @@ class MetaManager:
         return cls.instance
 
     def load(self):
-        if os.path.exists(self.meta_file):
-            with open(self.meta_file) as fd:
+        if os.path.exists(self.file):
+            with open(self.file) as fd:
                 self.meta = json.loads(fd.read())
             logger.debug(f'loaded {len(self.meta)} meta items')
 
@@ -223,9 +223,10 @@ class MetaManager:
     def set(self, key, value: dict):
         self.meta[key] = value
 
-    def save(self, keys):
-        self.meta = {k: v for k, v in self.meta.items() if k in keys}
-        with open(self.meta_file, 'w') as fd:
+    def save(self, keys=None):
+        if keys:
+            self.meta = {k: v for k, v in self.meta.items() if k in keys}
+        with open(self.file, 'w') as fd:
             fd.write(to_json(self.meta))
 
 
@@ -308,6 +309,7 @@ class BaseSaver:
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
         self.meta_man = MetaManager()
+        self.meta = self.meta_man.get(self.src)
         self.report = Report()
         self.start_ts = None
         self.end_ts = None
@@ -324,20 +326,18 @@ class BaseSaver:
         notify(title=f'{NAME} error', body=message)
 
     def _must_save(self):
-        meta = self.meta_man.get(self.src)
-        return not meta or time.time() > meta['next_ts']
+        return time.time() > self.meta.get('next_ts', 0)
 
     def _update_meta(self):
-        meta = self.meta_man.get(self.src)
         new_meta = {
             'dst': self.dst,
-            'first_start_ts': meta.get('first_start_ts', self.start_ts),
+            'first_start_ts': self.meta.get('first_start_ts', self.start_ts),
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
             'next_ts': time.time() + (self.run_delta
                 if self.success else RETRY_DELTA),
             'success_ts': self.end_ts
-                if self.success else meta.get('success_ts', 0),
+                if self.success else self.meta.get('success_ts', 0),
         }
         self.meta_man.set(self.src, new_meta)
 
@@ -345,9 +345,8 @@ class BaseSaver:
         raise NotImplementedError()
 
     def check_health(self):
-        meta = self.meta_man.get(self.src)
-        first_start_ts = meta.get('first_start_ts')
-        success_ts = meta.get('success_ts') or 0
+        first_start_ts = self.meta.get('first_start_ts')
+        success_ts = self.meta.get('success_ts') or 0
         if first_start_ts and time.time() > max(first_start_ts, success_ts) \
                 + self.run_delta + OLD_DELTA:
             self.notify_error(f'{self.src} has not been saved recently')

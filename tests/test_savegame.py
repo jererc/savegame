@@ -147,7 +147,8 @@ class BaseTestCase(unittest.TestCase):
         self.dst_root = os.path.join(savegame.WORK_PATH, DST_DIR)
         makedirs(self.dst_root)
 
-        savegame.MetaManager().meta = {}
+        self.meta_man = savegame.MetaManager()
+        self.meta_man.meta = {}
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
@@ -337,16 +338,12 @@ class SavegameTestCase(BaseTestCase):
             file_count=3)
         savegame.SAVES = [
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                ],
+                'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
                 'run_delta': 600,
             },
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src2'),
-                ],
+                'src_paths': [os.path.join(self.src_root, 'src2')],
                 'dst_path': self.dst_root,
                 'run_delta': 600,
             },
@@ -364,14 +361,14 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*'))
         self.assertTrue(any_str_matches(dst_paths, '*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*file2*'))
-        meta = deepcopy(savegame.MetaManager().meta)
+        meta = deepcopy(self.meta_man.meta)
         pprint(meta)
         for data in sorted(meta.values(), key=lambda x: x['dst']):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
         savegame.savegame()
-        meta2 = deepcopy(savegame.MetaManager().meta)
+        meta2 = deepcopy(self.meta_man.meta)
         pprint(meta2)
         self.assertEqual(meta2, meta)
         for data in sorted(meta2.values(), key=lambda x: x['dst']):
@@ -380,7 +377,7 @@ class SavegameTestCase(BaseTestCase):
 
     def _get_rd_files(self):
         return {s: savegame.ReferenceData(d['dst']).files
-            for s, d in savegame.MetaManager().meta.items()
+            for s, d in self.meta_man.meta.items()
         }
 
     def test_ref_data(self):
@@ -389,9 +386,7 @@ class SavegameTestCase(BaseTestCase):
         src1 = os.path.join(self.src_root, 'src1')
         savegame.SAVES = [
             {
-                'src_paths': [
-                    src1,
-                ],
+                'src_paths': [src1],
                 'dst_path': self.dst_root,
                 'run_delta': 0,
             },
@@ -457,23 +452,45 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2/file2*'))
 
     def test_meta(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=2,
+        self._generate_src_data(index_start=1, src_count=3, dir_count=2,
             file_count=2)
+        src1 = os.path.join(self.src_root, 'src1')
+        src2 = os.path.join(self.src_root, 'src2')
+        src3 = os.path.join(self.src_root, 'src3')
         savegame.SAVES = [
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                ],
+                'src_paths': [src1],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [src2],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [src3],
                 'dst_path': self.dst_root,
             },
         ]
+        savegame.savegame()
+        pprint(self.meta_man.meta)
+        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2, src3})
+
+        savegame.SAVES = [
+            {
+                'src_paths': [src1],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [src2],
+                'dst_path': self.dst_root,
+            },
+        ]
+        savegame.savegame()
+        pprint(self.meta_man.meta)
+        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
 
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
-
-        def get_first_start_ts():
-            return list(savegame.MetaManager()
-                .meta.values())[0]['first_start_ts']
 
         with patch.object(savegame.BaseSaver,
                     'notify_error') as mock_notify_error, \
@@ -481,52 +498,54 @@ class SavegameTestCase(BaseTestCase):
                     'do_run') as mock_do_run:
             mock_do_run.side_effect = side_do_run
             savegame.savegame()
-        ts1 = get_first_start_ts()
+        pprint(self.meta_man.meta)
+        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
+
+        ts1 = self.meta_man.meta[src1]['first_start_ts']
         self.assertTrue(mock_notify_error.call_args_list)
 
         time.sleep(.1)
         with patch.object(savegame.BaseSaver,
                 'notify_error') as mock_notify_error:
             savegame.savegame()
-        ts2 = get_first_start_ts()
+        ts2 = self.meta_man.meta[src1]['first_start_ts']
         self.assertEqual(ts2, ts1)
         self.assertFalse(mock_notify_error.call_args_list)
 
-        for k, v in savegame.MetaManager().meta.items():
-            v['first_start_ts'] = time.time() - 7 * 24 * 3600
+        for k, v in self.meta_man.meta.items():
+            v['first_start_ts'] = time.time() - 99 * 24 * 3600
+            v['success_ts'] = time.time() - 7 * 24 * 3600
+
         with patch.object(savegame.BaseSaver,
                 'notify_error') as mock_notify_error:
             savegame.savegame()
         self.assertTrue(mock_notify_error.call_args_list)
+
+        pprint(self.meta_man.meta)
+        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
 
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
         savegame.SAVES = [
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                ],
+                'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
             },
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src2'),
-                ],
+                'src_paths': [os.path.join(self.src_root, 'src2')],
                 'dst_path': self.dst_root,
             },
         ]
         savegame.savegame(stats=True)
-        pprint(savegame.MetaManager().meta)
+        pprint(self.meta_man.meta)
 
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
             file_count=4)
         savegame.SAVES = [
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                ],
+                'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
                 'retention_delta': 300,
             },
@@ -546,9 +565,7 @@ class SavegameTestCase(BaseTestCase):
 
         savegame.SAVES = [
             {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                ],
+                'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
                 'retention_delta': 0,
             },
@@ -673,9 +690,7 @@ class SavegameTestCase(BaseTestCase):
         }[os.name]
         savegame.SAVES = [
             {
-                'src_paths': [
-                    src_path,
-                ],
+                'src_paths': [src_path],
                 'dst_path': self.dst_root,
             },
         ]
