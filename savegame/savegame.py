@@ -223,9 +223,8 @@ class MetaManager:
     def set(self, key, value: dict):
         self.meta[key] = value
 
-    def save(self, keys=None):
-        if keys:
-            self.meta = {k: v for k, v in self.meta.items() if k in keys}
+    def save(self, keys):
+        self.meta = {k: v for k, v in self.meta.items() if k in keys}
         with open(self.file, 'w') as fd:
             fd.write(to_json(self.meta))
 
