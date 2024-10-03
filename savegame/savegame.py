@@ -35,6 +35,7 @@ OLD_DELTA = 2 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
+CHECK_DELTA = 24 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 DAEMON_LOOP_DELAY = 10
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
@@ -857,21 +858,53 @@ class RestoreHandler:
         logger.info(f'summary:\n{to_json(report.get_summary())}')
 
 
-class CheckHandler:
-    def __init__(self, hostname=None):
-        self.hostname = hostname
+class DstChecker:
+    last_run_file = os.path.join(WORK_PATH, 'last_check')
+
+    def _get_last_run_ts(self):
+        try:
+            with open(self.last_run_file) as fd:
+                return int(fd.read())
+        except Exception:
+            return 0
+
+    def _set_last_run_ts(self):
+        with open(self.last_run_file, 'w') as fd:
+            fd.write(str(int(time.time())))
+
+    def _list_dst_paths(self):
+        res = set()
+        for save in SAVES:
+            try:
+                res.add(SaveItem(**save).dst_path)
+            except UnhandledPath as exc:
+                logger.warning(exc)
+                continue
+            except InvalidPath as exc:
+                logger.warning(exc)
+                continue
+        return res
 
     def run(self):
-        save_report = SaveHandler().check_data()
-        restore_report = RestoreHandler(hostname=self.hostname).check_data()
-        logger.info('save report:\n'
-            f'{to_json(save_report.clean())}')
-        logger.info('restore report:\n'
-            f'{to_json(restore_report.clean())}')
-        logger.info('save summary:\n'
-            f'{to_json(save_report.get_summary())}')
-        logger.info('restore summary:\n'
-            f'{to_json(restore_report.get_summary())}')
+        now_ts = time.time()
+        if now_ts < self._get_last_run_ts() + CHECK_DELTA:
+            return
+        res = defaultdict(list)
+        for dst_path in self._list_dst_paths():
+            for hostname in sorted(os.listdir(dst_path)):
+                for dst in glob(os.path.join(dst_path, hostname, '*')):
+                    ref_data = ReferenceData(dst)
+                    if not os.path.exists(ref_data.file):
+                        continue
+                    res[hostname].append(os.stat(ref_data.file).st_mtime)
+
+        hostnames = {h for h, m in res.items()
+            if now_ts > max(m) + OLD_DELTA}
+        if hostnames:
+            notify(title=f'{NAME} warning',
+                body='Hostnames not updated recently: '
+                    f'{", ".join(sorted(hostnames))}')
+        self._set_last_run_ts()
 
 
 def with_lockfile():
@@ -929,15 +962,25 @@ def must_run(last_run_ts):
 
 
 def savegame(**kwargs):
-    return SaveHandler(**kwargs).run()
+    SaveHandler(**kwargs).run()
+    DstChecker().run()
 
 
-def checkgame(**kwargs):
-    return CheckHandler(**kwargs).run()
+def checkgame(hostname=None):
+    save_report = SaveHandler().check_data()
+    restore_report = RestoreHandler(hostname=hostname).check_data()
+    logger.info('save report:\n'
+        f'{to_json(save_report.clean())}')
+    logger.info('restore report:\n'
+        f'{to_json(restore_report.clean())}')
+    logger.info('save summary:\n'
+        f'{to_json(save_report.get_summary())}')
+    logger.info('restore summary:\n'
+        f'{to_json(restore_report.get_summary())}')
 
 
 def restoregame(**kwargs):
-    return RestoreHandler(**kwargs).run()
+    RestoreHandler(**kwargs).run()
 
 
 def list_hostnames(**kwargs):
