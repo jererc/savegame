@@ -31,7 +31,7 @@ from google_cloud import GoogleCloud, AuthError, RefreshError
 SAVES = []
 MAX_LOG_FILE_SIZE = 1000 * 1024
 RETRY_DELTA = 2 * 3600
-OLD_DELTA = 2 * 24 * 3600
+OLD_DELTA = 3 * 24 * 3600
 HASH_CACHE_TTL = 24 * 3600
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
@@ -898,8 +898,7 @@ class DstChecker:
                         continue
                     res[hostname].append(os.stat(ref_data.file).st_mtime)
 
-        hostnames = {h for h, m in res.items()
-            if now_ts > max(m) + OLD_DELTA}
+        hostnames = {h for h, m in res.items() if now_ts > max(m) + OLD_DELTA}
         if hostnames:
             notify(title=f'{NAME} warning',
                 body='Hostnames not updated recently: '
