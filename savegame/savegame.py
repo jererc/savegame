@@ -303,6 +303,7 @@ class ReferenceData:
 
 class BaseSaver:
     src_type = None
+    hostname = None
 
     def __init__(self, src, inclusions, exclusions, dst_path, run_delta=0,
             retention_delta=RETENTION_DELTA):
@@ -322,7 +323,8 @@ class BaseSaver:
         self.stats = {}
 
     def get_dst(self):
-        return os.path.join(self.dst_path, self.src_type)
+        return os.path.join(self.dst_path, self.hostname,
+            path_to_filename(self.src))
 
     def can_be_purged(self, path):
         return os.stat(path).st_mtime < time.time() - self.retention_delta
@@ -369,10 +371,7 @@ class BaseSaver:
 
 class LocalSaver(BaseSaver):
     src_type = 'local'
-
-    def get_dst(self):
-        return os.path.join(self.dst_path, HOSTNAME,
-            path_to_filename(self.src))
+    hostname = HOSTNAME
 
     def _get_src_and_files(self):
         src = self.src
@@ -468,6 +467,8 @@ def get_google_cloud():
 
 
 class GoogleCloudSaver(BaseSaver):
+    hostname = 'google_cloud'
+
     def notify_error(self, message, exc=None):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
@@ -482,6 +483,9 @@ class GoogleDriveSaver(GoogleCloudSaver):
     def do_run(self):
         gc = get_google_cloud()
         paths = set()
+        ref_data = ReferenceData(self.dst)
+        ref_data.src = self.src
+        ref_files = {}
         for file_data in gc.iterate_files():
             if not file_data['exportable']:
                 self.report.add('skipped', self.src, file_data['path'])
@@ -496,12 +500,16 @@ class GoogleDriveSaver(GoogleCloudSaver):
             try:
                 gc.download_file(file_id=file_data['id'],
                     path=dst_file, mime_type=file_data['mime_type'])
+                rel_path = os.path.relpath(dst_file, self.dst)
+                ref_files[rel_path] = get_file_hash(dst_file)
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
 
+        ref_data.files = ref_files
+        ref_data.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -524,11 +532,16 @@ class GoogleContactsSaver(GoogleCloudSaver):
                 fd.write(data)
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
+        ref_data = ReferenceData(self.dst)
+        ref_data.src = self.src
+        ref_data.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
+        ref_data.save()
         self.stats['file_count'] = 1
 
 
 class GoogleBookmarksSaver(BaseSaver):
     src_type = 'google_bookmarks'
+    hostname = 'google_cloud'
 
     def _create_bookmark_file(self, title, url, file):
         data = f'<html><body><a href="{url}">{title}</a></body></html>'
@@ -542,16 +555,23 @@ class GoogleBookmarksSaver(BaseSaver):
     def do_run(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
+        ref_data = ReferenceData(self.dst)
+        ref_data.src = self.src
+        ref_files = {}
         for bookmark in bookmarks:
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
             name = bookmark['name'] or bookmark['url']
-            dst_file = f'{os.path.join(dst_path, path_to_filename(name))}.html'
+            dst_file = os.path.join(dst_path, f'{path_to_filename(name)}.html')
             self._create_bookmark_file(title=name, url=bookmark['url'],
                 file=dst_file)
+            rel_path = os.path.relpath(dst_file, self.dst)
+            ref_files[rel_path] = get_file_hash(dst_file)
             paths.add(dst_path)
             paths.add(dst_file)
 
+        ref_data.files = ref_files
+        ref_data.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -888,7 +908,7 @@ class SaveChecker:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref_data = ReferenceData(dst)
-                    if ref_data.src and ref_data.data.get('ts', 0) < min_ts:
+                    if ref_data.data.get('ts', 0) < min_ts:
                         res[hostname].add(ref_data.src)
 
         if res:
