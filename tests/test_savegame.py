@@ -205,7 +205,7 @@ class BaseTestCase(unittest.TestCase):
             rd.save()
 
         for path in walk_paths(self.dst_root):
-            if os.path.basename(path) == savegame.REF_FILE:
+            if os.path.basename(path) == savegame.REF_FILENAME:
                 switch_ref_path(path)
 
     def _savegame(self, run_delta=0, **kwargs):

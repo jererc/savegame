@@ -32,10 +32,9 @@ SAVES = []
 MAX_LOG_FILE_SIZE = 1000 * 1024
 RETRY_DELTA = 2 * 3600
 OLD_DELTA = 3 * 24 * 3600
-HASH_CACHE_TTL = 24 * 3600
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
-CHECK_DELTA = 24 * 3600
+CHECK_DELTA = 8 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 DAEMON_LOOP_DELAY = 10
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
@@ -43,7 +42,7 @@ HOME_PATH = os.path.expanduser('~')
 WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
-REF_FILE = f'.{NAME}'
+REF_FILENAME = f'.{NAME}'
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -111,7 +110,7 @@ def get_path_size(path):
     res = 0
     for root, dirs, files in os.walk(path, topdown=False):
         for filename in files:
-            if filename == REF_FILE:
+            if filename == REF_FILENAME:
                 continue
             file = os.path.join(root, filename)
             try:
@@ -265,7 +264,7 @@ class Report:
 class ReferenceData:
     def __init__(self, dst):
         self.dst = dst
-        self.file = os.path.join(self.dst, REF_FILE)
+        self.file = os.path.join(self.dst, REF_FILENAME)
         self.data = None
         self.src = None
         self.files = None
@@ -424,7 +423,7 @@ class LocalSaver(BaseSaver):
 
         dst_files = set()
         for dst_path in walk_paths(self.dst):
-            if os.path.basename(dst_path) == REF_FILE:
+            if os.path.basename(dst_path) == REF_FILENAME:
                 continue
             if self._needs_removal(dst_path, src, src_files):
                 remove_path(dst_path)
