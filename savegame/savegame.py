@@ -30,13 +30,13 @@ from google_cloud import GoogleCloud, AuthError, RefreshError
 
 SAVES = []
 MAX_LOG_FILE_SIZE = 1000 * 1024
-RETRY_DELTA = 2 * 3600
-OLD_DELTA = 3 * 24 * 3600
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
-CHECK_DELTA = 8 * 3600
-RETENTION_DELTA = 7 * 24 * 3600
 DAEMON_LOOP_DELAY = 10
+RETRY_DELTA = 2 * 3600
+RETENTION_DELTA = 7 * 24 * 3600
+CHECK_DELTA = 8 * 3600
+OLD_DELTA = 3 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
 WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
