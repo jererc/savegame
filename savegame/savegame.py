@@ -286,7 +286,12 @@ class ReferenceData:
         self.files = deepcopy(self.data.get('files', {}))
 
     def save(self):
-        data = {'src': self.src, 'files': self.files}
+        sec = 24 * 3600
+        data = {
+            'src': self.src,
+            'files': self.files,
+            'ts': int(time.time()) // sec * sec,   # limit updates on cloud dst
+        }
         if data == self.data:
             return
         with open(self.file, 'wb') as fd:
@@ -858,7 +863,7 @@ class RestoreHandler:
         logger.info(f'summary:\n{to_json(report.get_summary())}')
 
 
-class DstChecker:
+class SaveChecker:
     last_run_file = os.path.join(WORK_PATH, 'last_check')
 
     def _get_last_run_ts(self):
@@ -872,37 +877,36 @@ class DstChecker:
         with open(self.last_run_file, 'w') as fd:
             fd.write(str(int(time.time())))
 
-    def _list_dst_paths(self):
-        res = set()
+    def _iterate_dst_paths(self):
         for save in SAVES:
             try:
-                res.add(SaveItem(**save).dst_path)
+                yield SaveItem(**save).dst_path
             except UnhandledPath as exc:
                 logger.warning(exc)
                 continue
             except InvalidPath as exc:
                 logger.warning(exc)
                 continue
-        return res
 
     def run(self):
         now_ts = time.time()
         if now_ts < self._get_last_run_ts() + CHECK_DELTA:
             return
-        res = defaultdict(list)
-        for dst_path in self._list_dst_paths():
+        res = defaultdict(set)
+        min_ts = now_ts - OLD_DELTA
+        for dst_path in set(self._iterate_dst_paths()):
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
-                    ref_data = ReferenceData(dst)
-                    if not os.path.exists(ref_data.file):
-                        continue
-                    res[hostname].append(os.stat(ref_data.file).st_mtime)
+                    rd = ReferenceData(dst)
+                    if rd.src and rd.data.get('ts', 0) < min_ts:
+                        res[hostname].add(rd.src)
 
-        hostnames = {h for h, m in res.items() if now_ts > max(m) + OLD_DELTA}
-        if hostnames:
+        if res:
+            report = {k: sorted(v) for k, v in res.items()}
+            logger.warning(f'not saved recently:\n{to_json(report)}')
             notify(title=f'{NAME} warning',
-                body='Hostnames not updated recently: '
-                    f'{", ".join(sorted(hostnames))}')
+                body='Hostnames not saved recently: '
+                    f'{", ".join(sorted(res.keys()))}')
         self._set_last_run_ts()
 
 
@@ -962,7 +966,7 @@ def must_run(last_run_ts):
 
 def savegame(**kwargs):
     SaveHandler(**kwargs).run()
-    DstChecker().run()
+    SaveChecker().run()
 
 
 def checkgame(hostname=None):
