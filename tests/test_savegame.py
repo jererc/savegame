@@ -500,29 +500,6 @@ class SavegameTestCase(BaseTestCase):
         pprint(self.meta_man.meta)
         self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
 
-        ts1 = self.meta_man.meta[src1]['first_start_ts']
-        self.assertTrue(mock_notify_error.call_args_list)
-
-        time.sleep(.1)
-        with patch.object(savegame.BaseSaver,
-                'notify_error') as mock_notify_error:
-            savegame.savegame()
-        ts2 = self.meta_man.meta[src1]['first_start_ts']
-        self.assertEqual(ts2, ts1)
-        self.assertFalse(mock_notify_error.call_args_list)
-
-        for k, v in self.meta_man.meta.items():
-            v['first_start_ts'] = time.time() - 99 * 24 * 3600
-            v['success_ts'] = time.time() - 7 * 24 * 3600
-
-        with patch.object(savegame.BaseSaver,
-                'notify_error') as mock_notify_error:
-            savegame.savegame()
-        self.assertTrue(mock_notify_error.call_args_list)
-
-        pprint(self.meta_man.meta)
-        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
-
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)

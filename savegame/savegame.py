@@ -336,7 +336,6 @@ class BaseSaver:
     def _update_meta(self):
         self.meta_man.set(self.src, {
             'dst': self.dst,
-            'first_start_ts': self.meta.get('first_start_ts', self.start_ts),
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
             'next_ts': time.time() + (self.run_delta
@@ -347,13 +346,6 @@ class BaseSaver:
 
     def check_data(self):
         raise NotImplementedError()
-
-    def check_health(self):
-        first_start_ts = self.meta.get('first_start_ts')
-        success_ts = self.meta.get('success_ts') or 0
-        if first_start_ts and time.time() > max(first_start_ts, success_ts) \
-                + self.run_delta + OLD_DELTA:
-            self.notify_error(f'{self.src} has not been saved recently')
 
     def do_run(self):
         raise NotImplementedError()
@@ -665,7 +657,6 @@ class SaveHandler:
                     body=f'failed to save {saver.src}: {exc}')
             stats[saver.src] = saver.stats
             report.merge(saver.report)
-            saver.check_health()
         MetaManager().save(keys={s.src for s in savers})
         res = report.clean(keys={'saved', 'removed'})
         if res:
