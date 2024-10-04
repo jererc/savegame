@@ -699,8 +699,7 @@ class LocalRestorer:
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
-            for dst_dir in os.listdir(os.path.join(self.dst_path, hostname)):
-                dst = os.path.join(self.dst_path, hostname, dst_dir)
+            for dst in glob(os.path.join(self.dst_path, hostname, '*')):
                 ref_data = ReferenceData(dst)
                 if ref_data.src:
                     yield dst, ref_data
@@ -888,9 +887,9 @@ class SaveChecker:
         for dst_path in set(self._iterate_dst_paths()):
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
-                    rd = ReferenceData(dst)
-                    if rd.src and rd.data.get('ts', 0) < min_ts:
-                        res[hostname].add(rd.src)
+                    ref_data = ReferenceData(dst)
+                    if ref_data.src and ref_data.data.get('ts', 0) < min_ts:
+                        res[hostname].add(ref_data.src)
 
         if res:
             report = {k: sorted(v) for k, v in res.items()}
