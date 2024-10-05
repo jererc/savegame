@@ -848,7 +848,7 @@ class RestoreHandler:
             try:
                 restorer.check_data()
             except Exception:
-                logger.exception(f'failed to check9 {restorer.dst_path}')
+                logger.exception(f'failed to check {restorer.dst_path}')
             report.merge(restorer.report)
         return report
 
