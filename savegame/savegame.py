@@ -86,6 +86,14 @@ makedirs(WORK_PATH)
 setup_logging(logger, WORK_PATH)
 
 
+class UnhandledPath(Exception):
+    pass
+
+
+class InvalidPath(Exception):
+    pass
+
+
 def validate_path(path):
     if os.sep not in path:
         raise UnhandledPath(f'unhandled path {path}: not {os.name}')
@@ -98,10 +106,6 @@ def path_to_filename(path):
 def get_file_mtime(file):
     if os.path.exists(file):
         return datetime.fromtimestamp(os.stat(file).st_mtime, tz=timezone.utc)
-
-
-def to_json(data):
-    return json.dumps(data, indent=4, sort_keys=True)
 
 
 def get_path_size(path):
@@ -150,6 +154,10 @@ def get_file_hash(file, chunk_size=8192):
     return md5_hash.hexdigest()
 
 
+def to_json(data):
+    return json.dumps(data, indent=4, sort_keys=True)
+
+
 def notify(title, body, on_click=None):
     try:
         if os.name == 'nt':
@@ -193,17 +201,16 @@ def check_patterns(path, inclusions=None, exclusions=None):
     return True
 
 
-class InvalidPath(Exception):
-    pass
+def get_google_cloud():
+    secrets_file = os.path.expanduser(GOOGLE_CLOUD_SECRETS_FILE)
+    if not os.path.exists(secrets_file):
+        raise Exception('missing google secrets file')
+    return GoogleCloud(oauth_secrets_file=secrets_file)
 
 
-class UnhandledPath(Exception):
-    pass
-
-
-class MetaManager:
+class Metadata:
     file = os.path.join(WORK_PATH, 'meta.json')
-    meta = {}
+    data = {}
 
     def __new__(cls):
         if not hasattr(cls, 'instance'):
@@ -214,54 +221,22 @@ class MetaManager:
     def load(self):
         if os.path.exists(self.file):
             with open(self.file) as fd:
-                self.meta = json.loads(fd.read())
-            logger.debug(f'loaded {len(self.meta)} meta items')
+                self.data = json.loads(fd.read())
+            logger.debug(f'loaded {len(self.data)} meta items')
 
     def get(self, key):
-        return self.meta.get(key, {})
+        return self.data.get(key, {})
 
     def set(self, key, value: dict):
-        self.meta[key] = value
+        self.data[key] = value
 
     def save(self, keys):
-        self.meta = {k: v for k, v in self.meta.items() if k in keys}
+        self.data = {k: v for k, v in self.data.items() if k in keys}
         with open(self.file, 'w') as fd:
-            fd.write(to_json(self.meta))
+            fd.write(to_json(self.data))
 
 
-class Report:
-    def __init__(self):
-        self.data = defaultdict(lambda: defaultdict(set))
-
-    def add(self, k1, k2, v):
-        if isinstance(v, set):
-            self.data[k1][k2].update(v)
-        else:
-            self.data[k1][k2].add(v)
-
-    def merge(self, report):
-        for k, v in report.data.items():
-            for k2, v2 in v.items():
-                self.data[k][k2].update(v2)
-
-    def clean(self, keys=None):
-        res = defaultdict(dict)
-        for k, v in self.data.items():
-            if keys and k not in keys:
-                continue
-            for k2, v2 in v.items():
-                res[k][k2] = sorted(v2)
-        return res
-
-    def get_summary(self):
-        res = defaultdict(dict)
-        for k, v in self.data.items():
-            for k2, v2 in v.items():
-                res[k][k2] = len(v2)
-        return res
-
-
-class ReferenceData:
+class Reference:
     def __init__(self, dst):
         self.dst = dst
         self.file = os.path.join(self.dst, REF_FILENAME)
@@ -300,6 +275,38 @@ class ReferenceData:
         self.data = data
 
 
+class Report:
+    def __init__(self):
+        self.data = defaultdict(lambda: defaultdict(set))
+
+    def add(self, k1, k2, v):
+        if isinstance(v, set):
+            self.data[k1][k2].update(v)
+        else:
+            self.data[k1][k2].add(v)
+
+    def merge(self, report):
+        for k, v in report.data.items():
+            for k2, v2 in v.items():
+                self.data[k][k2].update(v2)
+
+    def clean(self, keys=None):
+        res = defaultdict(dict)
+        for k, v in self.data.items():
+            if keys and k not in keys:
+                continue
+            for k2, v2 in v.items():
+                res[k][k2] = sorted(v2)
+        return res
+
+    def get_summary(self):
+        res = defaultdict(dict)
+        for k, v in self.data.items():
+            for k2, v2 in v.items():
+                res[k][k2] = len(v2)
+        return res
+
+
 class BaseSaver:
     src_type = None
     hostname = None
@@ -313,8 +320,7 @@ class BaseSaver:
         self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
-        self.meta_man = MetaManager()
-        self.meta = self.meta_man.get(self.src)
+        self.meta = Metadata()
         self.report = Report()
         self.start_ts = None
         self.end_ts = None
@@ -332,17 +338,17 @@ class BaseSaver:
         notify(title=f'{NAME} error', body=message)
 
     def _must_run(self):
-        return time.time() > self.meta.get('next_ts', 0)
+        return time.time() > self.meta.get(self.src).get('next_ts', 0)
 
     def _update_meta(self):
-        self.meta_man.set(self.src, {
+        self.meta.set(self.src, {
             'dst': self.dst,
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
-            'next_ts': time.time() + (self.run_delta
-                if self.success else RETRY_DELTA),
-            'success_ts': self.end_ts
-                if self.success else self.meta.get('success_ts', 0),
+            'next_ts': time.time() + (self.run_delta if self.success
+                else RETRY_DELTA),
+            'success_ts': self.end_ts if self.success
+                else self.meta.get(self.src).get('success_ts', 0),
         })
 
     def check_data(self):
@@ -387,11 +393,11 @@ class LocalSaver(BaseSaver):
         src, src_files = self._get_src_and_files()
         if not src_files:
             return
-        ref_data = ReferenceData(self.dst)
+        ref = Reference(self.dst)
         src_hashes = {os.path.relpath(f, src): get_file_hash(f)
             for f in src_files}
         dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
-            for p in ref_data.files.keys()}
+            for p in ref.files.keys()}
         if src_hashes == dst_hashes:
             self.report.add('ok', src, set(src_files))
         else:
@@ -436,9 +442,9 @@ class LocalSaver(BaseSaver):
                 remove_path(self.dst)
             return
 
-        ref_data = ReferenceData(self.dst)
-        ref_data.src = src
-        ref_files = {}
+        ref = Reference(self.dst)
+        ref.src = src
+        ref.files = {}
         for src_file in src_files:
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
@@ -449,25 +455,15 @@ class LocalSaver(BaseSaver):
                     makedirs(os.path.dirname(dst_file))
                     shutil.copyfile(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                ref_files[rel_path] = src_hash
+                ref.files[rel_path] = src_hash
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
-        ref_data.files = ref_files
-        ref_data.save()
+        ref.save()
         self.stats['file_count'] = len(src_files)
 
 
-def get_google_cloud():
-    secrets_file = os.path.expanduser(GOOGLE_CLOUD_SECRETS_FILE)
-    if not os.path.exists(secrets_file):
-        raise Exception('missing google secrets file')
-    return GoogleCloud(oauth_secrets_file=secrets_file)
-
-
 class GoogleCloudSaver(BaseSaver):
-    hostname = 'google_cloud'
-
     def notify_error(self, message, exc=None):
         if isinstance(exc, (AuthError, RefreshError)):
             notify(title=f'{NAME} google auth error', body=message,
@@ -478,13 +474,14 @@ class GoogleCloudSaver(BaseSaver):
 
 class GoogleDriveSaver(GoogleCloudSaver):
     src_type = 'google_drive'
+    hostname = 'google_cloud'
 
     def do_run(self):
         gc = get_google_cloud()
         paths = set()
-        ref_data = ReferenceData(self.dst)
-        ref_data.src = self.src
-        ref_files = {}
+        ref = Reference(self.dst)
+        ref.src = self.src
+        ref.files = {}
         for file_data in gc.iterate_files():
             if not file_data['exportable']:
                 self.report.add('skipped', self.src, file_data['path'])
@@ -500,15 +497,13 @@ class GoogleDriveSaver(GoogleCloudSaver):
                 gc.download_file(file_id=file_data['id'],
                     path=dst_file, mime_type=file_data['mime_type'])
                 rel_path = os.path.relpath(dst_file, self.dst)
-                ref_files[rel_path] = get_file_hash(dst_file)
+                ref.files[rel_path] = get_file_hash(dst_file)
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_data["name"]}: {exc}')
-
-        ref_data.files = ref_files
-        ref_data.save()
+        ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -517,6 +512,7 @@ class GoogleDriveSaver(GoogleCloudSaver):
 
 class GoogleContactsSaver(GoogleCloudSaver):
     src_type = 'google_contacts'
+    hostname = 'google_cloud'
 
     def do_run(self):
         gc = get_google_cloud()
@@ -531,10 +527,10 @@ class GoogleContactsSaver(GoogleCloudSaver):
                 fd.write(data)
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
-        ref_data = ReferenceData(self.dst)
-        ref_data.src = self.src
-        ref_data.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
-        ref_data.save()
+        ref = Reference(self.dst)
+        ref.src = self.src
+        ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
+        ref.save()
         self.stats['file_count'] = 1
 
 
@@ -554,9 +550,9 @@ class GoogleBookmarksSaver(BaseSaver):
     def do_run(self):
         bookmarks = google_chrome.get_bookmarks()
         paths = set()
-        ref_data = ReferenceData(self.dst)
-        ref_data.src = self.src
-        ref_files = {}
+        ref = Reference(self.dst)
+        ref.src = self.src
+        ref.files = {}
         for bookmark in bookmarks:
             dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
             makedirs(dst_path)
@@ -565,12 +561,10 @@ class GoogleBookmarksSaver(BaseSaver):
             self._create_bookmark_file(title=name, url=bookmark['url'],
                 file=dst_file)
             rel_path = os.path.relpath(dst_file, self.dst)
-            ref_files[rel_path] = get_file_hash(dst_file)
+            ref.files[rel_path] = get_file_hash(dst_file)
             paths.add(dst_path)
             paths.add(dst_file)
-
-        ref_data.files = ref_files
-        ref_data.save()
+        ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -610,7 +604,7 @@ class SaveItem:
                 return obj
         raise Exception(f'invalid src_type {self.src_type}')
 
-    def _iterate_src_and_patterns(self):
+    def _generate_src_and_patterns(self):
         if self.src_type == LocalSaver.src_type:
             for src_path, inclusions, exclusions in self.src_paths:
                 try:
@@ -622,11 +616,11 @@ class SaveItem:
         else:
             yield self.src_type, None, None
 
-    def iterate_savers(self):
+    def generate_savers(self):
         if self.os_name and os.name != self.os_name:
             return
         makedirs(self.dst_path)
-        for src_and_patterns in self._iterate_src_and_patterns():
+        for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(
                 *src_and_patterns,
                 dst_path=self.dst_path,
@@ -654,14 +648,14 @@ class SaveHandler:
         self.force = force
         self.stats = stats
 
-    def _iterate_savers(self):
+    def _generate_savers(self):
         for si in iterate_save_items():
-            for saver in si.iterate_savers():
+            for saver in si.generate_savers():
                 yield saver
 
     def check_data(self):
         report = Report()
-        for saver in self._iterate_savers():
+        for saver in self._generate_savers():
             try:
                 saver.check_data()
             except NotImplementedError:
@@ -671,7 +665,7 @@ class SaveHandler:
 
     def run(self):
         start_ts = time.time()
-        savers = list(self._iterate_savers())
+        savers = list(self._generate_savers())
         report = Report()
         stats = {}
         for saver in savers:
@@ -683,7 +677,7 @@ class SaveHandler:
                     body=f'failed to save {saver.src}: {exc}')
             stats[saver.src] = saver.stats
             report.merge(saver.report)
-        MetaManager().save(keys={s.src for s in savers})
+        Metadata().save(keys={s.src for s in savers})
         res = report.clean(keys={'saved', 'removed'})
         if res:
             logger.info(f'report:\n{to_json(res)}')
@@ -721,24 +715,24 @@ class LocalRestorer:
                 HOME_PATH, 1)
         return None
 
-    def _iterate_dst_and_ref_data(self):
+    def _iterate_dst_and_ref(self):
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
             for dst in glob(os.path.join(self.dst_path, hostname, '*')):
-                ref_data = ReferenceData(dst)
-                if ref_data.src:
-                    yield dst, ref_data
+                ref = Reference(dst)
+                if ref.src:
+                    yield dst, ref
 
     def check_data(self):
-        for dst, ref_data in self._iterate_dst_and_ref_data():
-            src = ref_data.src
+        for dst, ref in self._iterate_dst_and_ref():
+            src = ref.src
             try:
                 validate_path(src)
             except UnhandledPath:
                 self.report.add('skipped_unhandled', src, src)
                 continue
-            for rel_path, ref_hash in ref_data.files.items():
+            for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(dst, rel_path)
                 dst_hash = get_file_hash(dst_file)
                 if dst_hash != ref_hash:
@@ -797,8 +791,8 @@ class LocalRestorer:
                 f'from {dst_file}: {exc}')
 
     def run(self):
-        for dst, ref_data in self._iterate_dst_and_ref_data():
-            src = ref_data.src
+        for dst, ref in self._iterate_dst_and_ref():
+            src = ref.src
             try:
                 validate_path(src)
             except UnhandledPath:
@@ -806,7 +800,7 @@ class LocalRestorer:
                 continue
             rel_paths = set()
             invalid_files = set()
-            for rel_path, ref_hash in ref_data.files.items():
+            for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(dst, rel_path)
                 if get_file_hash(dst_file) != ref_hash:
                     invalid_files.add(dst_file)
@@ -895,9 +889,9 @@ class SaveChecker:
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
-                    ref_data = ReferenceData(dst)
-                    if ref_data.data.get('ts', 0) < min_ts:
-                        res[hostname].add(ref_data.src)
+                    ref = Reference(dst)
+                    if ref.data.get('ts', 0) < min_ts:
+                        res[hostname].add(ref.src)
 
         if res:
             report = {k: sorted(v) for k, v in res.items()}

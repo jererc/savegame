@@ -147,8 +147,8 @@ class BaseTestCase(unittest.TestCase):
         self.dst_root = os.path.join(savegame.WORK_PATH, DST_DIR)
         makedirs(self.dst_root)
 
-        self.meta_man = savegame.MetaManager()
-        self.meta_man.meta = {}
+        self.meta = savegame.Metadata()
+        self.meta.data = {}
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
@@ -196,13 +196,13 @@ class BaseTestCase(unittest.TestCase):
     def _switch_dst_data_username(self, from_username, to_username):
 
         def switch_ref_path(file):
-            rd = savegame.ReferenceData(os.path.dirname(file))
+            ref = savegame.Reference(os.path.dirname(file))
             username_str = f'{os.sep}{from_username}{os.sep}'
-            if username_str not in rd.src:
+            if username_str not in ref.src:
                 return
-            rd.src = rd.src.replace(username_str,
+            ref.src = ref.src.replace(username_str,
                 f'{os.sep}{to_username}{os.sep}')
-            rd.save()
+            ref.save()
 
         for path in walk_paths(self.dst_root):
             if os.path.basename(path) == savegame.REF_FILENAME:
@@ -257,34 +257,34 @@ class PatternTestCase(unittest.TestCase):
         ))
 
 
-class ReferenceDataTestCase(BaseTestCase):
+class ReferenceTestCase(BaseTestCase):
     def _get_mtime(self, rd):
         return os.stat(rd.file).st_mtime
 
     def test_1(self):
-        rd1 = savegame.ReferenceData(self.dst_root)
-        rd1.src = self.src_root
-        rd1.files = {
+        ref1 = savegame.Reference(self.dst_root)
+        ref1.src = self.src_root
+        ref1.files = {
             'file1': 'hash1',
             'file2': 'hash2',
         }
-        rd1.save()
-        ts1 = self._get_mtime(rd1)
+        ref1.save()
+        ts1 = self._get_mtime(ref1)
 
         time.sleep(.1)
-        rd1.save()
-        ts2 = self._get_mtime(rd1)
+        ref1.save()
+        ts2 = self._get_mtime(ref1)
         self.assertEqual(ts2, ts1)
 
-        rd2 = savegame.ReferenceData(self.dst_root)
-        self.assertEqual(rd2.data, rd1.data)
-        self.assertEqual(rd2.src, rd1.src)
-        self.assertEqual(rd2.files, rd1.files)
+        ref2 = savegame.Reference(self.dst_root)
+        self.assertEqual(ref2.data, ref1.data)
+        self.assertEqual(ref2.src, ref1.src)
+        self.assertEqual(ref2.files, ref1.files)
 
         time.sleep(.1)
-        rd2.files['file3'] = 'hash3'
-        rd2.save()
-        ts3 = self._get_mtime(rd2)
+        ref2.files['file3'] = 'hash3'
+        ref2.save()
+        ts3 = self._get_mtime(ref2)
         self.assertTrue(ts3 > ts2)
 
 
@@ -294,7 +294,7 @@ class SaveItemTestCase(BaseTestCase):
         src_paths = glob(os.path.join(dst_path, '*'))[:3]
         self.assertTrue(src_paths)
         si = savegame.SaveItem(src_paths=src_paths, dst_path=dst_path)
-        self.assertTrue(list(si.iterate_savers()))
+        self.assertTrue(list(si.generate_savers()))
 
         if os.name == 'nt':
             dst_path = '/home/jererc/data'
@@ -361,25 +361,25 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*'))
         self.assertTrue(any_str_matches(dst_paths, '*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*file2*'))
-        meta = deepcopy(self.meta_man.meta)
+        meta = deepcopy(self.meta.data)
         pprint(meta)
         for data in sorted(meta.values(), key=lambda x: x['dst']):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
         savegame.savegame()
-        meta2 = deepcopy(self.meta_man.meta)
+        meta2 = deepcopy(self.meta.data)
         pprint(meta2)
         self.assertEqual(meta2, meta)
         for data in sorted(meta2.values(), key=lambda x: x['dst']):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
-    def _get_ref_data(self):
-        return {s: savegame.ReferenceData(d['dst'])
-            for s, d in self.meta_man.meta.items()}
+    def _get_ref(self):
+        return {s: savegame.Reference(d['dst'])
+            for s, d in self.meta.data.items()}
 
-    def test_ref_data(self):
+    def test_ref(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=2,
             file_count=2)
         src1 = os.path.join(self.src_root, 'src1')
@@ -391,12 +391,12 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         savegame.savegame()
-        rd_files = self._get_ref_data()[src1].files
-        pprint(rd_files)
-        self.assertTrue(rd_files.get('dir1/file1'))
-        self.assertTrue(rd_files.get('dir1/file2'))
-        self.assertTrue(rd_files.get('dir2/file1'))
-        self.assertTrue(rd_files.get('dir2/file2'))
+        ref_files = self._get_ref()[src1].files
+        pprint(ref_files)
+        self.assertTrue(ref_files.get('dir1/file1'))
+        self.assertTrue(ref_files.get('dir1/file2'))
+        self.assertTrue(ref_files.get('dir2/file1'))
+        self.assertTrue(ref_files.get('dir2/file2'))
 
         # Source file changed
         for file in walk_files(self.src_root):
@@ -410,20 +410,20 @@ class SavegameTestCase(BaseTestCase):
         with patch.object(savegame.shutil, 'copyfile') as mock_copyfile:
             mock_copyfile.side_effect = side_copyfile
             savegame.savegame()
-        rd_files = self._get_ref_data()[src1].files
-        pprint(rd_files)
-        self.assertFalse('dir1/file1' in rd_files)
-        self.assertTrue(rd_files.get('dir1/file2'))
-        self.assertFalse('dir2/file1' in rd_files)
-        self.assertTrue(rd_files.get('dir2/file2'))
+        ref_files = self._get_ref()[src1].files
+        pprint(ref_files)
+        self.assertFalse('dir1/file1' in ref_files)
+        self.assertTrue(ref_files.get('dir1/file2'))
+        self.assertFalse('dir2/file1' in ref_files)
+        self.assertTrue(ref_files.get('dir2/file2'))
 
         savegame.savegame()
-        rd_files = self._get_ref_data()[src1].files
-        pprint(rd_files)
-        self.assertTrue(rd_files.get('dir1/file1'))
-        self.assertTrue(rd_files.get('dir1/file2'))
-        self.assertTrue(rd_files.get('dir2/file1'))
-        self.assertTrue(rd_files.get('dir2/file2'))
+        ref_files = self._get_ref()[src1].files
+        pprint(ref_files)
+        self.assertTrue(ref_files.get('dir1/file1'))
+        self.assertTrue(ref_files.get('dir1/file2'))
+        self.assertTrue(ref_files.get('dir2/file1'))
+        self.assertTrue(ref_files.get('dir2/file2'))
 
         # Destination file removed
         for file in walk_files(self.dst_root):
@@ -435,12 +435,12 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*file2*'))
 
         savegame.savegame()
-        rd_files = self._get_ref_data()[src1].files
-        pprint(rd_files)
-        self.assertTrue(rd_files.get('dir1/file1'))
-        self.assertTrue(rd_files.get('dir2/file1'))
-        self.assertTrue(rd_files.get('dir1/file2'))
-        self.assertTrue(rd_files.get('dir2/file2'))
+        ref_files = self._get_ref()[src1].files
+        pprint(ref_files)
+        self.assertTrue(ref_files.get('dir1/file1'))
+        self.assertTrue(ref_files.get('dir2/file1'))
+        self.assertTrue(ref_files.get('dir1/file2'))
+        self.assertTrue(ref_files.get('dir2/file2'))
 
         dst_paths = self._list_dst_root_paths()
         print('dst data:')
@@ -471,8 +471,8 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         savegame.savegame()
-        pprint(self.meta_man.meta)
-        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2, src3})
+        pprint(self.meta.data)
+        self.assertEqual(set(self.meta.data.keys()), {src1, src2, src3})
 
         savegame.SAVES = [
             {
@@ -485,8 +485,8 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         savegame.savegame()
-        pprint(self.meta_man.meta)
-        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
+        pprint(self.meta.data)
+        self.assertEqual(set(self.meta.data.keys()), {src1, src2})
 
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
@@ -497,8 +497,8 @@ class SavegameTestCase(BaseTestCase):
                     'do_run') as mock_do_run:
             mock_do_run.side_effect = side_do_run
             savegame.savegame()
-        pprint(self.meta_man.meta)
-        self.assertEqual(set(self.meta_man.meta.keys()), {src1, src2})
+        pprint(self.meta.data)
+        self.assertEqual(set(self.meta.data.keys()), {src1, src2})
 
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
@@ -514,7 +514,7 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         savegame.savegame(stats=True)
-        pprint(self.meta_man.meta)
+        pprint(self.meta.data)
 
     def test_check_dsts(self):
         self._generate_src_data(index_start=1, src_count=4, dir_count=2,
@@ -539,9 +539,9 @@ class SavegameTestCase(BaseTestCase):
 
         old_ts = time.time() - 7 * 24 * 3600
         with patch.object(savegame.time, 'time') as mock_time:
-            for s, rd in self._get_ref_data().items():
+            for s, r in self._get_ref().items():
                 mock_time.return_value = old_ts
-                rd.save()
+                r.save()
 
         sc = savegame.SaveChecker()
         remove_path(sc.last_run_file)
