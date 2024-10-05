@@ -635,21 +635,28 @@ class SaveItem:
             )
 
 
+def iterate_save_items(log_unhandled=False, log_invalid=True):
+    for save in SAVES:
+        try:
+            yield SaveItem(**save)
+        except UnhandledPath as exc:
+            if log_unhandled:
+                logger.warning(exc)
+            continue
+        except InvalidPath as exc:
+            if log_invalid:
+                logger.warning(exc)
+            continue
+
+
 class SaveHandler:
     def __init__(self, force=False, stats=False):
         self.force = force
         self.stats = stats
 
     def _iterate_savers(self):
-        for save in SAVES:
-            try:
-                save_item = SaveItem(**save)
-            except UnhandledPath:
-                continue
-            except InvalidPath as exc:
-                logger.warning(exc)
-                continue
-            for saver in save_item.iterate_savers():
+        for si in iterate_save_items():
+            for saver in si.iterate_savers():
                 yield saver
 
     def check_data(self):
@@ -827,18 +834,9 @@ class RestoreHandler:
         self.restorer_args = restorer_args
 
     def _iterate_restorers(self):
-        dst_paths = set()
-        for save in SAVES:
-            try:
-                si = SaveItem(**save)
-                if si.saver_cls == LocalSaver and si.restorable:
-                    dst_paths.add(si.dst_path)
-            except UnhandledPath as exc:
-                logger.warning(exc)
-                continue
-            except InvalidPath as exc:
-                logger.warning(exc)
-                continue
+        dst_paths = {s.dst_path
+            for s in iterate_save_items(log_unhandled=True)
+            if s.saver_cls == LocalSaver and s.restorable}
         if not dst_paths:
             logger.info('nothing to restore')
         for dst_path in dst_paths:
@@ -886,24 +884,15 @@ class SaveChecker:
         with open(self.last_run_file, 'w') as fd:
             fd.write(str(int(time.time())))
 
-    def _iterate_dst_paths(self):
-        for save in SAVES:
-            try:
-                yield SaveItem(**save).dst_path
-            except UnhandledPath as exc:
-                logger.warning(exc)
-                continue
-            except InvalidPath as exc:
-                logger.warning(exc)
-                continue
-
     def run(self):
         now_ts = time.time()
         if now_ts < self._get_last_run_ts() + CHECK_DELTA:
             return
         res = defaultdict(set)
         min_ts = now_ts - OLD_DELTA
-        for dst_path in set(self._iterate_dst_paths()):
+        dst_paths = {s.dst_path for s in iterate_save_items(
+            log_unhandled=True)}
+        for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref_data = ReferenceData(dst)
