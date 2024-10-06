@@ -221,7 +221,7 @@ class Metadata:
     def load(self):
         if os.path.exists(self.file):
             with open(self.file) as fd:
-                self.data = json.loads(fd.read())
+                self.data = json.load(fd)
             logger.debug(f'loaded {len(self.data)} meta items')
 
     def get(self, key):
