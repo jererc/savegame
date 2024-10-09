@@ -260,11 +260,9 @@ class Reference:
         self.files = deepcopy(self.data.get('files', {}))
 
     def save(self):
-        sec = 24 * 3600
         data = {
             'src': self.src,
             'files': self.files,
-            'ts': int(time.time()) // sec * sec,   # limit updates on cloud dst
         }
         if data == self.data:
             return
@@ -890,7 +888,7 @@ class SaveChecker:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
-                    if ref.data.get('ts', 0) < min_ts:
+                    if os.stat(ref.file).st_mtime < min_ts:
                         res[hostname].add(ref.src)
 
         if res:

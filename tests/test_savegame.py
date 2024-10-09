@@ -10,7 +10,7 @@ import socket
 import sys
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
@@ -537,15 +537,13 @@ class SavegameTestCase(BaseTestCase):
         ]
         savegame.savegame()
 
-        old_ts = time.time() - 7 * 24 * 3600
-        with patch.object(savegame.time, 'time') as mock_time:
-            for s, r in self._get_ref().items():
-                mock_time.return_value = old_ts
-                r.save()
-
         sc = savegame.SaveChecker()
         remove_path(sc.last_run_file)
-        with patch.object(savegame, 'notify') as mock_notify:
+        with patch.object(savegame, 'notify') as mock_notify, \
+                patch.object(savegame.os, 'stat') as mock_stat, \
+                patch.object(savegame.logger, 'warning') as mock_warning:
+            mock_stat.return_value = Mock(st_mtime=time.time()
+                - savegame.OLD_DELTA - 1)
             sc.run()
         pprint(mock_notify.call_args_list)
         self.assertTrue(mock_notify.call_args_list)
