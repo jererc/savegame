@@ -260,10 +260,7 @@ class Reference:
         self.files = deepcopy(self.data.get('files', {}))
 
     def save(self):
-        data = {
-            'src': self.src,
-            'files': self.files,
-        }
+        data = {'src': self.src, 'files': self.files}
         if data == self.data:
             return
         with open(self.file, 'wb') as fd:
