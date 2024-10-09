@@ -893,9 +893,9 @@ class SaveChecker:
 
         if res:
             report = {k: sorted(v) for k, v in res.items()}
-            logger.warning(f'not saved recently:\n{to_json(report)}')
+            logger.warning(f'saves not updated recently:\n{to_json(report)}')
             notify(title=f'{NAME} warning',
-                body='Hostnames not saved recently: '
+                body='Hostname saves not updated recently: '
                     f'{", ".join(sorted(res.keys()))}')
         self._set_last_run_ts()
 
