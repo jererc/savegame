@@ -87,11 +87,11 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class GoogleBookmarksIntegrationTestCase(BaseTestCase):
+class ChromiumBookmarksIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.SAVES = [
             {
-                'src_type': 'google_bookmarks',
+                'src_type': 'chromium_bookmarks',
                 'dst_path': self.dst_root,
             },
         ]

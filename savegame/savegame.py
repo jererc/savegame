@@ -24,7 +24,7 @@ import urllib.parse
 
 import psutil
 
-import google_chrome
+import chromium
 from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
@@ -529,41 +529,32 @@ class GoogleContactsSaver(GoogleCloudSaver):
         self.stats['file_count'] = 1
 
 
-class GoogleBookmarksSaver(BaseSaver):
-    src_type = 'google_bookmarks'
-    hostname = 'google_cloud'
-
-    def _create_bookmark_file(self, title, url, file):
-        data = f'<html><body><a href="{url}">{title}</a></body></html>'
-        if text_file_exists(file, data, log_content_changed=True):
-            self.report.add('skipped', self.src, file)
-        else:
-            with open(file, 'w', encoding='utf-8') as fd:
-                fd.write(data)
-            self.report.add('saved', self.src, file)
+class ChromiumBookmarksSaver(BaseSaver):
+    src_type = 'chromium_bookmarks'
+    hostname = HOSTNAME
 
     def do_run(self):
-        bookmarks = google_chrome.get_bookmarks()
         paths = set()
         ref = Reference(self.dst)
         ref.src = self.src
         ref.files = {}
-        for bookmark in bookmarks:
-            dst_path = os.path.join(self.dst, *(bookmark['path'].split('/')))
-            makedirs(dst_path)
-            name = bookmark['name'] or bookmark['url']
-            dst_file = os.path.join(dst_path, f'{path_to_filename(name)}.html')
-            self._create_bookmark_file(title=name, url=bookmark['url'],
-                file=dst_file)
+        for name, content in chromium.list_bookmarks():
+            dst_file = os.path.join(self.dst, f'{name}.html')
+            paths.add(dst_file)
+            if text_file_exists(dst_file, content, log_content_changed=True):
+                self.report.add('skipped', self.src, dst_file)
+                continue
+            makedirs(os.path.dirname(dst_file))
+            with open(dst_file, 'w', encoding='utf-8') as fd:
+                fd.write(content)
             rel_path = os.path.relpath(dst_file, self.dst)
             ref.files[rel_path] = get_file_hash(dst_file)
-            paths.add(dst_path)
-            paths.add(dst_file)
+            self.report.add('saved', self.src, dst_file)
         ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
-        self.stats['file_count'] = len(bookmarks)
+        self.stats['file_count'] = len(paths)
 
 
 class SaveItem:
