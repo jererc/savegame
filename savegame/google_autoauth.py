@@ -7,17 +7,15 @@ from selenium.common.exceptions import (NoSuchElementException,
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from chromium import Browser
+from chromium import Chromium
 
-
-BROWSER_NAME = 'brave'
 
 logger = logging.getLogger(__name__)
 
 
-class GoogleAutoauth(Browser):
+class GoogleAutoauth(Chromium):
     def __init__(self, client_secrets_file, scopes):
-        super().__init__(name=BROWSER_NAME)
+        super().__init__()
         self.client_secrets_file = client_secrets_file
         self.scopes = scopes
 

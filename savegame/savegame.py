@@ -538,7 +538,7 @@ class ChromiumBookmarksSaver(BaseSaver):
         ref = Reference(self.dst)
         ref.src = self.src
         ref.files = {}
-        for name, content in chromium.list_bookmarks():
+        for name, content in chromium.export_bookmarks():
             dst_file = os.path.join(self.dst, f'{name}.html')
             paths.add(dst_file)
             if text_file_exists(dst_file, content, log_content_changed=True):
