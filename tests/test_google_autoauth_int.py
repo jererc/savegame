@@ -9,7 +9,7 @@ from google_autoauth import GoogleAutoauth
 
 class GoogleAutoauthTestCase(unittest.TestCase):
     def test_1(self):
-        creds_file = os.path.expanduser('~/secrets.json')
+        creds_file = os.path.join(os.path.expanduser('~'), 'gcs.json')
         scopes = [
             'https://www.googleapis.com/auth/contacts.readonly',
             'https://www.googleapis.com/auth/drive.readonly',

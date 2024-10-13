@@ -1,55 +1,25 @@
 import logging
-import os
-import subprocess
 import time
 
 from google_auth_oauthlib.flow import InstalledAppFlow
-from selenium import webdriver
 from selenium.common.exceptions import (NoSuchElementException,
     ElementNotInteractableException)
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
+from chromium import Browser
 
-DATA_DIR = {
-    'nt': os.path.expanduser(r'~\AppData\Local\Google\Chrome\User Data'),
-    'posix': os.path.expanduser('~/.config/google-chrome'),
-}[os.name]
-KILL_CHROME_CMD = {
-    'nt': 'taskkill /IM chrome.exe',
-    'posix': 'pkill chrome',
-}[os.name]
-PROFILE_DIR = 'selenium'
+
+BROWSER_NAME = 'brave'
 
 logger = logging.getLogger(__name__)
 
 
-class GoogleAutoauth:
-    def __init__(self, client_secrets_file, scopes,
-            data_dir=DATA_DIR, profile_dir=PROFILE_DIR):
+class GoogleAutoauth(Browser):
+    def __init__(self, client_secrets_file, scopes):
+        super().__init__(name=BROWSER_NAME)
         self.client_secrets_file = client_secrets_file
         self.scopes = scopes
-        self.data_dir = data_dir
-        self.profile_dir = profile_dir
-        self.driver = self._get_driver()
-
-    def _get_driver(self):
-        if not os.path.exists(self.data_dir):
-            raise Exception(f'chrome data dir {self.data_dir} does not exist')
-        subprocess.call(KILL_CHROME_CMD, shell=True)
-        options = Options()
-        options.add_argument(f'--user-data-dir={self.data_dir}')
-        options.add_argument(f'--profile-directory={self.profile_dir}')
-        options.add_argument('--start-maximized')
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_experimental_option('useAutomationExtension', False)
-        options.add_experimental_option('excludeSwitches',
-            ['enable-automation'])
-        options.add_experimental_option('detach', True)
-        driver = webdriver.Chrome(options=options)
-        driver.implicitly_wait(1)
-        return driver
 
     def _wait_for_element(self, element):
         wait = WebDriverWait(self.driver, timeout=5, poll_frequency=.2,
