@@ -178,13 +178,13 @@ def notify(title, body, on_click=None):
 
 def text_file_exists(file, data, encoding='utf-8',
         log_content_changed=False):
-    if os.path.exists(file):
-        with open(file, encoding=encoding) as fd:
-            res = fd.read() == data
-        if not res and log_content_changed:
-            logger.warning(f'content has changed in {file}')
-        return res
-    return False
+    if not os.path.exists(file):
+        return False
+    with open(file, encoding=encoding) as fd:
+        res = fd.read() == data
+    if not res and log_content_changed:
+        logger.warning(f'content has changed in {file}')
+    return res
 
 
 def check_patterns(path, inclusions=None, exclusions=None):
