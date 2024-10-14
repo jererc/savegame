@@ -537,7 +537,7 @@ class SavegameTestCase(BaseTestCase):
         ]
         savegame.savegame()
 
-        sc = savegame.SaveChecker()
+        sc = savegame.SaveMonitor()
         remove_path(sc.last_run_file)
         with patch.object(savegame, 'notify') as mock_notify, \
                 patch.object(savegame.os, 'stat') as mock_stat, \

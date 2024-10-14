@@ -850,7 +850,7 @@ class RestoreHandler:
         logger.info(f'summary:\n{to_json(report.get_summary())}')
 
 
-class SaveChecker:
+class SaveMonitor:
     last_run_file = os.path.join(WORK_PATH, 'last_check')
 
     def _get_last_run_ts(self):
@@ -944,7 +944,7 @@ def must_run(last_run_ts):
 
 def savegame(**kwargs):
     SaveHandler(**kwargs).run()
-    SaveChecker().run()
+    SaveMonitor().run()
 
 
 def checkgame(hostname=None):
