@@ -82,8 +82,8 @@ def get_profile_paths(data_dir):
     profile_paths = {}
     local_state_path = os.path.join(data_dir, 'Local State')
     if os.path.exists(local_state_path):
-        with open(local_state_path, 'r', encoding='utf-8') as f:
-            local_state_data = json.load(f)
+        with open(local_state_path, encoding='utf-8') as fd:
+            local_state_data = json.load(fd)
         profile_info_cache = local_state_data.get('profile', {}).get(
             'info_cache', {})
         for profile_path, profile_info in profile_info_cache.items():
@@ -129,6 +129,6 @@ def export_bookmarks():
             file = os.path.join(profile_path, BOOKMARKS_FILENAME)
             if not os.path.exists(file):
                 continue
-            with open(file, 'r', encoding='utf-8') as fd:
+            with open(file, encoding='utf-8') as fd:
                 data = json.load(fd)
             yield f'{browser_name}-{profile_name}', bookmarks_to_html(data)
