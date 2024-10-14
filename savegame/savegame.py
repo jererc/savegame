@@ -181,9 +181,9 @@ def text_file_exists(file, data, encoding='utf-8',
     if os.path.exists(file):
         with open(file, encoding=encoding) as fd:
             res = fd.read() == data
-            if not res and log_content_changed:
-                logger.warning(f'content has changed in {file}')
-            return res
+        if not res and log_content_changed:
+            logger.warning(f'content has changed in {file}')
+        return res
     return False
 
 
