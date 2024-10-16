@@ -876,6 +876,8 @@ class SaveMonitor:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
+                    if not os.path.exists(ref.file):
+                        continue
                     if os.stat(ref.file).st_mtime < min_ts:
                         res[hostname].add(ref.src)
 
