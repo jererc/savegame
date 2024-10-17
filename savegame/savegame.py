@@ -245,8 +245,10 @@ class Reference:
         self.files = None
         self._load()
 
-    def _load(self):
-        if not os.path.exists(self.file):
+    def _load(self, data=None):
+        if data:
+            self.data = data
+        elif not os.path.exists(self.file):
             self.data = {}
         else:
             try:
@@ -261,13 +263,14 @@ class Reference:
 
     def save(self):
         data = {'src': self.src, 'files': self.files}
-        if data == self.data:
+        if data == {k: v for k, v in self.data.items() if k != 'ts'}:
             return
+        data['ts'] = int(time.time())
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
         logger.debug(f'updated ref file {self.file}')
-        self.data = data
+        self._load(data)
 
 
 class Report:
@@ -876,9 +879,7 @@ class SaveMonitor:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
-                    if os.path.exists(ref.file):
-                        res[hostname].append(
-                            [ref.src, os.stat(ref.file).st_mtime])
+                    res[hostname].append([ref.src, ref.data['ts']])
 
         hostname_min_ts = now_ts - OLD_DELTA
         report_min_ts = now_ts - OLD_DELTA * 4

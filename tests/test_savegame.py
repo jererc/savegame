@@ -1,6 +1,7 @@
 from copy import deepcopy
 from fnmatch import fnmatch
 from glob import glob
+import gzip
 import json
 import logging
 import os
@@ -537,15 +538,19 @@ class SavegameTestCase(BaseTestCase):
         ]
         savegame.savegame()
 
+        refs = self._get_ref()
+        for save in savegame.SAVES:
+            for src_path in save['src_paths']:
+                ref = refs[src_path]
+                ref.data['ts'] = int(time.time()) - savegame.OLD_DELTA - 1
+                with open(ref.file, 'wb') as fd:
+                    fd.write(gzip.compress(
+                        json.dumps(ref.data, sort_keys=True).encode('utf-8')))
+
         sc = savegame.SaveMonitor()
         remove_path(sc.last_run_file)
-        with patch.object(savegame, 'notify') as mock_notify, \
-                patch.object(savegame.os, 'stat') as mock_stat, \
-                patch.object(savegame.logger, 'warning') as mock_warning:
-            mock_stat.return_value = Mock(st_mtime=time.time()
-                - savegame.OLD_DELTA - 1)
+        with patch.object(savegame, 'notify') as mock_notify:
             sc.run()
-        pprint(mock_notify.call_args_list)
         self.assertTrue(mock_notify.call_args_list)
 
     def test_retention(self):
