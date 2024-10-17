@@ -868,25 +868,34 @@ class SaveMonitor:
         now_ts = time.time()
         if now_ts < self._get_last_run_ts() + CHECK_DELTA:
             return
-        res = defaultdict(set)
-        min_ts = now_ts - OLD_DELTA
+
+        res = defaultdict(list)
         dst_paths = {s.dst_path for s in iterate_save_items(
             log_unhandled=True)}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
-                    if not os.path.exists(ref.file):
-                        continue
-                    if os.stat(ref.file).st_mtime < min_ts:
-                        res[hostname].add(ref.src)
+                    if os.path.exists(ref.file):
+                        res[hostname].append(
+                            [ref.src, os.stat(ref.file).st_mtime])
 
-        if res:
-            report = {k: sorted(v) for k, v in res.items()}
-            logger.warning(f'saves not updated recently:\n{to_json(report)}')
+        hostname_min_ts = now_ts - OLD_DELTA
+        report_min_ts = now_ts - OLD_DELTA * 4
+        old_hostnames = set()
+        report = {}
+        for hostname, data in res.items():
+            if max([t for s, t in data]) < hostname_min_ts:
+                old_hostnames.add(hostname)
+            srcs = [s for s, t in data if t < report_min_ts]
+            if srcs:
+                report[hostname] = sorted(srcs)
+        if old_hostnames:
             notify(title=f'{NAME} warning',
                 body='Hostname saves not updated recently: '
-                    f'{", ".join(sorted(res.keys()))}')
+                    f'{", ".join(sorted(old_hostnames))}')
+        if report:
+            logger.warning(f'saves not updated recently:\n{to_json(report)}')
         self._set_last_run_ts()
 
 
