@@ -878,7 +878,8 @@ class SaveMonitor:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
-                    res[hostname].append([ref.src, ref.data['ts']])
+                    if ref.data:
+                        res[hostname].append([ref.src, ref.data['ts']])
 
         hostname_min_ts = now_ts - OLD_DELTA
         report_min_ts = now_ts - OLD_DELTA * 4
