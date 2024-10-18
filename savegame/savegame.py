@@ -238,8 +238,7 @@ class Metadata:
 
 class Reference:
     def __init__(self, dst):
-        self.dst = dst
-        self.file = os.path.join(self.dst, REF_FILENAME)
+        self.file = os.path.join(dst, REF_FILENAME)
         self.data = None
         self.src = None
         self.files = None
@@ -263,7 +262,7 @@ class Reference:
 
     def save(self):
         data = {'src': self.src, 'files': self.files}
-        if data == {k: v for k, v in self.data.items() if k != 'ts'}:
+        if data == {k: self.data.get(k) for k in data.keys()}:
             return
         data['ts'] = int(time.time())
         with open(self.file, 'wb') as fd:

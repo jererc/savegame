@@ -259,8 +259,8 @@ class PatternTestCase(unittest.TestCase):
 
 
 class ReferenceTestCase(BaseTestCase):
-    def _get_mtime(self, rd):
-        return os.stat(rd.file).st_mtime
+    def _get_mtime(self, ref):
+        return os.stat(ref.file).st_mtime
 
     def test_1(self):
         ref1 = savegame.Reference(self.dst_root)
@@ -287,6 +287,17 @@ class ReferenceTestCase(BaseTestCase):
         ref2.save()
         ts3 = self._get_mtime(ref2)
         self.assertTrue(ts3 > ts2)
+
+        time.sleep(.1)
+        ref2.files['file4'] = 'hash4'
+        ref2.save()
+        ts4 = self._get_mtime(ref2)
+        self.assertTrue(ts4 > ts3)
+
+        time.sleep(.1)
+        ref2.save()
+        ts5 = self._get_mtime(ref2)
+        self.assertEqual(ts5, ts4)
 
 
 class SaveItemTestCase(BaseTestCase):
