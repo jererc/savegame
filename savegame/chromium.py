@@ -122,6 +122,8 @@ def bookmarks_to_html(bookmarks):
 
 def export_bookmarks():
     for config in CONFIGS:
+        if not os.path.exists(config['binary']):
+            continue
         browser_name = os.path.splitext(os.path.basename(config['binary']))[0]
         data_dir = os.path.expanduser(config['data_dir'])
         for profile_name, profile_path in get_profile_paths(
