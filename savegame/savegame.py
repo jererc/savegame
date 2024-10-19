@@ -24,7 +24,7 @@ import urllib.parse
 
 import psutil
 
-import chromium
+from chromium import BookmarksHandler
 from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
@@ -540,15 +540,16 @@ class ChromiumBookmarksSaver(BaseSaver):
         ref = Reference(self.dst)
         ref.src = self.src
         ref.files = {}
-        for name, content in chromium.export_bookmarks():
-            dst_file = os.path.join(self.dst, f'{name}.html')
+        for file_data in BookmarksHandler().export():
+            dst_file = os.path.join(self.dst, file_data['path'])
             paths.add(dst_file)
-            if text_file_exists(dst_file, content, log_content_changed=True):
+            if text_file_exists(dst_file, file_data['content'],
+                    log_content_changed=True):
                 self.report.add('skipped', self.src, dst_file)
                 continue
             makedirs(os.path.dirname(dst_file))
             with open(dst_file, 'w', encoding='utf-8') as fd:
-                fd.write(content)
+                fd.write(file_data['content'])
             rel_path = os.path.relpath(dst_file, self.dst)
             ref.files[rel_path] = get_file_hash(dst_file)
             self.report.add('saved', self.src, dst_file)
