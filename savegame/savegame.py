@@ -531,9 +531,9 @@ class GoogleDriveUploadSaver(GoogleCloudSaver):
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
+        self.report.add('files', self.src, set(src_files))
         if not src_files:
             return
-        self.report.add('files', self.src, set(src_files))
         gc = get_google_cloud()
         remote_files = {r['path']: r for r in gc.iterate_files()}
         for src_file in src_files:
