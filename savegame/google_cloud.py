@@ -250,7 +250,7 @@ class GoogleCloud:
                 .connections()
                 .list(
                     resourceName='people/me',
-                    pageSize=100,
+                    pageSize=1000,
                     personFields='names,emailAddresses,phoneNumbers,addresses',
                     pageToken=page_token,
                 )

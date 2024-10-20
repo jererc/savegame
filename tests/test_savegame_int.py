@@ -93,12 +93,12 @@ class GoogleDriveUploadIntegrationTestCase(BaseTestCase):
             savegame.savegame(force=True)
 
 
-class GoogleContactsIntegrationTestCase(BaseTestCase):
+class GoogleContactsDownloadIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.google_oauth()
         savegame.SAVES = [
             {
-                'saver_id': 'google_contacts',
+                'saver_id': 'google_contacts_download',
                 'dst_path': self.dst_root,
             },
         ]
