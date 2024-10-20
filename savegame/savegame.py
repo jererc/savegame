@@ -326,6 +326,18 @@ class BaseSaver:
         self.success = None
         self.stats = {}
 
+    def get_src_and_files(self):
+        if self.src_type == 'local':
+            src = self.src
+            if os.path.isfile(src):
+                files = [src]
+                src = os.path.dirname(src)
+            else:
+                files = list(walk_files(src))
+            return src, {f for f in files
+                if check_patterns(f, self.inclusions, self.exclusions)}
+        return self.src, set()
+
     def get_dst(self):
         if self.dst_type == 'local':
             return os.path.join(self.dst_path, self.hostname,
@@ -380,19 +392,8 @@ class LocalSaver(BaseSaver):
     id = 'local'
     hostname = HOSTNAME
 
-    def _get_src_and_files(self):
-        src = self.src
-        if os.path.isfile(src):
-            files = [src]
-            src = os.path.dirname(src)
-        else:
-            files = list(walk_files(src))
-        files = {f for f in files
-            if check_patterns(f, self.inclusions, self.exclusions)}
-        return src, files
-
     def check_data(self):
-        src, src_files = self._get_src_and_files()
+        src, src_files = self.get_src_and_files()
         if not src_files:
             return
         ref = Reference(self.dst)
@@ -401,7 +402,7 @@ class LocalSaver(BaseSaver):
         dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
             for p in ref.files.keys()}
         if src_hashes == dst_hashes:
-            self.report.add('ok', src, set(src_files))
+            self.report.add('ok', src, src_files)
         else:
             for path in set(list(src_hashes.keys()) + list(dst_hashes.keys())):
                 src_h = src_hashes.get(path)
@@ -426,8 +427,8 @@ class LocalSaver(BaseSaver):
         return False
 
     def do_run(self):
-        src, src_files = self._get_src_and_files()
-        self.report.add('files', self.src, set(src_files))
+        src, src_files = self.get_src_and_files()
+        self.report.add('files', self.src, src_files)
 
         dst_files = set()
         for dst_path in walk_paths(self.dst):
@@ -518,20 +519,9 @@ class GoogleDriveUploadSaver(GoogleCloudSaver):
     hostname = HOSTNAME
     dst_type = 'remote'
 
-    def _get_src_and_files(self):
-        src = self.src
-        if os.path.isfile(src):
-            files = [src]
-            src = os.path.dirname(src)
-        else:
-            files = list(walk_files(src))
-        files = {f for f in files
-            if check_patterns(f, self.inclusions, self.exclusions)}
-        return src, files
-
     def do_run(self):
-        src, src_files = self._get_src_and_files()
-        self.report.add('files', self.src, set(src_files))
+        src, src_files = self.get_src_and_files()
+        self.report.add('files', self.src, src_files)
         if not src_files:
             return
         gc = get_google_cloud()

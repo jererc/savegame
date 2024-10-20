@@ -59,12 +59,12 @@ class RestoregameIntegrationTestCase(BaseTestCase):
         pprint(self._list_src_root_paths())
 
 
-class GoogleDriveIntegrationTestCase(BaseTestCase):
+class GoogleDriveDownloadIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.google_oauth()
         savegame.SAVES = [
             {
-                'saver_id': 'google_drive',
+                'saver_id': 'google_drive_download',
                 'dst_path': self.dst_root,
             },
         ]
