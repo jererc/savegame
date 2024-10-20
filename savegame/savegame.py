@@ -327,10 +327,10 @@ class BaseSaver:
         self.stats = {}
 
     def get_dst(self):
-        if self.dst_type == 'remote':
-            return self.dst_path
-        return os.path.join(self.dst_path, self.hostname,
-            path_to_filename(self.src))
+        if self.dst_type == 'local':
+            return os.path.join(self.dst_path, self.hostname,
+                path_to_filename(self.src))
+        return self.dst_path
 
     def can_be_purged(self, path):
         return os.stat(path).st_mtime < time.time() - self.retention_delta
@@ -625,13 +625,14 @@ class SaveItem:
             else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
-        if self.saver_cls.dst_type == 'remote':
-            return dst_path
-        validate_path(dst_path)
-        dst_path = os.path.expanduser(dst_path)
-        if not os.path.exists(dst_path):
-            raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
-        return os.path.join(dst_path, NAME, self.saver_id)
+        if self.saver_cls.dst_type == 'local':
+            validate_path(dst_path)
+            dst_path = os.path.expanduser(dst_path)
+            if not os.path.exists(dst_path):
+                raise InvalidPath(f'invalid dst_path {dst_path}: '
+                    'does not exist')
+            return os.path.join(dst_path, NAME, self.saver_id)
+        return dst_path
 
     def _get_saver_class(self):
         module = sys.modules[__name__]
