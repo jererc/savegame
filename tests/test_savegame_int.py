@@ -81,8 +81,8 @@ class GoogleDriveUploadIntegrationTestCase(BaseTestCase):
                 'saver_id': 'google_drive_upload',
                 'src_paths': [
                     [
-                        r'~/OneDrive/data/conf',
-                        ['*/microsoft*'],
+                        os.path.join('~', 'OneDrive', 'data', 'conf'),
+                        ['*microsoft*'],
                         [],
                     ],
                 ],
