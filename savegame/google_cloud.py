@@ -10,7 +10,7 @@ from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 
 from google_autoauth import GoogleAutoauth
 
@@ -20,6 +20,7 @@ OAUTH_TIMEOUT = 60   # seconds
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.file',
 ]
 SIZE_LIMIT = 50000000
 MIME_TYPE_MAP = {
@@ -217,6 +218,17 @@ class GoogleCloud:
             status, done = downloader.next_chunk()
             logger.debug('Download progress: '
                 f'{int(status.progress() * 100)}%')
+
+    def upload_file(self, path, filename, file_id=None):
+        service = self._get_drive_service()
+        metadata = {'name': filename}
+        media = MediaFileUpload(path, resumable=True)
+        if file_id:
+            service.files().update(fileId=file_id,
+                media_body=media).execute()
+        else:
+            service.files().create(body=metadata,
+                media_body=media, fields='id').execute()
 
     #
     # People

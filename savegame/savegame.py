@@ -307,6 +307,8 @@ class Report:
 class BaseSaver:
     id = None
     hostname = None
+    src_type = 'local'
+    dst_type = 'local'
 
     def __init__(self, src, inclusions, exclusions, dst_path, run_delta=0,
             retention_delta=RETENTION_DELTA):
@@ -325,6 +327,8 @@ class BaseSaver:
         self.stats = {}
 
     def get_dst(self):
+        if self.dst_type == 'remote':
+            return self.dst_path
         return os.path.join(self.dst_path, self.hostname,
             path_to_filename(self.src))
 
@@ -367,8 +371,9 @@ class BaseSaver:
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         self.end_ts = time.time()
         self._update_meta()
-        self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
         self.stats['duration'] = self.end_ts - self.start_ts
+        if self.dst_type == 'local':
+            self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
 
 
 class LocalSaver(BaseSaver):
@@ -469,9 +474,10 @@ class GoogleCloudSaver(BaseSaver):
             super().notify_error(message, exc)
 
 
-class GoogleDriveSaver(GoogleCloudSaver):
-    id = 'google_drive'
+class GoogleDriveDownloadSaver(GoogleCloudSaver):
+    id = 'google_drive_download'
     hostname = 'google_cloud'
+    src_type = 'remote'
 
     def do_run(self):
         gc = get_google_cloud()
@@ -507,9 +513,50 @@ class GoogleDriveSaver(GoogleCloudSaver):
         self.stats['file_count'] = len(paths)
 
 
-class GoogleContactsSaver(GoogleCloudSaver):
-    id = 'google_contacts'
+class GoogleDriveUploadSaver(GoogleCloudSaver):
+    id = 'google_drive_upload'
+    hostname = HOSTNAME
+    dst_type = 'remote'
+
+    def _get_src_and_files(self):
+        src = self.src
+        if os.path.isfile(src):
+            files = [src]
+            src = os.path.dirname(src)
+        else:
+            files = list(walk_files(src))
+        files = {f for f in files
+            if check_patterns(f, self.inclusions, self.exclusions)}
+        return src, files
+
+    def do_run(self):
+        src, src_files = self._get_src_and_files()
+        if not src_files:
+            return
+        self.report.add('files', self.src, set(src_files))
+        gc = get_google_cloud()
+        remote_files = {r['path']: r for r in gc.iterate_files()}
+        for src_file in src_files:
+            rel_path = os.path.relpath(src_file, src)
+            remote_path = os.path.join(self.dst_path, rel_path)
+            try:
+                file_data = remote_files[remote_path]
+                if file_data['modified_time'] >= get_file_mtime(src_file):
+                    self.report.add('skipped', self.src, src_file)
+                    continue
+                file_id = file_data['id']
+            except KeyError:
+                file_id = None
+            logger.info(f'uploading {src_file}')
+            gc.upload_file(src_file, filename=os.path.basename(src_file),
+                file_id=file_id)
+            self.report.add('saved', self.src, src_file)
+
+
+class GoogleContactsDownloadSaver(GoogleCloudSaver):
+    id = 'google_contacts_download'
     hostname = 'google_cloud'
+    src_type = 'remote'
 
     def do_run(self):
         gc = get_google_cloud()
@@ -566,18 +613,20 @@ class SaveItem:
             restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
+        self.saver_cls = self._get_saver_class()
         self.dst_path = self._get_dst_path(dst_path)
         self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.restorable = restorable
         self.os_name = os_name
-        self.saver_cls = self._get_saver_class()
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple))
             else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
+        if self.saver_cls.dst_type == 'remote':
+            return dst_path
         validate_path(dst_path)
         dst_path = os.path.expanduser(dst_path)
         if not os.path.exists(dst_path):
@@ -594,7 +643,7 @@ class SaveItem:
         raise Exception(f'invalid saver_id {self.saver_id}')
 
     def _generate_src_and_patterns(self):
-        if self.saver_id == LocalSaver.id:
+        if self.saver_cls.src_type == 'local':
             for src_path, inclusions, exclusions in self.src_paths:
                 try:
                     validate_path(src_path)
@@ -608,7 +657,8 @@ class SaveItem:
     def generate_savers(self):
         if self.os_name and os.name != self.os_name:
             return
-        makedirs(self.dst_path)
+        if self.saver_cls.dst_type == 'local':
+            makedirs(self.dst_path)
         for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(
                 *src_and_patterns,
@@ -874,7 +924,7 @@ class SaveMonitor:
 
         res = defaultdict(list)
         dst_paths = {s.dst_path for s in iterate_save_items(
-            log_unhandled=True)}
+            log_unhandled=True) if s.saver_cls.dst_type == 'local'}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):

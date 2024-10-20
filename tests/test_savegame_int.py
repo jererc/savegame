@@ -73,6 +73,22 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
+class GoogleDriveUploadIntegrationTestCase(BaseTestCase):
+    def test_1(self):
+        savegame.google_oauth()
+        savegame.SAVES = [
+            {
+                'saver_id': 'google_drive_upload',
+                'src_paths': [
+                    r'~/OneDrive/data/conf/microsoft*',
+                ],
+                'dst_path': 'My Drive',
+            },
+        ]
+        for i in range(2):
+            savegame.savegame(force=True)
+
+
 class GoogleContactsIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.google_oauth()
