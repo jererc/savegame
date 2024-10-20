@@ -184,15 +184,15 @@ class BaseTestCase(unittest.TestCase):
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
-            for src_type in os.listdir(os.path.join(self.dst_root, base_dir)):
+            for saver_id in os.listdir(os.path.join(self.dst_root, base_dir)):
                 for hostname in os.listdir(os.path.join(self.dst_root,
-                        base_dir, src_type)):
+                        base_dir, saver_id)):
                     if hostname != from_hostname:
                         continue
                     os.rename(os.path.join(self.dst_root,
-                            base_dir, src_type, hostname),
+                            base_dir, saver_id, hostname),
                         os.path.join(self.dst_root,
-                            base_dir, src_type, to_hostname))
+                            base_dir, saver_id, to_hostname))
 
     def _switch_dst_data_username(self, from_username, to_username):
 

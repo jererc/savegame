@@ -64,7 +64,7 @@ class GoogleDriveIntegrationTestCase(BaseTestCase):
         savegame.google_oauth()
         savegame.SAVES = [
             {
-                'src_type': 'google_drive',
+                'saver_id': 'google_drive',
                 'dst_path': self.dst_root,
             },
         ]
@@ -78,7 +78,7 @@ class GoogleContactsIntegrationTestCase(BaseTestCase):
         savegame.google_oauth()
         savegame.SAVES = [
             {
-                'src_type': 'google_contacts',
+                'saver_id': 'google_contacts',
                 'dst_path': self.dst_root,
             },
         ]
@@ -91,7 +91,7 @@ class ChromiumBookmarksIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.SAVES = [
             {
-                'src_type': 'chromium_bookmarks',
+                'saver_id': 'chromium_bookmarks',
                 'dst_path': self.dst_root,
             },
         ]

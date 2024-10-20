@@ -305,7 +305,7 @@ class Report:
 
 
 class BaseSaver:
-    src_type = None
+    id = None
     hostname = None
 
     def __init__(self, src, inclusions, exclusions, dst_path, run_delta=0,
@@ -372,7 +372,7 @@ class BaseSaver:
 
 
 class LocalSaver(BaseSaver):
-    src_type = 'local'
+    id = 'local'
     hostname = HOSTNAME
 
     def _get_src_and_files(self):
@@ -470,7 +470,7 @@ class GoogleCloudSaver(BaseSaver):
 
 
 class GoogleDriveSaver(GoogleCloudSaver):
-    src_type = 'google_drive'
+    id = 'google_drive'
     hostname = 'google_cloud'
 
     def do_run(self):
@@ -508,14 +508,14 @@ class GoogleDriveSaver(GoogleCloudSaver):
 
 
 class GoogleContactsSaver(GoogleCloudSaver):
-    src_type = 'google_contacts'
+    id = 'google_contacts'
     hostname = 'google_cloud'
 
     def do_run(self):
         gc = get_google_cloud()
         contacts = gc.list_contacts()
         data = to_json(contacts)
-        file = os.path.join(self.dst, f'{self.src_type}.json')
+        file = os.path.join(self.dst, f'{self.id}.json')
         if text_file_exists(file, data):
             self.report.add('skipped', self.src, file)
         else:
@@ -532,7 +532,7 @@ class GoogleContactsSaver(GoogleCloudSaver):
 
 
 class ChromiumBookmarksSaver(BaseSaver):
-    src_type = 'chromium_bookmarks'
+    id = 'chromium_bookmarks'
     hostname = HOSTNAME
 
     def do_run(self):
@@ -561,11 +561,11 @@ class ChromiumBookmarksSaver(BaseSaver):
 
 
 class SaveItem:
-    def __init__(self, src_paths=None, src_type=LocalSaver.src_type,
+    def __init__(self, src_paths=None, saver_id=LocalSaver.id,
             dst_path=DST_PATH, run_delta=0, retention_delta=RETENTION_DELTA,
             restorable=True, os_name=None):
         self.src_paths = self._get_src_paths(src_paths)
-        self.src_type = src_type
+        self.saver_id = saver_id
         self.dst_path = self._get_dst_path(dst_path)
         self.run_delta = run_delta
         self.retention_delta = retention_delta
@@ -582,19 +582,19 @@ class SaveItem:
         dst_path = os.path.expanduser(dst_path)
         if not os.path.exists(dst_path):
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
-        return os.path.join(dst_path, NAME, self.src_type)
+        return os.path.join(dst_path, NAME, self.saver_id)
 
     def _get_saver_class(self):
         module = sys.modules[__name__]
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if obj.__module__ == module.__name__ \
                     and issubclass(obj, BaseSaver) \
-                    and obj.src_type == self.src_type:
+                    and obj.id == self.saver_id:
                 return obj
-        raise Exception(f'invalid src_type {self.src_type}')
+        raise Exception(f'invalid saver_id {self.saver_id}')
 
     def _generate_src_and_patterns(self):
-        if self.src_type == LocalSaver.src_type:
+        if self.saver_id == LocalSaver.id:
             for src_path, inclusions, exclusions in self.src_paths:
                 try:
                     validate_path(src_path)
@@ -603,7 +603,7 @@ class SaveItem:
                 for src in glob(os.path.expanduser(src_path)):
                     yield src, inclusions, exclusions
         else:
-            yield self.src_type, None, None
+            yield self.saver_id, None, None
 
     def generate_savers(self):
         if self.os_name and os.name != self.os_name:
