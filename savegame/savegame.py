@@ -933,19 +933,24 @@ class SaveMonitor:
         hostname_min_ts = now_ts - OLD_DELTA
         report_min_ts = now_ts - OLD_DELTA * 4
         old_hostnames = set()
-        report = {}
+        report = Report()
         for hostname, refs in hostname_refs.items():
             if max([r.ts[-1] for r in refs]) < hostname_min_ts:
                 old_hostnames.add(hostname)
-            srcs = [r.src for r in refs if r.ts[-1] < report_min_ts]
+            srcs = {r.src for r in refs if r.ts[-1] < report_min_ts}
             if srcs:
-                report[hostname] = sorted(srcs)
+                report.add('not_updated_recently', hostname, srcs)
+            for ref in refs:
+                if len(ref.ts) > 5 and ref.ts[-1] - ref.ts[0] < 24 * 3600:
+                    report.add('frequently_updated', hostname, ref.src)
+
         if old_hostnames:
             notify(title=f'{NAME} warning',
                 body='Hostname saves not updated recently: '
                     f'{", ".join(sorted(old_hostnames))}')
         if report:
-            logger.warning(f'saves not updated recently:\n{to_json(report)}')
+            logger.info('monitor report:\n'
+                f'{to_json(report.clean())}')
         self._set_last_run_ts()
 
 
