@@ -299,6 +299,11 @@ class ReferenceTestCase(BaseTestCase):
         ts5 = self._get_mtime(ref2)
         self.assertEqual(ts5, ts4)
 
+        for i in range(50):
+            ref2.files[f'new_file{i}'] = f'new_hash{i}'
+            ref2.save()
+        self.assertEqual(len(ref2.data['ts']), 10)
+
 
 class SaveItemTestCase(BaseTestCase):
     def test_dst_path(self):
@@ -553,7 +558,7 @@ class SavegameTestCase(BaseTestCase):
         for save in savegame.SAVES:
             for src_path in save['src_paths']:
                 ref = refs[src_path]
-                ref.data['ts'] = int(time.time()) - savegame.OLD_DELTA - 1
+                ref.data['ts'] = [int(time.time()) - savegame.OLD_DELTA - 1]
                 with open(ref.file, 'wb') as fd:
                     fd.write(gzip.compress(
                         json.dumps(ref.data, sort_keys=True).encode('utf-8')))

@@ -260,11 +260,15 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
+    @property
+    def ts(self):
+        return self.data.get('ts', [])
+
     def save(self):
         data = {'src': self.src, 'files': self.files}
         if data == {k: self.data.get(k) for k in data.keys()}:
             return
-        data['ts'] = int(time.time())
+        data['ts'] = (self.ts + [int(time.time())])[-10:]
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
@@ -897,6 +901,9 @@ class RestoreHandler:
 class SaveMonitor:
     last_run_file = os.path.join(WORK_PATH, 'last_check')
 
+    def __init__(self, force=False):
+        self.force = force
+
     def _get_last_run_ts(self):
         try:
             with open(self.last_run_file) as fd:
@@ -910,27 +917,27 @@ class SaveMonitor:
 
     def run(self):
         now_ts = time.time()
-        if now_ts < self._get_last_run_ts() + CHECK_DELTA:
+        if not (self.force or now_ts > self._get_last_run_ts() + CHECK_DELTA):
             return
 
-        res = defaultdict(list)
+        hostname_refs = defaultdict(list)
         dst_paths = {s.dst_path for s in iterate_save_items(
             log_unhandled=True) if s.saver_cls.dst_type == 'local'}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
-                    if ref.data:
-                        res[hostname].append([ref.src, ref.data['ts']])
+                    if ref.ts:
+                        hostname_refs[hostname].append(ref)
 
         hostname_min_ts = now_ts - OLD_DELTA
         report_min_ts = now_ts - OLD_DELTA * 4
         old_hostnames = set()
         report = {}
-        for hostname, data in res.items():
-            if max([t for s, t in data]) < hostname_min_ts:
+        for hostname, refs in hostname_refs.items():
+            if max([r.ts[-1] for r in refs]) < hostname_min_ts:
                 old_hostnames.add(hostname)
-            srcs = [s for s, t in data if t < report_min_ts]
+            srcs = [r.src for r in refs if r.ts[-1] < report_min_ts]
             if srcs:
                 report[hostname] = sorted(srcs)
         if old_hostnames:
@@ -996,9 +1003,9 @@ def must_run(last_run_ts):
     return False
 
 
-def savegame(**kwargs):
-    SaveHandler(**kwargs).run()
-    SaveMonitor().run()
+def savegame(force=False, **kwargs):
+    SaveHandler(force=force, **kwargs).run()
+    SaveMonitor(force=force).run()
 
 
 def checkgame(hostname=None):
