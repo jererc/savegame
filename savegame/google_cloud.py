@@ -164,7 +164,7 @@ class GoogleCloud:
             parent_id = get_parent_id(file_meta)
         return path
 
-    def _list_files(self):
+    def _list_file_meta(self):
         service = self._get_drive_service()
         res = []
         page_token = None
@@ -181,9 +181,6 @@ class GoogleCloud:
                 .execute()
             )
             for file_meta in response.get('files', []):
-                if file_meta['mimeType'] == 'application/' \
-                        'vnd.google-apps.folder':
-                    continue
                 file_meta['path'] = self._get_file_path(service, file_meta)
                 res.append(file_meta)
             page_token = response.get('nextPageToken')
@@ -191,8 +188,8 @@ class GoogleCloud:
                 break
         return res
 
-    def iterate_files(self):
-        for file_meta in self._list_files():
+    def iterate_file_meta(self):
+        for file_meta in self._list_file_meta():
             mime_type = MIME_TYPE_MAP[file_meta['mimeType']]
             yield {
                 'id': file_meta['id'],
@@ -203,7 +200,7 @@ class GoogleCloud:
                 'exportable': int(file_meta['size']) < SIZE_LIMIT,
             }
 
-    def download_file(self, file_id, path, mime_type):
+    def export_file(self, file_id, path, mime_type):
         service = self._get_drive_service()
         request = service.files().export_media(fileId=file_id,
             mimeType=mime_type)

@@ -490,7 +490,7 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
         ref = Reference(self.dst)
         ref.src = self.src
         ref.files = {}
-        for file_meta in gc.iterate_files():
+        for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 self.report.add('skipped', self.src, file_meta['path'])
                 continue
@@ -502,7 +502,7 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                 continue
             makedirs(os.path.dirname(dst_file))
             try:
-                gc.download_file(file_id=file_meta['id'],
+                gc.export_file(file_id=file_meta['id'],
                     path=dst_file, mime_type=file_meta['mime_type'])
                 rel_path = os.path.relpath(dst_file, self.dst)
                 ref.files[rel_path] = get_file_hash(dst_file)
@@ -527,7 +527,7 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         gc = get_google_cloud()
         contacts = gc.list_contacts()
         data = to_json(contacts)
-        file = os.path.join(self.dst, f'{self.id}.json')
+        file = os.path.join(self.dst, 'contacts.json')
         if text_file_exists(file, data):
             self.report.add('skipped', self.src, file)
         else:
