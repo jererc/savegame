@@ -256,6 +256,7 @@ class Reference:
                         gzip.decompress(fd.read()).decode('utf-8'))
             except Exception as exc:
                 logger.exception(f'failed to load {self.file}: {exc}')
+                os.remove(self.file)
                 self.data = {}
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
