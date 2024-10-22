@@ -1,4 +1,3 @@
-import hashlib
 import io
 import logging
 import os
@@ -42,14 +41,6 @@ def get_file(path):
     if os.path.exists(path):
         return path
     raise Exception(f'{path} does not exist')
-
-
-def get_file_hash(file, chunk_size=8192):
-    md5_hash = hashlib.md5()
-    with open(file, 'rb') as fd:
-        while chunk := fd.read(chunk_size):
-            md5_hash.update(chunk)
-    return md5_hash.hexdigest()
 
 
 class AuthError(Exception):
