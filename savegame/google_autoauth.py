@@ -2,8 +2,8 @@ import logging
 import time
 
 from google_auth_oauthlib.flow import InstalledAppFlow
-from selenium.common.exceptions import (NoSuchElementException,
-    ElementNotInteractableException)
+from selenium.common.exceptions import (ElementNotInteractableException,
+    NoSuchElementException)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -21,8 +21,8 @@ class GoogleAutoauth(Chromium):
 
     def _wait_for_element(self, element):
         wait = WebDriverWait(self.driver, timeout=5, poll_frequency=.2,
-            ignored_exceptions=[NoSuchElementException,
-                ElementNotInteractableException])
+            ignored_exceptions=[ElementNotInteractableException,
+                NoSuchElementException])
         wait.until(lambda x: element.is_displayed())
 
     def _select_user(self):
@@ -67,9 +67,6 @@ class GoogleAutoauth(Chromium):
         return res
 
     def acquire_credentials(self):
-        """
-        https://google-auth-oauthlib.readthedocs.io/en/latest/reference/google_auth_oauthlib.flow.html
-        """
         flow = InstalledAppFlow.from_client_secrets_file(
             client_secrets_file=self.client_secrets_file,
             scopes=self.scopes,

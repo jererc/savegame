@@ -82,9 +82,6 @@ class GoogleCloud:
         return creds
 
     def get_oauth_creds(self, interact=False):
-        """
-        https://google-auth-oauthlib.readthedocs.io/en/latest/reference/google_auth_oauthlib.flow.html
-        """
         if not self.oauth_secrets_file:
             raise Exception('missing oauth secrets')
         creds = None
