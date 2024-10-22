@@ -59,12 +59,12 @@ class RestoregameIntegrationTestCase(BaseTestCase):
         pprint(self._list_src_root_paths())
 
 
-class GoogleDriveDownloadIntegrationTestCase(BaseTestCase):
+class GoogleDriveExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.google_oauth()
         savegame.SAVES = [
             {
-                'saver_id': 'google_drive_download',
+                'saver_id': 'google_drive_export',
                 'dst_path': self.dst_root,
             },
         ]
@@ -73,32 +73,12 @@ class GoogleDriveDownloadIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class GoogleDriveUploadIntegrationTestCase(BaseTestCase):
+class GoogleContactsExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.google_oauth()
         savegame.SAVES = [
             {
-                'saver_id': 'google_drive_upload',
-                'src_paths': [
-                    [
-                        os.path.join('~', 'OneDrive', 'data', 'conf'),
-                        ['*microsoft*'],
-                        [],
-                    ],
-                ],
-                'dst_path': 'savegame',
-            },
-        ]
-        for i in range(2):
-            savegame.savegame(force=True)
-
-
-class GoogleContactsDownloadIntegrationTestCase(BaseTestCase):
-    def test_1(self):
-        savegame.google_oauth()
-        savegame.SAVES = [
-            {
-                'saver_id': 'google_contacts_download',
+                'saver_id': 'google_contacts_export',
                 'dst_path': self.dst_root,
             },
         ]
@@ -107,11 +87,11 @@ class GoogleContactsDownloadIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class ChromiumBookmarksIntegrationTestCase(BaseTestCase):
+class ChromiumBookmarksExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.SAVES = [
             {
-                'saver_id': 'chromium_bookmarks',
+                'saver_id': 'chromium_bookmarks_export',
                 'dst_path': self.dst_root,
             },
         ]

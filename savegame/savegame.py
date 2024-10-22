@@ -479,8 +479,8 @@ class GoogleCloudSaver(BaseSaver):
             super().notify_error(message, exc)
 
 
-class GoogleDriveDownloadSaver(GoogleCloudSaver):
-    id = 'google_drive_download'
+class GoogleDriveExportSaver(GoogleCloudSaver):
+    id = 'google_drive_export'
     hostname = 'google_cloud'
     src_type = 'remote'
 
@@ -490,27 +490,27 @@ class GoogleDriveDownloadSaver(GoogleCloudSaver):
         ref = Reference(self.dst)
         ref.src = self.src
         ref.files = {}
-        for file_data in gc.iterate_files():
-            if not file_data['exportable']:
-                self.report.add('skipped', self.src, file_data['path'])
+        for file_meta in gc.iterate_files():
+            if not file_meta['exportable']:
+                self.report.add('skipped', self.src, file_meta['path'])
                 continue
-            dst_file = os.path.join(self.dst, file_data['path'])
+            dst_file = os.path.join(self.dst, file_meta['path'])
             paths.add(dst_file)
             mtime = get_file_mtime(dst_file)
-            if mtime and mtime > file_data['modified_time']:
+            if mtime and mtime > file_meta['modified_time']:
                 self.report.add('skipped', self.src, dst_file)
                 continue
             makedirs(os.path.dirname(dst_file))
             try:
-                gc.download_file(file_id=file_data['id'],
-                    path=dst_file, mime_type=file_data['mime_type'])
+                gc.download_file(file_id=file_meta['id'],
+                    path=dst_file, mime_type=file_meta['mime_type'])
                 rel_path = os.path.relpath(dst_file, self.dst)
                 ref.files[rel_path] = get_file_hash(dst_file)
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
-                    f'{file_data["name"]}: {exc}')
+                    f'{file_meta["name"]}: {exc}')
         ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
@@ -518,26 +518,8 @@ class GoogleDriveDownloadSaver(GoogleCloudSaver):
         self.stats['file_count'] = len(paths)
 
 
-class GoogleDriveUploadSaver(GoogleCloudSaver):
-    id = 'google_drive_upload'
-    hostname = HOSTNAME
-    dst_type = 'remote'
-
-    def do_run(self):
-        src, src_files = self.get_src_and_files()
-        self.report.add('files', self.src, src_files)
-        if not src_files:
-            return
-        gc = get_google_cloud()
-        for src_file in src_files:
-            if gc.upload_file(src_file, self.dst_path):
-                self.report.add('saved', self.src,
-                    f'google_drive:{(self.dst_path or "").rstrip('/')}'
-                    f'/{os.path.basename(src_file)}')
-
-
-class GoogleContactsDownloadSaver(GoogleCloudSaver):
-    id = 'google_contacts_download'
+class GoogleContactsExportSaver(GoogleCloudSaver):
+    id = 'google_contacts_export'
     hostname = 'google_cloud'
     src_type = 'remote'
 
@@ -561,8 +543,8 @@ class GoogleContactsDownloadSaver(GoogleCloudSaver):
         self.stats['file_count'] = 1
 
 
-class ChromiumBookmarksSaver(BaseSaver):
-    id = 'chromium_bookmarks'
+class ChromiumBookmarksExportSaver(BaseSaver):
+    id = 'chromium_bookmarks_export'
     hostname = HOSTNAME
 
     def do_run(self):
@@ -570,16 +552,16 @@ class ChromiumBookmarksSaver(BaseSaver):
         ref = Reference(self.dst)
         ref.src = self.src
         ref.files = {}
-        for file_data in BookmarksHandler().export():
-            dst_file = os.path.join(self.dst, file_data['path'])
+        for file_meta in BookmarksHandler().export():
+            dst_file = os.path.join(self.dst, file_meta['path'])
             paths.add(dst_file)
-            if text_file_exists(dst_file, file_data['content'],
+            if text_file_exists(dst_file, file_meta['content'],
                     log_content_changed=True):
                 self.report.add('skipped', self.src, dst_file)
                 continue
             makedirs(os.path.dirname(dst_file))
             with open(dst_file, 'w', encoding='utf-8') as fd:
-                fd.write(file_data['content'])
+                fd.write(file_meta['content'])
             rel_path = os.path.relpath(dst_file, self.dst)
             ref.files[rel_path] = get_file_hash(dst_file)
             self.report.add('saved', self.src, dst_file)
