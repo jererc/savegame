@@ -529,22 +529,11 @@ class GoogleDriveUploadSaver(GoogleCloudSaver):
         if not src_files:
             return
         gc = get_google_cloud()
-        remote_files = {r['path']: r for r in gc.iterate_files()}
         for src_file in src_files:
-            rel_path = os.path.relpath(src_file, src)
-            remote_path = os.path.join(self.dst_path, rel_path)
-            try:
-                file_data = remote_files[remote_path]
-                if file_data['modified_time'] >= get_file_mtime(src_file):
-                    self.report.add('skipped', self.src, src_file)
-                    continue
-                file_id = file_data['id']
-            except KeyError:
-                file_id = None
-            logger.info(f'uploading {src_file}')
-            gc.upload_file(src_file, filename=os.path.basename(src_file),
-                file_id=file_id)
-            self.report.add('saved', self.src, src_file)
+            if gc.upload_file(src_file, self.dst_path):
+                self.report.add('saved', self.src,
+                    f'google_drive:{(self.dst_path or "").rstrip('/')}'
+                    f'/{os.path.basename(src_file)}')
 
 
 class GoogleContactsDownloadSaver(GoogleCloudSaver):
@@ -712,9 +701,9 @@ class SaveHandler:
             stats[saver.src] = saver.stats
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
-        res = report.clean(keys={'saved', 'removed'})
-        if res:
-            logger.info(f'report:\n{to_json(res)}')
+        report_dict = report.clean(keys={'saved', 'removed'})
+        if report_dict:
+            logger.info(f'report:\n{to_json(report_dict)}')
         if self.stats:
             logger.info(f'stats:\n{to_json(stats)}')
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
@@ -948,9 +937,9 @@ class SaveMonitor:
             notify(title=f'{NAME} warning',
                 body='Hostname saves not updated recently: '
                     f'{", ".join(sorted(old_hostnames))}')
-        if report:
-            logger.info('monitor report:\n'
-                f'{to_json(report.clean())}')
+        report_dict = report.clean()
+        if report_dict:
+            logger.info(f'monitor report:\n{to_json(report_dict)}')
         self._set_last_run_ts()
 
 

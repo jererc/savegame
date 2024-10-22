@@ -1,3 +1,4 @@
+import hashlib
 import io
 import logging
 import mimetypes
@@ -56,12 +57,19 @@ def get_file_ext(mime_type):
     return ext
 
 
+def get_file_hash(file, chunk_size=8192):
+    md5_hash = hashlib.md5()
+    with open(file, 'rb') as fd:
+        while chunk := fd.read(chunk_size):
+            md5_hash.update(chunk)
+    return md5_hash.hexdigest()
+
+
 class AuthError(Exception):
     pass
 
 
 class GoogleCloud:
-
     def __init__(self, oauth_secrets_file=None, service_secrets_file=None):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
         self.service_secrets_file = get_file(service_secrets_file)
@@ -136,25 +144,25 @@ class GoogleCloud:
             self.oauth_creds = self.get_oauth_creds()
         return build('drive', 'v3', credentials=self.oauth_creds)
 
-    def _get_file_path(self, service, file_data):
+    def _get_file_path(self, service, file_meta):
 
-        def get_parent_id(file_data):
+        def get_parent_id(file_meta):
             try:
-                return file_data['parents'][0]
+                return file_meta['parents'][0]
             except KeyError:
                 return None
 
-        path = file_data['name']
-        parent_id = get_parent_id(file_data)
+        path = file_meta['name']
+        parent_id = get_parent_id(file_meta)
         while parent_id:
             try:
-                file_data = self._file_cache[parent_id]
+                file_meta = self._file_cache[parent_id]
             except KeyError:
-                file_data = service.files().get(fileId=parent_id,
+                file_meta = service.files().get(fileId=parent_id,
                     fields='id, name, parents').execute()
-                self._file_cache[parent_id] = file_data
-            path = os.path.join(file_data['name'], path)
-            parent_id = get_parent_id(file_data)
+                self._file_cache[parent_id] = file_meta
+            path = os.path.join(file_meta['name'], path)
+            parent_id = get_parent_id(file_meta)
         return path
 
     def _list_files(self):
@@ -176,12 +184,12 @@ class GoogleCloud:
                 )
                 .execute()
             )
-            for file_data in response.get('files', []):
-                if file_data['mimeType'] == 'application/' \
+            for file_meta in response.get('files', []):
+                if file_meta['mimeType'] == 'application/' \
                         'vnd.google-apps.folder':
                     continue
-                file_data['path'] = self._get_file_path(service, file_data)
-                res.append(file_data)
+                file_meta['path'] = self._get_file_path(service, file_meta)
+                res.append(file_meta)
             page_token = response.get('nextPageToken')
             if page_token is None:
                 break
@@ -219,16 +227,74 @@ class GoogleCloud:
             logger.debug('Download progress: '
                 f'{int(status.progress() * 100)}%')
 
-    def upload_file(self, path, filename, file_id=None):
+    def _get_folder_id(self, service, folder_name, parent_id=None):
+        query = f"name = '{folder_name}' and trashed=false " \
+            "and mimeType = 'application/vnd.google-apps.folder'"
+        if parent_id:
+            query += f" and '{parent_id}' in parents"
+        results = service.files().list(q=query, spaces='drive',
+            fields='files(id, name)').execute()
+        items = results.get('files', [])
+        if len(items) == 0:
+            folder_metadata = {
+                'name': folder_name,
+                'mimeType': 'application/vnd.google-apps.folder',
+                'parents': [parent_id] if parent_id else [],
+            }
+            folder = service.files().create(body=folder_metadata,
+                fields='id').execute()
+            return folder.get('id')
+        else:
+            return items[0]['id']
+
+    def _get_file_meta(self, service, file_name, parent_id=None):
+        query = f"name = '{file_name}' and trashed=false " \
+            "and mimeType != 'application/vnd.google-apps.folder'"
+        if parent_id:
+            query += f" and '{parent_id}' in parents"
+        results = service.files().list(q=query,
+            fields='files(id, name, md5Checksum)').execute()
+        items = results.get('files', [])
+        if items:
+            return items[0]
+        return None
+
+    def _get_folder_path_parent_id(self, service, folder_path):
+        folder_path = folder_path.strip('/') if folder_path else None
+        if not folder_path:
+            return None
+        parent_id = None
+        for folder_name in folder_path.split('/'):
+            cache_key = folder_name, parent_id
+            try:
+                parent_id = self._file_cache[cache_key]
+            except KeyError:
+                parent_id = self._get_folder_id(service, folder_name,
+                    parent_id=parent_id)
+                self._file_cache[cache_key] = parent_id
+        return parent_id
+
+    def upload_file(self, file, folder_path):
         service = self._get_drive_service()
-        metadata = {'name': filename}
-        media = MediaFileUpload(path, resumable=True)
-        if file_id:
-            service.files().update(fileId=file_id,
+        parent_id = self._get_folder_path_parent_id(service, folder_path)
+        file_name = os.path.basename(file)
+        file_meta = self._get_file_meta(service, file_name,
+            parent_id=parent_id)
+        if file_meta:
+            if get_file_hash(file) and file_meta['md5Checksum']:
+                return False
+            media = MediaFileUpload(file, resumable=True)
+            service.files().update(fileId=file_meta['id'],
                 media_body=media).execute()
         else:
-            service.files().create(body=metadata,
-                media_body=media, fields='id').execute()
+            file_meta = {
+                'name': file_name,
+                'parents': [parent_id],
+            }
+            media = MediaFileUpload(file, resumable=True)
+            service.files().create(body=file_meta, media_body=media,
+                fields='id').execute()
+        return True
 
     #
     # People

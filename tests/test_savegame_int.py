@@ -86,7 +86,7 @@ class GoogleDriveUploadIntegrationTestCase(BaseTestCase):
                         [],
                     ],
                 ],
-                'dst_path': 'My Drive',
+                'dst_path': 'savegame',
             },
         ]
         for i in range(2):
