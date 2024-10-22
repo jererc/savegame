@@ -21,7 +21,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly',
     'https://www.googleapis.com/auth/drive.file',
 ]
-SIZE_LIMIT = 50000000
+EXPORT_SIZE_LIMIT = 50000000
 MIME_TYPE_MAP = {
     # https://developers.google.com/drive/api/guides/ref-export-formats
     'application/vnd.google-apps.document': ('application/'
@@ -175,7 +175,7 @@ class GoogleCloud:
                 'path': f'{file_meta["path"]}{ext}',
                 'modified_time': parse_dt(file_meta['modifiedTime']),
                 'mime_type': mime_type,
-                'exportable': int(file_meta['size']) < SIZE_LIMIT,
+                'exportable': int(file_meta['size']) < EXPORT_SIZE_LIMIT,
             }
 
     def export_file(self, file_id, path, mime_type):
