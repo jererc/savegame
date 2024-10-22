@@ -4,7 +4,7 @@ import sys
 import unittest
 REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
-from google_autoauth import GoogleAutoauth
+from google_cloud import GoogleAutoauth
 
 
 class GoogleAutoauthTestCase(unittest.TestCase):
