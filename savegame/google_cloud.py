@@ -1,7 +1,6 @@
 import hashlib
 import io
 import logging
-import mimetypes
 import os
 
 from dateutil.parser import parse as parse_dt
@@ -26,19 +25,15 @@ SCOPES = [
 SIZE_LIMIT = 50000000
 MIME_TYPE_MAP = {
     # https://developers.google.com/drive/api/guides/ref-export-formats
-    'application/vnd.google-apps.document': 'application/'
+    'application/vnd.google-apps.document': ('application/'
         'vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.google-apps.spreadsheet': 'application/'
+        '.docx'),
+    'application/vnd.google-apps.spreadsheet': ('application/'
         'vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.xlsx'),
 }
 
 logger = logging.getLogger(__name__)
-
-# Windows fix
-mimetypes.add_type('application/'
-    'vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx')
-mimetypes.add_type('application/'
-    'vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx')
 
 
 def get_file(path):
@@ -47,14 +42,6 @@ def get_file(path):
     if os.path.exists(path):
         return path
     raise Exception(f'{path} does not exist')
-
-
-def get_file_ext(mime_type):
-    ext = mimetypes.guess_extension(mime_type)
-    if not ext:
-        logger.warning(f'failed to guess {mime_type} extension')
-        return ''
-    return ext
 
 
 def get_file_hash(file, chunk_size=8192):
@@ -190,11 +177,11 @@ class GoogleCloud:
 
     def iterate_file_meta(self):
         for file_meta in self._list_file_meta():
-            mime_type = MIME_TYPE_MAP[file_meta['mimeType']]
+            mime_type, ext = MIME_TYPE_MAP[file_meta['mimeType']]
             yield {
                 'id': file_meta['id'],
                 'name': file_meta['name'],
-                'path': f'{file_meta["path"]}{get_file_ext(mime_type)}',
+                'path': f'{file_meta["path"]}{ext}',
                 'modified_time': parse_dt(file_meta['modifiedTime']),
                 'mime_type': mime_type,
                 'exportable': int(file_meta['size']) < SIZE_LIMIT,
