@@ -915,7 +915,7 @@ class SaveMonitor:
         for hostname, refs in hostname_refs.items():
             for ref in refs:
                 ts_delta = self._get_ref_ts_delta(ref)
-                stale_delta = 5 * max(ts_delta) if ts_delta \
+                stale_delta = 2 * max(ts_delta) if ts_delta \
                     else DEFAULT_STALE_DELTA
                 if ref.ts[-1] < now_ts - stale_delta:
                     report.add('stale', hostname, ref.src)
