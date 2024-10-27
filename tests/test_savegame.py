@@ -299,10 +299,25 @@ class ReferenceTestCase(BaseTestCase):
         ts5 = self._get_mtime(ref2)
         self.assertEqual(ts5, ts4)
 
-        for i in range(50):
+        for i in range(10):
             ref2.files[f'new_file{i}'] = f'new_hash{i}'
             ref2.save()
-        self.assertEqual(len(ref2.data['ts']), 10)
+        self.assertTrue(len(ref2.data['ts']) > 10)
+
+        now_ts = time.time()
+        ref2.data['ts'] = [
+            now_ts - savegame.REF_MIN_TS_DELTA - 2,
+            now_ts - savegame.REF_MIN_TS_DELTA - 1,
+            now_ts,
+        ]
+        with open(ref2.file, 'wb') as fd:
+            fd.write(gzip.compress(
+                json.dumps(ref2.data, sort_keys=True).encode('utf-8')))
+
+        ref3 = savegame.Reference(self.dst_root)
+        ref3.files['another_new_file'] = 'another_new_hash'
+        ref3.save()
+        self.assertEqual(len(ref3.data['ts']), 2)
 
 
 class SaveItemTestCase(BaseTestCase):

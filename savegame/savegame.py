@@ -36,6 +36,7 @@ DAEMON_LOOP_DELAY = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 CHECK_DELTA = 8 * 3600
+REF_MIN_TS_DELTA = 30 * 24 * 3600
 DEFAULT_STALE_DELTA = 7 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
@@ -237,7 +238,8 @@ class Metadata:
 
 
 class Reference:
-    def __init__(self, dst):
+    def __init__(self, dst, min_ts_delta=REF_MIN_TS_DELTA):
+        self.min_ts_delta = min_ts_delta
         self.file = os.path.join(dst, REF_FILENAME)
         self.data = None
         self.src = None
@@ -269,7 +271,8 @@ class Reference:
         data = {'src': self.src, 'files': self.files}
         if data == {k: self.data.get(k) for k in data.keys()}:
             return
-        data['ts'] = (self.ts + [int(time.time())])[-10:]
+        min_ts = time.time() - self.min_ts_delta
+        data['ts'] = [t for t in self.ts if t > min_ts] + [int(time.time())]
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
