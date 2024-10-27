@@ -272,7 +272,8 @@ class Reference:
         if data == {k: self.data.get(k) for k in data.keys()}:
             return
         min_ts = time.time() - self.min_ts_delta
-        data['ts'] = [t for t in self.ts if t > min_ts] + [int(time.time())]
+        old_ts = [t for t in self.ts if t > min_ts] or self.ts[-1:]
+        data['ts'] = old_ts + [int(time.time())]
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
