@@ -36,7 +36,7 @@ DAEMON_LOOP_DELAY = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 CHECK_DELTA = 8 * 3600
-OLD_DELTA = 7 * 24 * 3600
+DEFAULT_STALE_DELTA = 7 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
 WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
@@ -887,6 +887,12 @@ class SaveMonitor:
         with open(self.last_run_file, 'w') as fd:
             fd.write(str(int(time.time())))
 
+    def _get_ref_ts_delta(self, ref):
+        count = len(ref.ts)
+        if count < 2:
+            return []
+        return [ref.ts[i + 1] - ref.ts[i] for i in range(count - 1)]
+
     def run(self):
         now_ts = time.time()
         if not (self.force or now_ts > self._get_last_run_ts() + CHECK_DELTA):
@@ -902,27 +908,25 @@ class SaveMonitor:
                     if ref.ts:
                         hostname_refs[hostname].append(ref)
 
-        hostname_min_ts = now_ts - OLD_DELTA
-        report_min_ts = now_ts - OLD_DELTA * 4
-        old_hostnames = set()
         report = Report()
         for hostname, refs in hostname_refs.items():
-            if max([r.ts[-1] for r in refs]) < hostname_min_ts:
-                old_hostnames.add(hostname)
-            srcs = {r.src for r in refs if r.ts[-1] < report_min_ts}
-            if srcs:
-                report.add('not_updated_recently', hostname, srcs)
             for ref in refs:
-                if len(ref.ts) > 5 and ref.ts[-1] - ref.ts[0] < 24 * 3600:
+                ts_delta = self._get_ref_ts_delta(ref)
+                stale_delta = 5 * max(ts_delta) if ts_delta \
+                    else DEFAULT_STALE_DELTA
+                if ref.ts[-1] < now_ts - stale_delta:
+                    report.add('stale', hostname, ref.src)
+                if len(ts_delta) > 2 and \
+                        sum(ts_delta) / len(ts_delta) < 2 * 3600:
                     report.add('frequently_updated', hostname, ref.src)
 
-        if old_hostnames:
-            notify(title=f'{NAME} warning',
-                body='Hostname saves not updated recently: '
-                    f'{", ".join(sorted(old_hostnames))}')
         report_dict = report.clean()
         if report_dict:
             logger.info(f'monitor report:\n{to_json(report_dict)}')
+        stale_hostnames = set(report.data['stale'].keys())
+        if stale_hostnames:
+            notify(title=f'{NAME} warning',
+                body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
         self._set_last_run_ts()
 
 

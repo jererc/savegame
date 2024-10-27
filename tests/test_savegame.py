@@ -555,10 +555,14 @@ class SavegameTestCase(BaseTestCase):
         savegame.savegame()
 
         refs = self._get_ref()
+        now_ts = int(time.time())
         for save in savegame.SAVES:
             for src_path in save['src_paths']:
                 ref = refs[src_path]
-                ref.data['ts'] = [int(time.time()) - savegame.OLD_DELTA - 1]
+                ref.data['ts'] = [
+                    now_ts - 3600 * 15,
+                    now_ts - 3600 * 13,
+                ]
                 with open(ref.file, 'wb') as fd:
                     fd.write(gzip.compress(
                         json.dumps(ref.data, sort_keys=True).encode('utf-8')))
