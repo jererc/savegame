@@ -262,6 +262,11 @@ class ReferenceTestCase(BaseTestCase):
     def _get_mtime(self, ref):
         return os.stat(ref.file).st_mtime
 
+    def _write_data(self, ref):
+        with open(ref.file, 'wb') as fd:
+            fd.write(gzip.compress(
+                json.dumps(ref.data, sort_keys=True).encode('utf-8')))
+
     def test_1(self):
         ref1 = savegame.Reference(self.dst_root)
         ref1.src = self.src_root
@@ -304,20 +309,30 @@ class ReferenceTestCase(BaseTestCase):
             ref2.save()
         self.assertTrue(len(ref2.data['ts']) > 10)
 
-        now_ts = time.time()
+        now_ts = int(time.time())
         ref2.data['ts'] = [
-            now_ts - savegame.REF_MIN_TS_DELTA - 2,
-            now_ts - savegame.REF_MIN_TS_DELTA - 1,
+            now_ts - savegame.REF_TS_HISTORY_DELTA - 2,
+            now_ts - savegame.REF_TS_HISTORY_DELTA - 1,
             now_ts,
         ]
-        with open(ref2.file, 'wb') as fd:
-            fd.write(gzip.compress(
-                json.dumps(ref2.data, sort_keys=True).encode('utf-8')))
+        self._write_data(ref2)
+        ref2 = savegame.Reference(self.dst_root)
+        ref2.files['another_new_file'] = 'another_new_hash'
+        ref2.save()
+        self.assertEqual(len(ref2.data['ts']), 3)
 
-        ref3 = savegame.Reference(self.dst_root)
-        ref3.files['another_new_file'] = 'another_new_hash'
-        ref3.save()
-        self.assertEqual(len(ref3.data['ts']), 2)
+        ref2.data['ts'] = [
+            now_ts - savegame.REF_TS_HISTORY_DELTA - 2,
+            now_ts - savegame.REF_TS_HISTORY_DELTA - 1,
+            now_ts - 2,
+            now_ts - 1,
+            now_ts,
+        ]
+        self._write_data(ref2)
+        ref2 = savegame.Reference(self.dst_root)
+        ref2.files['another_new_file2'] = 'another_new_hash2'
+        ref2.save()
+        self.assertEqual(len(ref2.data['ts']), 4)
 
 
 class SaveItemTestCase(BaseTestCase):

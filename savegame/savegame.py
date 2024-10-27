@@ -36,7 +36,8 @@ DAEMON_LOOP_DELAY = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 CHECK_DELTA = 8 * 3600
-REF_MIN_TS_DELTA = 30 * 24 * 3600
+REF_TS_HISTORY_DELTA = 30 * 24 * 3600
+REF_MIN_TS_HISTORY = 3
 DEFAULT_STALE_DELTA = 7 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
@@ -238,8 +239,10 @@ class Metadata:
 
 
 class Reference:
-    def __init__(self, dst, min_ts_delta=REF_MIN_TS_DELTA):
-        self.min_ts_delta = min_ts_delta
+    def __init__(self, dst, ts_history_delta=REF_TS_HISTORY_DELTA,
+            min_ts_history=REF_MIN_TS_HISTORY):
+        self.ts_history_delta = ts_history_delta
+        self.min_ts_history = min_ts_history
         self.file = os.path.join(dst, REF_FILENAME)
         self.data = None
         self.src = None
@@ -267,13 +270,18 @@ class Reference:
     def ts(self):
         return self.data.get('ts', [])
 
+    def _get_ts_history(self):
+        min_ts = time.time() - self.ts_history_delta
+        ts = [t for t in self.ts if t > min_ts]
+        if len(ts) < self.min_ts_history - 1:
+            ts = self.ts[-(self.min_ts_history - 1):]
+        return ts + [int(time.time())]
+
     def save(self):
         data = {'src': self.src, 'files': self.files}
         if data == {k: self.data.get(k) for k in data.keys()}:
             return
-        min_ts = time.time() - self.min_ts_delta
-        old_ts = [t for t in self.ts if t > min_ts] or self.ts[-1:]
-        data['ts'] = old_ts + [int(time.time())]
+        data['ts'] = self._get_ts_history()
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
