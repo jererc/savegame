@@ -45,8 +45,8 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
-REF_FILENAME_MARK = f'.{NAME}-mark'
-REF_FILENAMES = {REF_FILENAME, REF_FILENAME_MARK}
+REF_UPDATE_FILENAME = f'.{NAME}-update'
+REF_FILENAMES = {REF_FILENAME, REF_UPDATE_FILENAME}
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -246,7 +246,7 @@ class Reference:
         self.ts_history_delta = ts_history_delta
         self.min_ts_history = min_ts_history
         self.file = os.path.join(dst, REF_FILENAME)
-        self.mark_file = os.path.join(dst, REF_FILENAME_MARK)
+        self.update_file = os.path.join(dst, REF_UPDATE_FILENAME)
         self.data = None
         self.src = None
         self.files = None
@@ -270,7 +270,7 @@ class Reference:
         self.files = deepcopy(self.data.get('files', {}))
 
     def _touch_dst(self):
-        with open(self.mark_file, 'w'):
+        with open(self.update_file, 'w'):
             pass
 
     def _get_ts_history(self):
@@ -296,10 +296,10 @@ class Reference:
     def ts(self):
         return self.data.get('ts', [])
 
-    def get_mark_ts(self):
-        if not os.path.exists(self.mark_file):
+    def get_update_ts(self):
+        if not os.path.exists(self.update_file):
             return 0
-        return os.stat(self.mark_file).st_mtime
+        return os.stat(self.update_file).st_mtime
 
 
 class Report:
@@ -936,7 +936,7 @@ class SaveMonitor:
         report = Report()
         now_ts = time.time()
         for hostname, ref in self._iterate_hostname_refs():
-            if ref.get_mark_ts() < now_ts - STALE_DELTA:
+            if ref.get_update_ts() < now_ts - STALE_DELTA:
                 report.add('stale', hostname, ref.src)
             ts_delta = self._get_ref_ts_delta(ref)
             if len(ts_delta) > 2 and \
