@@ -38,13 +38,15 @@ RETENTION_DELTA = 7 * 24 * 3600
 CHECK_DELTA = 8 * 3600
 REF_TS_HISTORY_DELTA = 30 * 24 * 3600
 REF_MIN_TS_HISTORY = 3
-DEFAULT_STALE_DELTA = 7 * 24 * 3600
+STALE_DELTA = 3 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
 WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
+REF_FILENAME_MARK = f'.{NAME}-mark'
+REF_FILENAMES = {REF_FILENAME, REF_FILENAME_MARK}
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -116,7 +118,7 @@ def get_path_size(path):
     res = 0
     for root, dirs, files in os.walk(path, topdown=False):
         for filename in files:
-            if filename == REF_FILENAME:
+            if filename in REF_FILENAMES:
                 continue
             file = os.path.join(root, filename)
             try:
@@ -244,6 +246,7 @@ class Reference:
         self.ts_history_delta = ts_history_delta
         self.min_ts_history = min_ts_history
         self.file = os.path.join(dst, REF_FILENAME)
+        self.mark_file = os.path.join(dst, REF_FILENAME_MARK)
         self.data = None
         self.src = None
         self.files = None
@@ -266,9 +269,9 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    @property
-    def ts(self):
-        return self.data.get('ts', [])
+    def _touch_dst(self):
+        with open(self.mark_file, 'w'):
+            pass
 
     def _get_ts_history(self):
         min_ts = time.time() - self.ts_history_delta
@@ -278,6 +281,7 @@ class Reference:
         return ts + [int(time.time())]
 
     def save(self):
+        self._touch_dst()
         data = {'src': self.src, 'files': self.files}
         if data == {k: self.data.get(k) for k in data.keys()}:
             return
@@ -287,6 +291,15 @@ class Reference:
                 json.dumps(data, sort_keys=True).encode('utf-8')))
         logger.debug(f'updated ref file {self.file}')
         self._load(data)
+
+    @property
+    def ts(self):
+        return self.data.get('ts', [])
+
+    def get_mark_ts(self):
+        if not os.path.exists(self.mark_file):
+            return 0
+        return os.stat(self.mark_file).st_mtime
 
 
 class Report:
@@ -449,7 +462,7 @@ class LocalSaver(BaseSaver):
 
         dst_files = set()
         for dst_path in walk_paths(self.dst):
-            if os.path.basename(dst_path) == REF_FILENAME:
+            if os.path.basename(dst_path) in REF_FILENAMES:
                 continue
             if self._needs_removal(dst_path, src, src_files):
                 remove_path(dst_path)
@@ -899,18 +912,11 @@ class SaveMonitor:
         with open(self.last_run_file, 'w') as fd:
             fd.write(str(int(time.time())))
 
-    def _get_ref_ts_delta(self, ref):
-        count = len(ref.ts)
-        if count < 2:
-            return []
-        return [ref.ts[i + 1] - ref.ts[i] for i in range(count - 1)]
+    def _must_run(self):
+        return (self.force or time.time() > self._get_last_run_ts()
+            + CHECK_DELTA)
 
-    def run(self):
-        now_ts = time.time()
-        if not (self.force or now_ts > self._get_last_run_ts() + CHECK_DELTA):
-            return
-
-        hostname_refs = defaultdict(list)
+    def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(
             log_unhandled=True) if s.saver_cls.dst_type == 'local'}
         for dst_path in dst_paths:
@@ -918,20 +924,30 @@ class SaveMonitor:
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
                     if ref.ts:
-                        hostname_refs[hostname].append(ref)
+                        yield hostname, ref
 
+    def _get_ref_ts_delta(self, ref):
+        count = len(ref.ts)
+        if count < 2:
+            return []
+        return [ref.ts[i + 1] - ref.ts[i] for i in range(count - 1)]
+
+    def _generate_report(self):
         report = Report()
-        for hostname, refs in hostname_refs.items():
-            for ref in refs:
-                ts_delta = self._get_ref_ts_delta(ref)
-                stale_delta = 2 * max(ts_delta) if ts_delta \
-                    else DEFAULT_STALE_DELTA
-                if ref.ts[-1] < now_ts - stale_delta:
-                    report.add('stale', hostname, ref.src)
-                if len(ts_delta) > 2 and \
-                        sum(ts_delta) / len(ts_delta) < 2 * 3600:
-                    report.add('frequently_updated', hostname, ref.src)
+        now_ts = time.time()
+        for hostname, ref in self._iterate_hostname_refs():
+            if ref.get_mark_ts() < now_ts - STALE_DELTA:
+                report.add('stale', hostname, ref.src)
+            ts_delta = self._get_ref_ts_delta(ref)
+            if len(ts_delta) > 2 and \
+                    sum(ts_delta) / len(ts_delta) < 2 * 3600:
+                report.add('frequently_updated', hostname, ref.src)
+        return report
 
+    def run(self):
+        if not self._must_run():
+            return
+        report = self._generate_report()
         report_dict = report.clean()
         if report_dict:
             logger.info(f'monitor report:\n{to_json(report_dict)}')

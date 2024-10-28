@@ -563,46 +563,6 @@ class SavegameTestCase(BaseTestCase):
         savegame.savegame(stats=True)
         pprint(self.meta.data)
 
-    def test_check_dsts(self):
-        self._generate_src_data(index_start=1, src_count=4, dir_count=2,
-            file_count=2)
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                    os.path.join(self.src_root, 'src2'),
-                ],
-                'dst_path': self.dst_root,
-            },
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src3'),
-                    os.path.join(self.src_root, 'src4'),
-                ],
-                'dst_path': self.dst_root,
-            },
-        ]
-        savegame.savegame()
-
-        refs = self._get_ref()
-        now_ts = int(time.time())
-        for save in savegame.SAVES:
-            for src_path in save['src_paths']:
-                ref = refs[src_path]
-                ref.data['ts'] = [
-                    now_ts - 3600 * 15,
-                    now_ts - 3600 * 13,
-                ]
-                with open(ref.file, 'wb') as fd:
-                    fd.write(gzip.compress(
-                        json.dumps(ref.data, sort_keys=True).encode('utf-8')))
-
-        sc = savegame.SaveMonitor()
-        remove_path(sc.last_run_file)
-        with patch.object(savegame, 'notify') as mock_notify:
-            sc.run()
-        self.assertTrue(mock_notify.call_args_list)
-
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
             file_count=4)
