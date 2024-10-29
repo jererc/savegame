@@ -932,9 +932,9 @@ class SaveMonitor:
             if ref.run_file.get_ts() < now_ts - STALE_DELTA:
                 report.add('stale', hostname, ref.src)
             ts_delta = self._get_ref_ts_delta(ref)
-            if len(ts_delta) > 2 and \
-                    sum(ts_delta) / len(ts_delta) < 2 * 3600:
-                report.add('frequently_updated', hostname, ref.src)
+            if len(ts_delta) > 2:
+                report.add('update_delta_mins', hostname,
+                    (ref.src, int(sum(ts_delta) / len(ts_delta) / 60)))
         return report
 
     def run(self):
