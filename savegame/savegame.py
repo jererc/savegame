@@ -35,7 +35,7 @@ FORCE_RUN_DELTA = 90 * 60
 DAEMON_LOOP_DELAY = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
-CHECK_DELTA = 8 * 3600
+MONITOR_DELTA = 8 * 3600
 REF_TS_HISTORY_DELTA = 30 * 24 * 3600
 REF_MIN_TS_HISTORY = 3
 STALE_DELTA = 3 * 24 * 3600
@@ -45,8 +45,8 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
-REF_UPDATE_FILENAME = f'.{NAME}_update'
-REF_FILENAMES = {REF_FILENAME, REF_UPDATE_FILENAME}
+REF_RUN_FILENAME = f'.{NAME}_run'
+REF_FILENAMES = {REF_FILENAME, REF_RUN_FILENAME}
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -240,13 +240,27 @@ class Metadata:
             fd.write(to_json(self.data))
 
 
+class RunFile:
+    def __init__(self, file):
+        self.file = file
+
+    def get_ts(self, default=0):
+        if not os.path.exists(self.file):
+            return default
+        return os.stat(self.file).st_mtime
+
+    def touch(self):
+        with open(self.file, 'w'):
+            pass
+
+
 class Reference:
     def __init__(self, dst, ts_history_delta=REF_TS_HISTORY_DELTA,
             min_ts_history=REF_MIN_TS_HISTORY):
         self.ts_history_delta = ts_history_delta
         self.min_ts_history = min_ts_history
         self.file = os.path.join(dst, REF_FILENAME)
-        self.update_file = os.path.join(dst, REF_UPDATE_FILENAME)
+        self.run_file = RunFile(os.path.join(dst, REF_RUN_FILENAME))
         self.data = None
         self.src = None
         self.files = None
@@ -269,10 +283,6 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def _touch_dst(self):
-        with open(self.update_file, 'w'):
-            pass
-
     def _get_ts_history(self):
         min_ts = time.time() - self.ts_history_delta
         ts = [t for t in self.ts if t > min_ts]
@@ -281,7 +291,7 @@ class Reference:
         return ts + [int(time.time())]
 
     def save(self):
-        self._touch_dst()
+        self.run_file.touch()
         data = {'src': self.src, 'files': self.files}
         if data == {k: self.data.get(k) for k in data.keys()}:
             return
@@ -295,11 +305,6 @@ class Reference:
     @property
     def ts(self):
         return self.data.get('ts', [])
-
-    def get_update_ts(self):
-        if not os.path.exists(self.update_file):
-            return 0
-        return os.stat(self.update_file).st_mtime
 
 
 class Report:
@@ -896,25 +901,13 @@ class RestoreHandler:
 
 
 class SaveMonitor:
-    last_run_file = os.path.join(WORK_PATH, 'last_check')
-
     def __init__(self, force=False):
         self.force = force
-
-    def _get_last_run_ts(self):
-        try:
-            with open(self.last_run_file) as fd:
-                return int(fd.read())
-        except Exception:
-            return 0
-
-    def _set_last_run_ts(self):
-        with open(self.last_run_file, 'w') as fd:
-            fd.write(str(int(time.time())))
+        self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor_run'))
 
     def _must_run(self):
-        return (self.force or time.time() > self._get_last_run_ts()
-            + CHECK_DELTA)
+        return (self.force or time.time() > self.run_file.get_ts()
+            + MONITOR_DELTA)
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(
@@ -936,7 +929,7 @@ class SaveMonitor:
         report = Report()
         now_ts = time.time()
         for hostname, ref in self._iterate_hostname_refs():
-            if ref.get_update_ts() < now_ts - STALE_DELTA:
+            if ref.run_file.get_ts() < now_ts - STALE_DELTA:
                 report.add('stale', hostname, ref.src)
             ts_delta = self._get_ref_ts_delta(ref)
             if len(ts_delta) > 2 and \
@@ -955,7 +948,7 @@ class SaveMonitor:
         if stale_hostnames:
             notify(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
-        self._set_last_run_ts()
+        self.run_file.touch()
 
 
 def with_lockfile():
@@ -1061,24 +1054,14 @@ class Daemon:
 
 
 class Task:
-    last_run_file = os.path.join(WORK_PATH, 'last_run')
-
-    def _get_last_run_ts(self):
-        try:
-            with open(self.last_run_file) as fd:
-                return int(fd.read())
-        except Exception:
-            return 0
-
-    def _set_last_run_ts(self):
-        with open(self.last_run_file, 'w') as fd:
-            fd.write(str(int(time.time())))
+    def __init__(self):
+        self.run_file = RunFile(os.path.join(WORK_PATH, 'task_run'))
 
     @with_lockfile()
     def run(self):
-        if must_run(self._get_last_run_ts()):
+        if must_run(self.run_file.get_ts()):
             savegame()
-            self._set_last_run_ts()
+            self.run_file.touch()
 
 
 def _parse_args():

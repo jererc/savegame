@@ -563,6 +563,62 @@ class SavegameTestCase(BaseTestCase):
         savegame.savegame(stats=True)
         pprint(self.meta.data)
 
+    def test_task(self):
+        self._generate_src_data(index_start=1, src_count=4, dir_count=2,
+            file_count=2)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src1'),
+                    os.path.join(self.src_root, 'src2'),
+                ],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src3'),
+                    os.path.join(self.src_root, 'src4'),
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        with patch.object(savegame, 'savegame') as mock_savegame:
+            for i in range(3):
+                savegame.Task().run()
+        self.assertEqual(len(mock_savegame.call_args_list), 1)
+
+    def test_monitor(self):
+        self._generate_src_data(index_start=1, src_count=4, dir_count=2,
+            file_count=2)
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src1'),
+                    os.path.join(self.src_root, 'src2'),
+                ],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [
+                    os.path.join(self.src_root, 'src3'),
+                    os.path.join(self.src_root, 'src4'),
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        savegame.savegame()
+        self.assertFalse(savegame.SaveMonitor()._must_run())
+
+        refs = self._get_ref()
+        for src_path, ref in refs.items():
+            if src_path.endswith('src1'):
+                remove_path(ref.run_file.file)
+
+        with patch.object(savegame, 'notify') as mock_notify:
+            sc = savegame.SaveMonitor(force=True)
+            sc.run()
+        self.assertTrue(mock_notify.call_args_list)
+
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
             file_count=4)
