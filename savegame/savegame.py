@@ -45,7 +45,7 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
-REF_UPDATE_FILENAME = f'.{NAME}-update'
+REF_UPDATE_FILENAME = f'.{NAME}_update'
 REF_FILENAMES = {REF_FILENAME, REF_UPDATE_FILENAME}
 SHARED_USERNAMES = {
     'nt': {'Public'},
