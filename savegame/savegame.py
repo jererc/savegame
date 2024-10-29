@@ -45,7 +45,7 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
-REF_RUN_FILENAME = f'.{NAME}_run'
+REF_RUN_FILENAME = f'.{NAME}.run'
 REF_FILENAMES = {REF_FILENAME, REF_RUN_FILENAME}
 SHARED_USERNAMES = {
     'nt': {'Public'},
@@ -903,7 +903,7 @@ class RestoreHandler:
 class SaveMonitor:
     def __init__(self, force=False):
         self.force = force
-        self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor_run'))
+        self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor.run'))
 
     def _must_run(self):
         return (self.force or time.time() > self.run_file.get_ts()
@@ -1055,7 +1055,7 @@ class Daemon:
 
 class Task:
     def __init__(self):
-        self.run_file = RunFile(os.path.join(WORK_PATH, 'task_run'))
+        self.run_file = RunFile(os.path.join(WORK_PATH, 'task.run'))
 
     @with_lockfile()
     def run(self):
