@@ -162,6 +162,10 @@ def to_json(data):
     return json.dumps(data, indent=4, sort_keys=True)
 
 
+def to_float(x):
+    return float(f'{x:.02f}')
+
+
 def notify(title, body, on_click=None):
     try:
         if os.name == 'nt':
@@ -354,6 +358,7 @@ class BaseSaver:
         self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
+        self.ref = Reference(self.dst)
         self.meta = Metadata()
         self.report = Report()
         self.start_ts = None
@@ -397,6 +402,7 @@ class BaseSaver:
         if not (force or self._must_run()):
             return
         self.start_ts = time.time()
+        self.ref.src = self.src
         try:
             self.do_run()
             self.success = True
@@ -407,8 +413,6 @@ class BaseSaver:
         self.end_ts = time.time()
         self._update_meta()
         self.stats['duration'] = self.end_ts - self.start_ts
-        if self.dst_type == 'local':
-            self.stats['size_MB'] = get_path_size(self.dst) / 1024 / 1024
 
 
 class LocalSaver(BaseSaver):
@@ -431,11 +435,10 @@ class LocalSaver(BaseSaver):
         src, src_files = self._get_src_and_files()
         if not src_files:
             return
-        ref = Reference(self.dst)
         src_hashes = {os.path.relpath(f, src): get_file_hash(f)
             for f in src_files}
         dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
-            for p in ref.files.keys()}
+            for p in self.ref.files.keys()}
         if src_hashes == dst_hashes:
             self.report.add('ok', src, src_files)
         else:
@@ -464,7 +467,6 @@ class LocalSaver(BaseSaver):
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
-        self.stats['file_count'] = len(src_files)
 
         dst_files = set()
         for dst_path in walk_paths(self.dst):
@@ -481,9 +483,8 @@ class LocalSaver(BaseSaver):
                 remove_path(self.dst)
             return
 
-        ref = Reference(self.dst)
-        ref.src = src
-        ref.files = {}
+        self.ref.src = src
+        self.ref.files = {}
         for src_file in src_files:
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
@@ -494,11 +495,11 @@ class LocalSaver(BaseSaver):
                     makedirs(os.path.dirname(dst_file))
                     shutil.copyfile(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                ref.files[rel_path] = src_hash
+                self.ref.files[rel_path] = src_hash
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
-        ref.save()
+        self.ref.save()
 
 
 class GoogleCloudSaver(BaseSaver):
@@ -518,9 +519,7 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
     def do_run(self):
         gc = get_google_cloud()
         paths = set()
-        ref = Reference(self.dst)
-        ref.src = self.src
-        ref.files = {}
+        self.ref.files = {}
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 self.report.add('skipped', self.src, file_meta['path'])
@@ -536,17 +535,16 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                 gc.export_file(file_id=file_meta['id'],
                     path=dst_file, mime_type=file_meta['mime_type'])
                 rel_path = os.path.relpath(dst_file, self.dst)
-                ref.files[rel_path] = get_file_hash(dst_file)
+                self.ref.files[rel_path] = get_file_hash(dst_file)
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_meta["name"]}: {exc}')
-        ref.save()
+        self.ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
-        self.stats['file_count'] = len(paths)
 
 
 class GoogleContactsExportSaver(GoogleCloudSaver):
@@ -567,11 +565,8 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
                 fd.write(data)
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
-        ref = Reference(self.dst)
-        ref.src = self.src
-        ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
-        ref.save()
-        self.stats['file_count'] = 1
+        self.ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
+        self.ref.save()
 
 
 class ChromiumBookmarksExportSaver(BaseSaver):
@@ -580,9 +575,7 @@ class ChromiumBookmarksExportSaver(BaseSaver):
 
     def do_run(self):
         paths = set()
-        ref = Reference(self.dst)
-        ref.src = self.src
-        ref.files = {}
+        self.ref.files = {}
         for file_meta in BookmarksHandler().export():
             dst_file = os.path.join(self.dst, file_meta['path'])
             paths.add(dst_file)
@@ -594,13 +587,12 @@ class ChromiumBookmarksExportSaver(BaseSaver):
             with open(dst_file, 'w', encoding='utf-8') as fd:
                 fd.write(file_meta['content'])
             rel_path = os.path.relpath(dst_file, self.dst)
-            ref.files[rel_path] = get_file_hash(dst_file)
+            self.ref.files[rel_path] = get_file_hash(dst_file)
             self.report.add('saved', self.src, dst_file)
-        ref.save()
+        self.ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
-        self.stats['file_count'] = len(paths)
 
 
 class SaveItem:
@@ -680,9 +672,9 @@ def iterate_save_items(log_unhandled=False, log_invalid=True):
 
 
 class SaveHandler:
-    def __init__(self, force=False, stats=False):
+    def __init__(self, force=False, verbose=False):
         self.force = force
-        self.stats = stats
+        self.verbose = verbose
 
     def _generate_savers(self):
         for si in iterate_save_items():
@@ -717,7 +709,7 @@ class SaveHandler:
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        if self.stats:
+        if self.verbose:
             logger.info(f'stats:\n{to_json(stats)}')
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
@@ -915,9 +907,7 @@ class SaveMonitor:
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
-                    ref = Reference(dst)
-                    if ref.ts:
-                        yield hostname, ref
+                    yield hostname, dst, Reference(dst)
 
     def _get_ref_ts_delta(self, ref):
         count = len(ref.ts)
@@ -925,26 +915,43 @@ class SaveMonitor:
             return []
         return [ref.ts[i + 1] - ref.ts[i] for i in range(count - 1)]
 
-    def _generate_report(self):
-        report = Report()
-        now_ts = time.time()
-        for hostname, ref in self._iterate_hostname_refs():
-            if ref.run_file.get_ts() < now_ts - STALE_DELTA:
-                report.add('stale', hostname, ref.src)
-            ts_delta = self._get_ref_ts_delta(ref)
-            if len(ts_delta) > 2:
-                report.add('update_delta_mins', hostname,
-                    (ref.src, int(sum(ts_delta) / len(ts_delta) / 60)))
-        return report
+    def _get_avg_run_delta_hours(self, ref):
+        ts_delta = self._get_ref_ts_delta(ref)
+        if len(ts_delta) > 2:
+            return to_float(sum(ts_delta) / len(ts_delta) / 3600)
 
     def run(self):
         if not self._must_run():
             return
-        report = self._generate_report()
-        report_dict = report.clean()
-        if report_dict:
-            logger.info(f'monitor report:\n{to_json(report_dict)}')
-        stale_hostnames = set(report.data['stale'].keys())
+
+        other_sep = '\\' if os.sep == '/' else '/'
+
+        def get_rel_path(rel_path):
+            return rel_path.replace(other_sep, os.sep)
+
+        def get_size(files):
+            return to_float(sum(os.path.getsize(r) for r in files)
+                / 1024 / 1024)
+
+        report = defaultdict(lambda: defaultdict(dict))
+        stale_hostnames = set()
+        now_ts = time.time()
+        for hostname, dst, ref in self._iterate_hostname_refs():
+            report[hostname][ref.src]['last_run_delta_hours'] = to_float(
+                (now_ts - ref.run_file.get_ts()) / 3600)
+            report[hostname][ref.src]['file_count'] = len(ref.files)
+            try:
+                report[hostname][ref.src]['size_MB'] = get_size(
+                    os.path.join(dst, get_rel_path(f))
+                    for f in ref.files.keys())
+            except Exception:
+                logger.exception(f'failed to get {dst} size')
+            report[hostname][ref.src]['avg_run_delta_hours'] = \
+                self._get_avg_run_delta_hours(ref)
+            if ref.run_file.get_ts() < now_ts - STALE_DELTA:
+                stale_hostnames.add(hostname)
+        if report:
+            logger.info(f'monitor report:\n{to_json(report)}')
         if stale_hostnames:
             notify(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
@@ -1005,8 +1012,8 @@ def must_run(last_run_ts):
     return False
 
 
-def savegame(force=False, **kwargs):
-    SaveHandler(force=force, **kwargs).run()
+def savegame(force=False, verbose=False):
+    SaveHandler(force=force, verbose=verbose).run()
     SaveMonitor(force=force).run()
 
 
@@ -1070,7 +1077,6 @@ def _parse_args():
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
-    save_parser.add_argument('--stats', action='store_true')
     check_parser = subparsers.add_parser('check')
     check_parser.add_argument('--hostname')
     restore_parser = subparsers.add_parser('restore')
@@ -1093,7 +1099,7 @@ def main():
         elif args.task:
             Task().run()
         else:
-            savegame(force=True, stats=args.stats)
+            savegame(force=True, verbose=True)
     else:
         {
             'check': checkgame,

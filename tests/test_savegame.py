@@ -560,7 +560,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        savegame.savegame(stats=True)
+        savegame.savegame(verbose=True)
         pprint(self.meta.data)
 
     def test_task(self):
