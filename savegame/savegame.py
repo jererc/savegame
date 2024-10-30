@@ -261,6 +261,7 @@ class RunFile:
 class Reference:
     def __init__(self, dst, ts_history_delta=REF_TS_HISTORY_DELTA,
             min_ts_history=REF_MIN_TS_HISTORY):
+        self.dst = dst
         self.ts_history_delta = ts_history_delta
         self.min_ts_history = min_ts_history
         self.file = os.path.join(dst, REF_FILENAME)
@@ -405,6 +406,8 @@ class BaseSaver:
         self.ref.src = self.src
         try:
             self.do_run()
+            if os.path.exists(self.ref.dst):
+                self.ref.save()
             self.success = True
         except Exception as exc:
             self.success = False
@@ -499,7 +502,6 @@ class LocalSaver(BaseSaver):
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
-        self.ref.save()
 
 
 class GoogleCloudSaver(BaseSaver):
@@ -541,7 +543,6 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_meta["name"]}: {exc}')
-        self.ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -566,7 +567,6 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
         self.ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
-        self.ref.save()
 
 
 class ChromiumBookmarksExportSaver(BaseSaver):
@@ -589,7 +589,6 @@ class ChromiumBookmarksExportSaver(BaseSaver):
             rel_path = os.path.relpath(dst_file, self.dst)
             self.ref.files[rel_path] = get_file_hash(dst_file)
             self.report.add('saved', self.src, dst_file)
-        self.ref.save()
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -907,7 +906,7 @@ class SaveMonitor:
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
-                    yield hostname, dst, Reference(dst)
+                    yield hostname, Reference(dst)
 
     def _get_ref_ts_delta(self, ref):
         count = len(ref.ts)
@@ -936,13 +935,13 @@ class SaveMonitor:
         report = defaultdict(lambda: defaultdict(dict))
         stale_hostnames = set()
         now_ts = time.time()
-        for hostname, dst, ref in self._iterate_hostname_refs():
+        for hostname, ref in self._iterate_hostname_refs():
             report[hostname][ref.src]['last_run_delta_hours'] = to_float(
                 (now_ts - ref.run_file.get_ts()) / 3600)
             report[hostname][ref.src]['file_count'] = len(ref.files)
             try:
                 report[hostname][ref.src]['size_MB'] = get_size(
-                    os.path.join(dst, get_rel_path(f))
+                    os.path.join(ref.dst, get_rel_path(f))
                     for f in ref.files.keys())
             except Exception:
                 logger.exception(f'failed to get {dst} size')
