@@ -521,7 +521,6 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
     def do_run(self):
         gc = get_google_cloud()
         paths = set()
-        self.ref.files = {}
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 self.report.add('skipped', self.src, file_meta['path'])
@@ -536,13 +535,15 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
             try:
                 gc.export_file(file_id=file_meta['id'],
                     path=dst_file, mime_type=file_meta['mime_type'])
-                rel_path = os.path.relpath(dst_file, self.dst)
-                self.ref.files[rel_path] = get_file_hash(dst_file)
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_meta["name"]}: {exc}')
+
+        self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
+            for p in paths}
+
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -575,20 +576,20 @@ class ChromiumBookmarksExportSaver(BaseSaver):
 
     def do_run(self):
         paths = set()
-        self.ref.files = {}
         for file_meta in BookmarksHandler().export():
             dst_file = os.path.join(self.dst, file_meta['path'])
             paths.add(dst_file)
             if text_file_exists(dst_file, file_meta['content'],
                     log_content_changed=True):
                 self.report.add('skipped', self.src, dst_file)
-                continue
-            makedirs(os.path.dirname(dst_file))
-            with open(dst_file, 'w', encoding='utf-8') as fd:
-                fd.write(file_meta['content'])
-            rel_path = os.path.relpath(dst_file, self.dst)
-            self.ref.files[rel_path] = get_file_hash(dst_file)
-            self.report.add('saved', self.src, dst_file)
+            else:
+                makedirs(os.path.dirname(dst_file))
+                with open(dst_file, 'w', encoding='utf-8') as fd:
+                    fd.write(file_meta['content'])
+                self.report.add('saved', self.src, dst_file)
+        self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
+            for p in paths}
+
         for dst_path in walk_paths(self.dst):
             if dst_path not in paths and self.can_be_purged(dst_path):
                 remove_path(dst_path)
@@ -742,41 +743,40 @@ class LocalRestorer:
                 HOME_PATH, 1)
         return None
 
-    def _iterate_dst_and_ref(self):
+    def _iterate_refs(self):
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
             for dst in glob(os.path.join(self.dst_path, hostname, '*')):
                 ref = Reference(dst)
                 if ref.src:
-                    yield dst, ref
+                    yield ref
 
     def check_data(self):
-        for dst, ref in self._iterate_dst_and_ref():
-            src = ref.src
+        for ref in self._iterate_refs():
             try:
-                validate_path(src)
+                validate_path(ref.src)
             except UnhandledPath:
-                self.report.add('skipped_unhandled', src, src)
+                self.report.add('skipped_unhandled', ref.src, ref.src)
                 continue
             for rel_path, ref_hash in ref.files.items():
-                dst_file = os.path.join(dst, rel_path)
+                dst_file = os.path.join(ref.dst, rel_path)
                 dst_hash = get_file_hash(dst_file)
                 if dst_hash != ref_hash:
-                    self.report.add('invalid_dst_files', dst, dst_file)
-                src_file_raw = os.path.join(src, rel_path)
+                    self.report.add('invalid_dst_files', ref.dst, dst_file)
+                src_file_raw = os.path.join(ref.src, rel_path)
                 src_file = self._get_src_file_for_user(src_file_raw)
                 if not src_file:
-                    self.report.add('skipped_other_username', src,
+                    self.report.add('skipped_other_username', ref.src,
                         src_file_raw)
                     continue
                 if os.path.exists(src_file):
                     if get_file_hash(src_file) == dst_hash == ref_hash:
-                        self.report.add('ok', src, src_file)
+                        self.report.add('ok', ref.src, src_file)
                     else:
-                        self.report.add('hash_mismatched', src, src_file)
+                        self.report.add('hash_mismatched', ref.src, src_file)
                 else:
-                    self.report.add('missing_at_src', src, src_file)
+                    self.report.add('missing_at_src', ref.src, src_file)
 
     def _requires_restore(self, dst_file, src_file, src):
         if not check_patterns(src_file, self.include, self.exclude):
@@ -818,36 +818,35 @@ class LocalRestorer:
                 f'from {dst_file}: {exc}')
 
     def run(self):
-        for dst, ref in self._iterate_dst_and_ref():
-            src = ref.src
+        for ref in self._iterate_refs():
             try:
-                validate_path(src)
+                validate_path(ref.src)
             except UnhandledPath:
-                self.report.add('skipped_unhandled', src, src)
+                self.report.add('skipped_unhandled', ref.src, ref.src)
                 continue
             rel_paths = set()
             invalid_files = set()
             for rel_path, ref_hash in ref.files.items():
-                dst_file = os.path.join(dst, rel_path)
+                dst_file = os.path.join(ref.dst, rel_path)
                 if get_file_hash(dst_file) != ref_hash:
                     invalid_files.add(dst_file)
                 else:
                     rel_paths.add(rel_path)
             if invalid_files:
-                self.report.add('invalid_files', src, invalid_files)
+                self.report.add('invalid_files', ref.src, invalid_files)
                 continue
             if not rel_paths:
-                self.report.add('empty_dst', src, dst)
+                self.report.add('empty_dst', ref.src, ref.dst)
                 continue
             for rel_path in rel_paths:
-                src_file_raw = os.path.join(src, rel_path)
+                src_file_raw = os.path.join(ref.src, rel_path)
                 src_file = self._get_src_file_for_user(src_file_raw)
                 if not src_file:
-                    self.report.add('skipped_other_username', src,
+                    self.report.add('skipped_other_username', ref.src,
                         src_file_raw)
                     continue
-                self._restore_file(os.path.join(dst, rel_path),
-                    src_file, src)
+                self._restore_file(os.path.join(ref.dst, rel_path),
+                    src_file, ref.src)
 
 
 class RestoreHandler:
@@ -919,19 +918,22 @@ class SaveMonitor:
         if len(ts_delta) > 2:
             return to_float(sum(ts_delta) / len(ts_delta) / 3600)
 
+    def _get_size(self, ref):
+        other_sep = '\\' if os.sep == '/' else '/'
+
+        def get_rel_path(x):
+            return x.replace(other_sep, os.sep)
+
+        try:
+            sizes = [os.path.getsize(os.path.join(ref.dst, get_rel_path(r)))
+                for r in ref.files.keys()]
+            return to_float(sum(sizes) / 1024 / 1024)
+        except Exception:
+            logger.exception(f'failed to get {ref.dst} size')
+
     def run(self):
         if not self._must_run():
             return
-
-        other_sep = '\\' if os.sep == '/' else '/'
-
-        def get_rel_path(rel_path):
-            return rel_path.replace(other_sep, os.sep)
-
-        def get_size(files):
-            return to_float(sum(os.path.getsize(r) for r in files)
-                / 1024 / 1024)
-
         report = defaultdict(lambda: defaultdict(dict))
         stale_hostnames = set()
         now_ts = time.time()
@@ -939,12 +941,7 @@ class SaveMonitor:
             report[hostname][ref.src]['last_run_delta_hours'] = to_float(
                 (now_ts - ref.run_file.get_ts()) / 3600)
             report[hostname][ref.src]['file_count'] = len(ref.files)
-            try:
-                report[hostname][ref.src]['size_MB'] = get_size(
-                    os.path.join(ref.dst, get_rel_path(f))
-                    for f in ref.files.keys())
-            except Exception:
-                logger.exception(f'failed to get {dst} size')
+            report[hostname][ref.src]['size_MB'] = self._get_size(ref)
             report[hostname][ref.src]['avg_run_delta_hours'] = \
                 self._get_avg_run_delta_hours(ref)
             if ref.run_file.get_ts() < now_ts - STALE_DELTA:
