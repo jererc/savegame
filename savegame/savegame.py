@@ -464,6 +464,7 @@ class LocalSaver(BaseSaver):
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
+        self.stats['file_count'] = len(src_files)
 
         dst_files = set()
         for dst_path in walk_paths(self.dst):
@@ -498,7 +499,6 @@ class LocalSaver(BaseSaver):
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
         ref.save()
-        self.stats['file_count'] = len(src_files)
 
 
 class GoogleCloudSaver(BaseSaver):
