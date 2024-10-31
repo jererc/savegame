@@ -9,15 +9,15 @@ SCRIPT_PATH = os.path.join(ROOT_PATH, 'savegame.py')
 NAME = os.path.splitext(os.path.basename(SCRIPT_PATH))[0]
 ROOT_VENV_PATH = os.path.join(os.path.expanduser('~'), 'venv')
 VENV_PATH = os.path.join(ROOT_VENV_PATH, NAME)
-VENV_ACTIVATE_PATH = {
-    'nt': os.path.join(VENV_PATH, r'Scripts\activate'),
-    'posix': os.path.join(VENV_PATH, 'bin/activate'),
-}[os.name]
 PIP_PATH = {
     'nt': os.path.join(VENV_PATH, r'Scripts\pip.exe'),
     'posix': os.path.join(VENV_PATH, 'bin/pip'),
 }[os.name]
 PY_PATH = {
+    'nt': os.path.join(VENV_PATH, r'Scripts\python.exe'),
+    'posix': os.path.join(VENV_PATH, 'bin/python'),
+}[os.name]
+SVC_PY_PATH = {
     'nt': os.path.join(VENV_PATH, r'Scripts\pythonw.exe'),
     'posix': os.path.join(VENV_PATH, 'bin/python'),
 }[os.name]
@@ -37,7 +37,6 @@ PY_MODULES = {
     'posix': LINUX_PY_MODULES,
 }[os.name]
 CRONTAB_SCHEDULE = '*/2 * * * *'
-COMMAND = 'setup'
 
 
 class Bootstrapper:
@@ -59,7 +58,7 @@ class Bootstrapper:
             os.makedirs(ROOT_VENV_PATH)
         if self._check_venv():
             return
-        if not os.path.exists(VENV_ACTIVATE_PATH):
+        if not os.path.exists(PY_PATH):
             if os.name == 'nt':   # requires python3-virtualenv on linux
                 subprocess.check_call(['pip', 'install', 'virtualenv'])
             subprocess.check_call(['virtualenv', VENV_PATH])
@@ -106,25 +105,17 @@ class Bootstrapper:
     def setup(self):
         if os.name == 'nt':
             self._setup_win_task(task_name=NAME,
-                cmd=f'{PY_PATH} {SCRIPT_PATH} save --daemon')
+                cmd=f'{SVC_PY_PATH} {SCRIPT_PATH} save --daemon')
         else:
             self._setup_linux_crontab(
-                cmd=f'{PY_PATH} {SCRIPT_PATH} save --task')
+                cmd=f'{SVC_PY_PATH} {SCRIPT_PATH} save --task')
 
-    def run_savegame_cmd(self):
-        res = subprocess.run([PY_PATH, SCRIPT_PATH] + sys.argv[1:],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    def run_cmd(self):
+        subprocess.check_call([PY_PATH, SCRIPT_PATH] + sys.argv[1:],
             cwd=ROOT_PATH)
-        sys.stdout.write(res.stdout or res.stderr)
 
     def run(self):
-        try:
-            if sys.argv[1] == COMMAND:
-                self.setup()
-            else:
-                self.run_savegame_cmd()
-        except IndexError:
-            print(f'Missing command: {COMMAND} or any savegame command')
+        self.run_cmd() if len(sys.argv) > 1 else self.setup()
 
 
 def main():

@@ -540,7 +540,6 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
                     f'{file_meta["name"]}: {exc}')
-
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
             for p in paths}
 
