@@ -1086,7 +1086,11 @@ def _parse_args():
     load_parser.add_argument('--dry-run', action='store_true')
     subparsers.add_parser('hostnames')
     subparsers.add_parser('google_oauth')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.cmd:
+        parser.print_help()
+        sys.exit()
+    return args
 
 
 def main():
