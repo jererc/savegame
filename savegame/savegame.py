@@ -116,12 +116,20 @@ def get_file_mtime_dt(x):
         return datetime.fromtimestamp(get_file_mtime(x), tz=timezone.utc)
 
 
-def remove_path(x):
-    if os.path.exists(x):
-        if os.path.isdir(x):
-            shutil.rmtree(x)
+def to_json(x):
+    return json.dumps(x, indent=4, sort_keys=True)
+
+
+def to_float(x):
+    return float(f'{x:.02f}')
+
+
+def remove_path(path):
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
         else:
-            os.remove(x)
+            os.remove(path)
 
 
 def walk_paths(path):
@@ -144,14 +152,6 @@ def get_file_hash(file, chunk_size=8192):
         while chunk := fd.read(chunk_size):
             md5_hash.update(chunk)
     return md5_hash.hexdigest()
-
-
-def to_json(x):
-    return json.dumps(x, indent=4, sort_keys=True)
-
-
-def to_float(x):
-    return float(f'{x:.02f}')
 
 
 def notify(title, body, on_click=None):
