@@ -351,6 +351,11 @@ class SaveItemTestCase(BaseTestCase):
             savegame.SaveItem, src_paths=src_paths, dst_path=dst_path)
 
 
+class NotifyTestCase(BaseTestCase):
+    def test_1(self):
+        savegame.Notifier().send(title='test title', body='test body')
+
+
 class SavegameTestCase(BaseTestCase):
     def test_save_glob_and_exclusions(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,

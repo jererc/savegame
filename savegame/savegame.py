@@ -155,23 +155,30 @@ def get_file_hash(file, chunk_size=8192):
     return md5_hash.hexdigest()
 
 
-def notify(title, body, on_click=None):
-    try:
-        if os.name == 'nt':
-            from win11toast import notify as _notify
-            _notify(title=title, body=body, on_click=on_click)
-        else:
-            env = os.environ.copy()
-            env['DISPLAY'] = ':0'
-            env['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path=/run/user/1000/bus'
-            res = subprocess.run(
-                ['notify-send', title, body],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, env=env)
-            if res.returncode != 0:
-                raise Exception(res.stdout or res.stderr)
-    except Exception as exc:
-        logger.error(f'failed to notify: {exc}')
+class Notifier:
+    def _send_nt(self, title, body, on_click=None):
+        from win11toast import notify
+        notify(title=title, body=body, on_click=on_click)
+
+    def _get_dbus_address(self):
+        stdout = subprocess.check_output(['id', '-u', os.getlogin()])
+        uid = stdout.decode('utf-8').splitlines()[0]
+        return f'unix:path=/run/user/{uid}/bus'
+
+    def _send_posix(self, title, body, on_click=None):
+        env = os.environ.copy()
+        env['DISPLAY'] = ':0'
+        env['DBUS_SESSION_BUS_ADDRESS'] = self._get_dbus_address()
+        subprocess.check_call(['notify-send', title, body], env=env)
+
+    def send(self, *args, **kwargs):
+        try:
+            {
+                'nt': self._send_nt,
+                'posix': self._send_posix
+            }[os.name](*args, **kwargs)
+        except Exception:
+            logger.exception('failed to notify')
 
 
 def text_file_exists(file, data, encoding='utf-8', log_content_changed=False):
@@ -366,7 +373,7 @@ class BaseSaver:
         return get_file_mtime(path) < time.time() - self.retention_delta
 
     def notify_error(self, message, exc=None):
-        notify(title=f'{NAME} error', body=message)
+        Notifier().send(title=f'{NAME} error', body=message)
 
     def _must_run(self):
         return time.time() > self.meta.get(self.src).get('next_ts', 0)
@@ -502,7 +509,7 @@ class LocalSaver(BaseSaver):
 class GoogleCloudSaver(BaseSaver):
     def notify_error(self, message, exc=None):
         if isinstance(exc, (AuthError, RefreshError)):
-            notify(title=f'{NAME} google auth error', body=message,
+            Notifier().send(title=f'{NAME} google auth error', body=message,
                 on_click=GOOGLE_OAUTH_WIN_SCRIPT)
         else:
             super().notify_error(message, exc)
@@ -694,7 +701,7 @@ class SaveHandler:
                 saver.run(force=self.force)
             except Exception as exc:
                 logger.exception(f'failed to save {saver.src}')
-                notify(title=f'{NAME} exception',
+                Notifier().send(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
             stats[saver.src] = saver.stats
             report.merge(saver.report)
@@ -946,7 +953,7 @@ class SaveMonitor:
         if report:
             logger.info(f'monitor report:\n{to_json(report)}')
         if stale_hostnames:
-            notify(title=f'{NAME} warning',
+            Notifier().send(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
         self.run_file.touch()
 
