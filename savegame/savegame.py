@@ -928,7 +928,7 @@ class SaveMonitor:
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
 
-    def _get_update_daily_freq(self, ref):
+    def _get_daily_updates(self, ref):
         if not ref.ts:
             return None
         sec = time.time() - ref.ts[0]
@@ -946,8 +946,8 @@ class SaveMonitor:
                 run_ts).isoformat(' ')
             report[hostname][ref.src]['file_count'] = len(ref.files)
             report[hostname][ref.src]['size_MB'] = self._get_size(ref)
-            report[hostname][ref.src]['update_daily_freq'] = \
-                self._get_update_daily_freq(ref)
+            report[hostname][ref.src]['daily_updates'] = \
+                self._get_daily_updates(ref)
             if run_ts < now_ts - STALE_DELTA:
                 stale_hostnames.add(hostname)
         if report:
