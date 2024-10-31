@@ -52,10 +52,10 @@ class SavegameIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class RestoregameIntegrationTestCase(BaseTestCase):
+class LoadgameIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.restoregame(dry_run=True)
+        savegame.loadgame(dry_run=True)
         pprint(self._list_src_root_paths())
 
 
