@@ -178,7 +178,7 @@ class Notifier:
                 'posix': self._send_posix
             }[os.name](*args, **kwargs)
         except Exception:
-            logger.exception('failed to notify')
+            logger.exception('failed to send notification')
 
 
 def text_file_exists(file, data, encoding='utf-8', log_content_changed=False):
