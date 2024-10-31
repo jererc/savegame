@@ -62,9 +62,9 @@ except ImportError:
     pass
 
 
-def makedirs(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+def makedirs(x):
+    if not os.path.exists(x):
+        os.makedirs(x)
 
 
 def setup_logging(logger, path):
@@ -98,26 +98,30 @@ class InvalidPath(Exception):
     pass
 
 
-def validate_path(path):
-    if os.sep not in path:
-        raise UnhandledPath(f'unhandled path {path}: not {os.name}')
+def validate_path(x):
+    if os.sep not in x:
+        raise UnhandledPath(f'unhandled path {x}: not {os.name}')
 
 
-def path_to_filename(path):
-    return urllib.parse.quote(path, safe='')
+def path_to_filename(x):
+    return urllib.parse.quote(x, safe='')
 
 
-def get_file_mtime(file):
-    if os.path.exists(file):
-        return datetime.fromtimestamp(os.stat(file).st_mtime, tz=timezone.utc)
+def get_file_mtime(x):
+    return os.stat(x).st_mtime
 
 
-def remove_path(path):
-    if os.path.exists(path):
-        if os.path.isdir(path):
-            shutil.rmtree(path)
+def get_file_mtime_dt(x):
+    if os.path.exists(x):
+        return datetime.fromtimestamp(get_file_mtime(x), tz=timezone.utc)
+
+
+def remove_path(x):
+    if os.path.exists(x):
+        if os.path.isdir(x):
+            shutil.rmtree(x)
         else:
-            os.remove(path)
+            os.remove(x)
 
 
 def walk_paths(path):
@@ -142,8 +146,8 @@ def get_file_hash(file, chunk_size=8192):
     return md5_hash.hexdigest()
 
 
-def to_json(data):
-    return json.dumps(data, indent=4, sort_keys=True)
+def to_json(x):
+    return json.dumps(x, indent=4, sort_keys=True)
 
 
 def to_float(x):
@@ -235,7 +239,7 @@ class RunFile:
     def get_ts(self, default=0):
         if not os.path.exists(self.file):
             return default
-        return os.stat(self.file).st_mtime
+        return get_file_mtime(self.file)
 
     def touch(self):
         with open(self.file, 'w'):
@@ -358,7 +362,7 @@ class BaseSaver:
         return self.dst_path
 
     def can_be_purged(self, path):
-        return os.stat(path).st_mtime < time.time() - self.retention_delta
+        return get_file_mtime(path) < time.time() - self.retention_delta
 
     def notify_error(self, message, exc=None):
         notify(title=f'{NAME} error', body=message)
@@ -399,7 +403,7 @@ class BaseSaver:
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         self.end_ts = time.time()
         self._update_meta()
-        self.stats['duration'] = self.end_ts - self.start_ts
+        self.stats['duration'] = to_float(self.end_ts - self.start_ts)
 
 
 class LocalSaver(BaseSaver):
@@ -430,17 +434,21 @@ class LocalSaver(BaseSaver):
             self.report.add('ok', src, src_files)
         else:
             for path in set(list(src_hashes.keys()) + list(dst_hashes.keys())):
-                src_h = src_hashes.get(path)
-                dst_h = dst_hashes.get(path)
-                if not src_h:
-                    self.report.add('missing_at_src', src,
-                        os.path.join(src, path))
-                elif not dst_h:
-                    self.report.add('missing_at_dst', src,
-                        os.path.join(self.dst, path))
-                elif src_h != dst_h:
-                    self.report.add('hash_mismatched', src,
-                        os.path.join(src, path))
+                src_hash = src_hashes.get(path)
+                dst_hash = dst_hashes.get(path)
+                src_file = os.path.join(src, path)
+                dst_file = os.path.join(self.dst, path)
+                if not src_hash:
+                    self.report.add('missing_at_src', src, src_file)
+                elif not dst_hash:
+                    self.report.add('missing_at_dst', src, dst_file)
+                elif src_hash != dst_hash:
+                    if get_file_mtime(src_file) > get_file_mtime(dst_file):
+                        self.report.add('conflict_src_more_recent', src, src_file)
+                    else:
+                        self.report.add('conflict_dst_more_recent', src, src_file)
+                else:
+                    self.report.add('ok', src, src_file)
 
     def _needs_removal(self, dst_path, src, src_files):
         if os.path.isdir(dst_path) and not os.listdir(dst_path):
@@ -511,8 +519,8 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                 continue
             dst_file = os.path.join(self.dst, file_meta['path'])
             paths.add(dst_file)
-            mtime = get_file_mtime(dst_file)
-            if mtime and mtime > file_meta['modified_time']:
+            dt = get_file_mtime_dt(dst_file)
+            if dt and dt > file_meta['modified_time']:
                 self.report.add('skipped', self.src, dst_file)
                 continue
             makedirs(os.path.dirname(dst_file))
@@ -756,7 +764,10 @@ class LocalRestorer:
                     if get_file_hash(src_file) == dst_hash == ref_hash:
                         self.report.add('ok', ref.src, src_file)
                     else:
-                        self.report.add('hash_mismatched', ref.src, src_file)
+                        if get_file_mtime(src_file) > get_file_mtime(dst_file):
+                            self.report.add('conflict_src_more_recent', ref.src, src_file)
+                        else:
+                            self.report.add('conflict_dst_more_recent', ref.src, src_file)
                 else:
                     self.report.add('missing_at_src', ref.src, src_file)
 
@@ -902,7 +913,7 @@ class SaveMonitor:
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
 
-    def _get_avg_update_daily_freq(self, ref):
+    def _get_update_daily_freq(self, ref):
         if not ref.ts:
             return None
         sec = time.time() - ref.ts[0]
@@ -920,8 +931,8 @@ class SaveMonitor:
                 run_ts).isoformat(' ')
             report[hostname][ref.src]['file_count'] = len(ref.files)
             report[hostname][ref.src]['size_MB'] = self._get_size(ref)
-            report[hostname][ref.src]['avg_update_daily_freq'] = \
-                self._get_avg_update_daily_freq(ref)
+            report[hostname][ref.src]['update_daily_freq'] = \
+                self._get_update_daily_freq(ref)
             if run_ts < now_ts - STALE_DELTA:
                 stale_hostnames.add(hostname)
         if report:
