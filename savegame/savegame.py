@@ -112,22 +112,6 @@ def get_file_mtime(file):
         return datetime.fromtimestamp(os.stat(file).st_mtime, tz=timezone.utc)
 
 
-def get_path_size(path):
-    if os.path.isfile(path):
-        return os.path.getsize(path)
-    res = 0
-    for root, dirs, files in os.walk(path, topdown=False):
-        for filename in files:
-            if filename in REF_FILENAMES:
-                continue
-            file = os.path.join(root, filename)
-            try:
-                res += os.path.getsize(file)
-            except Exception:
-                logger.error(f'failed to get size for {file}')
-    return res
-
-
 def remove_path(path):
     if os.path.exists(path):
         if os.path.isdir(path):
@@ -677,8 +661,7 @@ class SaveHandler:
 
     def _generate_savers(self):
         for si in iterate_save_items():
-            for saver in si.generate_savers():
-                yield saver
+            yield from si.generate_savers()
 
     def check_data(self):
         report = Report()
@@ -705,11 +688,11 @@ class SaveHandler:
             stats[saver.src] = saver.stats
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
+        if self.verbose:
+            logger.info(f'stats:\n{to_json(stats)}')
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        if self.verbose:
-            logger.info(f'stats:\n{to_json(stats)}')
         logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
 
 
@@ -906,17 +889,6 @@ class SaveMonitor:
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     yield hostname, Reference(dst)
 
-    def _get_ref_ts_delta(self, ref):
-        count = len(ref.ts)
-        if count < 2:
-            return []
-        return [ref.ts[i + 1] - ref.ts[i] for i in range(count - 1)]
-
-    def _get_avg_run_delta_hours(self, ref):
-        ts_delta = self._get_ref_ts_delta(ref)
-        if len(ts_delta) > 2:
-            return to_float(sum(ts_delta) / len(ts_delta) / 3600)
-
     def _get_size(self, ref):
         other_sep = '\\' if os.sep == '/' else '/'
 
@@ -930,6 +902,12 @@ class SaveMonitor:
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
 
+    def _get_avg_update_daily_freq(self, ref):
+        if not ref.ts:
+            return None
+        sec = time.time() - ref.ts[0]
+        return to_float(len(ref.ts) * 3600 * 24 / sec) if sec else None
+
     def run(self):
         if not self._must_run():
             return
@@ -937,13 +915,14 @@ class SaveMonitor:
         stale_hostnames = set()
         now_ts = time.time()
         for hostname, ref in self._iterate_hostname_refs():
-            report[hostname][ref.src]['last_run_delta_hours'] = to_float(
-                (now_ts - ref.run_file.get_ts()) / 3600)
+            run_ts = ref.run_file.get_ts()
+            report[hostname][ref.src]['last_run'] = datetime.fromtimestamp(
+                run_ts).isoformat(' ')
             report[hostname][ref.src]['file_count'] = len(ref.files)
             report[hostname][ref.src]['size_MB'] = self._get_size(ref)
-            report[hostname][ref.src]['avg_run_delta_hours'] = \
-                self._get_avg_run_delta_hours(ref)
-            if ref.run_file.get_ts() < now_ts - STALE_DELTA:
+            report[hostname][ref.src]['avg_update_daily_freq'] = \
+                self._get_avg_update_daily_freq(ref)
+            if run_ts < now_ts - STALE_DELTA:
                 stale_hostnames.add(hostname)
         if report:
             logger.info(f'monitor report:\n{to_json(report)}')
@@ -1009,7 +988,11 @@ def must_run(last_run_ts):
 
 def savegame(force=False, verbose=False):
     SaveHandler(force=force, verbose=verbose).run()
-    SaveMonitor(force=force).run()
+    SaveMonitor(force=False).run()
+
+
+def monitor():
+    SaveMonitor(force=True).run()
 
 
 def checkgame(hostname=None):
@@ -1072,6 +1055,7 @@ def _parse_args():
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
+    monitor_parser = subparsers.add_parser('monitor')
     check_parser = subparsers.add_parser('check')
     check_parser.add_argument('--hostname')
     restore_parser = subparsers.add_parser('restore')
@@ -1097,6 +1081,7 @@ def main():
             savegame(force=True, verbose=True)
     else:
         {
+            'monitor': monitor,
             'check': checkgame,
             'restore': restoregame,
             'hostnames': list_hostnames,
