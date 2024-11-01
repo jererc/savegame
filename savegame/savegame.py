@@ -895,8 +895,9 @@ class LoadHandler:
 
 
 class SaveMonitor:
-    def __init__(self, force=False):
+    def __init__(self, force=False, verbose=False):
         self.force = force
+        self.verbose = verbose
         self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor.run'))
 
     def _must_run(self):
@@ -946,11 +947,11 @@ class SaveMonitor:
                 self._get_daily_updates(ref)
             if run_ts < now_ts - STALE_DELTA:
                 stale_hostnames.add(hostname)
-        if report:
-            logger.info(f'monitor report:\n{to_json(report)}')
         if stale_hostnames:
             Notifier().send(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
+        if self.verbose and report:
+            logger.info(f'monitor report:\n{to_json(report)}')
         self.run_file.touch()
 
 
@@ -1010,11 +1011,11 @@ def must_run(last_run_ts):
 
 def savegame(force=False, verbose=False):
     SaveHandler(force=force, verbose=verbose).run()
-    SaveMonitor(force=False).run()
+    SaveMonitor(force=False, verbose=False).run()
 
 
 def monitor():
-    SaveMonitor(force=True).run()
+    SaveMonitor(force=True, verbose=True).run()
 
 
 def checkgame(hostname=None):
