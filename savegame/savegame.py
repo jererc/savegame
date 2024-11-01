@@ -701,7 +701,7 @@ class SaveHandler:
             stats[saver.src] = saver.stats
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
-        logger.debug(f'stats:\n{to_json(stats)}')
+        print(f'stats:\n{to_json(stats)}')
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
@@ -909,6 +909,17 @@ class SaveMonitor:
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     yield hostname, Reference(dst)
 
+    def run(self):
+        if not self._must_run():
+            return
+        min_ts = time.time() - STALE_DELTA
+        stale_hostnames = {h for h, r in self._iterate_hostname_refs()
+            if r.run_file.get_ts() < min_ts}
+        if stale_hostnames:
+            Notifier().send(title=f'{NAME} warning',
+                body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
+        self.run_file.touch()
+
     def _get_size(self, ref):
         other_sep = '\\' if os.sep == '/' else '/'
 
@@ -928,27 +939,36 @@ class SaveMonitor:
         sec = time.time() - ref.ts[0]
         return to_float(len(ref.ts) * 3600 * 24 / sec) if sec else None
 
-    def run(self):
-        if not self._must_run():
-            return
-        report = defaultdict(lambda: defaultdict(dict))
-        stale_hostnames = set()
-        now_ts = time.time()
+    def generate_report(self, sort_by='last_run', order='desc'):
+
+        def to_human_dt(ts):
+            return datetime.fromtimestamp(int(ts)).isoformat(' ')
+
+        items = []
         for hostname, ref in self._iterate_hostname_refs():
-            run_ts = ref.run_file.get_ts()
-            report[hostname][ref.src]['last_run'] = datetime.fromtimestamp(
-                run_ts).isoformat(' ')
-            report[hostname][ref.src]['file_count'] = len(ref.files)
-            report[hostname][ref.src]['size_MB'] = self._get_size(ref)
-            report[hostname][ref.src]['daily_updates'] = \
-                self._get_daily_updates(ref)
-            if run_ts < now_ts - STALE_DELTA:
-                stale_hostnames.add(hostname)
-        if stale_hostnames:
-            Notifier().send(title=f'{NAME} warning',
-                body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
-        logger.debug(f'monitor report:\n{to_json(report)}')
-        self.run_file.touch()
+            item = {
+                'hostname': hostname,
+                'src': ref.src,
+            }
+            item['last_run'] = ref.run_file.get_ts()
+            item['files'] = len(ref.files)
+            item['size'] = self._get_size(ref)
+            item['updates'] = self._get_daily_updates(ref)
+            items.append(item)
+        headers = {
+            'last_run': 'Last run',
+            'hostname': 'Hostname',
+            'size': 'Size (MB)',
+            'files': 'Files',
+            'updates': 'Updates',
+            'src': 'Source path',
+        }
+        items = [headers] + sorted(items, key=lambda x: x[sort_by],
+            reverse=order == 'desc')
+        for i, r in enumerate(items):
+            human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
+            print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:8}  '
+                f'{r["files"]:8}  {r["updates"]:8}  {r["src"]}')
 
 
 def with_lockfile():
@@ -1010,20 +1030,20 @@ def savegame(force=False):
     SaveMonitor(force=False).run()
 
 
-def monitor():
-    SaveMonitor(force=True).run()
+def status(**kwargs):
+    SaveMonitor(force=True).generate_report(**kwargs)
 
 
 def checkgame(hostname=None):
     save_report = SaveHandler().check_data()
     load_report = LoadHandler(hostname=hostname).check_data()
-    logger.debug('save report:\n'
+    print('save report:\n'
         f'{to_json(save_report.clean())}')
-    logger.debug('load report:\n'
+    print('load report:\n'
         f'{to_json(load_report.clean())}')
-    logger.debug('save summary:\n'
+    print('save summary:\n'
         f'{to_json(save_report.get_summary())}')
-    logger.debug('load summary:\n'
+    print('load summary:\n'
         f'{to_json(load_report.get_summary())}')
 
 
@@ -1033,7 +1053,7 @@ def loadgame(**kwargs):
 
 def list_hostnames(**kwargs):
     hostnames = "\n".join(sorted(LoadHandler(**kwargs).list_hostnames()))
-    logger.debug(f'available hostnames:\n{hostnames}')
+    print(f'available hostnames:\n{hostnames}')
 
 
 def google_oauth(**kwargs):
@@ -1074,7 +1094,9 @@ def _parse_args():
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
-    monitor_parser = subparsers.add_parser('monitor')
+    status_parser = subparsers.add_parser('status')
+    status_parser.add_argument('--sort-by', default='last_run')
+    status_parser.add_argument('--order', default='desc')
     check_parser = subparsers.add_parser('check')
     check_parser.add_argument('--hostname')
     load_parser = subparsers.add_parser('load')
@@ -1104,7 +1126,7 @@ def main():
             savegame(force=True)
     else:
         {
-            'monitor': monitor,
+            'status': status,
             'check': checkgame,
             'load': loadgame,
             'hostnames': list_hostnames,
