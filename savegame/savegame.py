@@ -669,9 +669,8 @@ def iterate_save_items(log_unhandled=False, log_invalid=True):
 
 
 class SaveHandler:
-    def __init__(self, force=False, verbose=False):
+    def __init__(self, force=False):
         self.force = force
-        self.verbose = verbose
 
     def _generate_savers(self):
         for si in iterate_save_items():
@@ -702,8 +701,7 @@ class SaveHandler:
             stats[saver.src] = saver.stats
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
-        if self.verbose:
-            logger.info(f'stats:\n{to_json(stats)}')
+        logger.debug(f'stats:\n{to_json(stats)}')
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
@@ -895,9 +893,8 @@ class LoadHandler:
 
 
 class SaveMonitor:
-    def __init__(self, force=False, verbose=False):
+    def __init__(self, force=False):
         self.force = force
-        self.verbose = verbose
         self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor.run'))
 
     def _must_run(self):
@@ -950,8 +947,7 @@ class SaveMonitor:
         if stale_hostnames:
             Notifier().send(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
-        if self.verbose and report:
-            logger.info(f'monitor report:\n{to_json(report)}')
+        logger.debug(f'monitor report:\n{to_json(report)}')
         self.run_file.touch()
 
 
@@ -1009,13 +1005,13 @@ def must_run(last_run_ts):
     return False
 
 
-def savegame(force=False, verbose=False):
-    SaveHandler(force=force, verbose=verbose).run()
-    SaveMonitor(force=False, verbose=False).run()
+def savegame(force=False):
+    SaveHandler(force=force).run()
+    SaveMonitor(force=False).run()
 
 
 def monitor():
-    SaveMonitor(force=True, verbose=True).run()
+    SaveMonitor(force=True).run()
 
 
 def checkgame(hostname=None):
@@ -1105,7 +1101,7 @@ def main():
         elif args.task:
             Task().run()
         else:
-            savegame(force=True, verbose=True)
+            savegame(force=True)
     else:
         {
             'monitor': monitor,
