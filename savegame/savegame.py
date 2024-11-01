@@ -907,7 +907,11 @@ class SaveMonitor:
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
-                    yield hostname, Reference(dst)
+                    ref = Reference(dst)
+                    if not os.path.exists(ref.file):
+                        logger.error(f'missing reference file {ref.file}')
+                        continue
+                    yield hostname, ref
 
     def run(self):
         if not self._must_run():
@@ -954,9 +958,6 @@ class SaveMonitor:
         }
         items = []
         for hostname, ref in self._iterate_hostname_refs():
-            if not os.path.exists(ref.file):
-                logger.error(f'missing reference file {ref.file}')
-                continue
             items.append({
                 'hostname': hostname,
                 'src': ref.src,
