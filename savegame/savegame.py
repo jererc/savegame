@@ -1017,13 +1017,13 @@ def monitor():
 def checkgame(hostname=None):
     save_report = SaveHandler().check_data()
     load_report = LoadHandler(hostname=hostname).check_data()
-    logger.info('save report:\n'
+    logger.debug('save report:\n'
         f'{to_json(save_report.clean())}')
-    logger.info('load report:\n'
+    logger.debug('load report:\n'
         f'{to_json(load_report.clean())}')
-    logger.info('save summary:\n'
+    logger.debug('save summary:\n'
         f'{to_json(save_report.get_summary())}')
-    logger.info('load summary:\n'
+    logger.debug('load summary:\n'
         f'{to_json(load_report.get_summary())}')
 
 
@@ -1033,7 +1033,7 @@ def loadgame(**kwargs):
 
 def list_hostnames(**kwargs):
     hostnames = "\n".join(sorted(LoadHandler(**kwargs).list_hostnames()))
-    logger.info(f'available hostnames:\n{hostnames}')
+    logger.debug(f'available hostnames:\n{hostnames}')
 
 
 def google_oauth(**kwargs):
