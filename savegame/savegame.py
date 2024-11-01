@@ -163,7 +163,8 @@ class Notifier:
     def _send_posix(self, title, body, on_click=None):
         env = os.environ.copy()
         env['DISPLAY'] = ':0'
-        env['DBUS_SESSION_BUS_ADDRESS'] = f'unix:path=/run/user/{os.getuid()}/bus'
+        env['DBUS_SESSION_BUS_ADDRESS'] = \
+            f'unix:path=/run/user/{os.getuid()}/bus'
         subprocess.check_call(['notify-send', title, body], env=env)
 
     def send(self, *args, **kwargs):
