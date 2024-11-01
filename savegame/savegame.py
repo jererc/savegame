@@ -909,7 +909,7 @@ class SaveMonitor:
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
                     if not os.path.exists(ref.file):
-                        logger.error(f'missing reference file {ref.file}')
+                        logger.error(f'missing ref file {ref.file}')
                         continue
                     yield hostname, ref
 
