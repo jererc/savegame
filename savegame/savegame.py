@@ -954,6 +954,9 @@ class SaveMonitor:
         }
         items = []
         for hostname, ref in self._iterate_hostname_refs():
+            if not os.path.exists(ref.file):
+                logger.error(f'missing reference file {ref.file}')
+                continue
             items.append({
                 'hostname': hostname,
                 'src': ref.src,
