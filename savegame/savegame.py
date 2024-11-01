@@ -970,8 +970,8 @@ class SaveMonitor:
             reverse=order == 'desc')
         for i, r in enumerate(rows):
             human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
-            print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:8}  '
-                f'{r["files"]:8}  {r["updates"]:8}  {r["src"]}')
+            print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:10}  '
+                f'{r["files"]:10}  {r["updates"]:10}  {r["src"]}')
 
 
 def with_lockfile():
