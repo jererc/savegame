@@ -160,15 +160,10 @@ class Notifier:
         from win11toast import notify
         notify(title=title, body=body, on_click=on_click)
 
-    def _get_dbus_address(self):
-        stdout = subprocess.check_output(['id', '-u', os.getlogin()])
-        uid = stdout.decode('utf-8').splitlines()[0]
-        return f'unix:path=/run/user/{uid}/bus'
-
     def _send_posix(self, title, body, on_click=None):
         env = os.environ.copy()
         env['DISPLAY'] = ':0'
-        env['DBUS_SESSION_BUS_ADDRESS'] = self._get_dbus_address()
+        env['DBUS_SESSION_BUS_ADDRESS'] = f'unix:path=/run/user/{os.getuid()}/bus'
         subprocess.check_call(['notify-send', title, body], env=env)
 
     def send(self, *args, **kwargs):
