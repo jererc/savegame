@@ -1035,8 +1035,8 @@ def loadgame(**kwargs):
 
 
 def list_hostnames(**kwargs):
-    hostnames = LoadHandler(**kwargs).list_hostnames()
-    logger.info(f'available hostnames:\n{"\n".join(sorted(hostnames))}')
+    hostnames = "\n".join(sorted(LoadHandler(**kwargs).list_hostnames()))
+    logger.info(f'available hostnames:\n{hostnames}')
 
 
 def google_oauth(**kwargs):
