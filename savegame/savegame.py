@@ -944,28 +944,27 @@ class SaveMonitor:
         def to_human_dt(ts):
             return datetime.fromtimestamp(int(ts)).isoformat(' ')
 
-        items = []
-        for hostname, ref in self._iterate_hostname_refs():
-            item = {
-                'hostname': hostname,
-                'src': ref.src,
-            }
-            item['last_run'] = ref.run_file.get_ts()
-            item['files'] = len(ref.files)
-            item['size'] = self._get_size(ref)
-            item['updates'] = self._get_daily_updates(ref)
-            items.append(item)
         headers = {
-            'last_run': 'Last run',
             'hostname': 'Hostname',
+            'src': 'Source path',
+            'last_run': 'Last run',
+            'updates': 'Updates',
             'size': 'Size (MB)',
             'files': 'Files',
-            'updates': 'Updates',
-            'src': 'Source path',
         }
-        items = [headers] + sorted(items, key=lambda x: x[sort_by],
+        items = []
+        for hostname, ref in self._iterate_hostname_refs():
+            items.append({
+                'hostname': hostname,
+                'src': ref.src,
+                'last_run': ref.run_file.get_ts(),
+                'updates': self._get_daily_updates(ref),
+                'size': self._get_size(ref),
+                'files': len(ref.files),
+            })
+        rows = [headers] + sorted(items, key=lambda x: x[sort_by],
             reverse=order == 'desc')
-        for i, r in enumerate(items):
+        for i, r in enumerate(rows):
             human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
             print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:8}  '
                 f'{r["files"]:8}  {r["updates"]:8}  {r["src"]}')
