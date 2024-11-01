@@ -171,7 +171,7 @@ class Notifier:
         try:
             {
                 'nt': self._send_nt,
-                'posix': self._send_posix
+                'posix': self._send_posix,
             }[os.name](*args, **kwargs)
         except Exception:
             logger.exception('failed to send notification')
