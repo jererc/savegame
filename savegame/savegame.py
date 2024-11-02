@@ -399,6 +399,11 @@ class LocalSaver(BaseSaver):
     hostname = HOSTNAME
 
     def _get_src_and_files(self):
+
+        def is_valid(file):
+            return (os.path.basename(file) != REF_FILENAME
+                and check_patterns(file, self.inclusions, self.exclusions))
+
         if self.src_type == 'local':
             src = self.src
             if os.path.isfile(src):
@@ -406,8 +411,7 @@ class LocalSaver(BaseSaver):
                 src = os.path.dirname(src)
             else:
                 files = list(walk_files(src))
-            return src, {f for f in files
-                if check_patterns(f, self.inclusions, self.exclusions)}
+            return src, {f for f in files if is_valid(f)}
         return self.src, set()
 
     def check_data(self):
