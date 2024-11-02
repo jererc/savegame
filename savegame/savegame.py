@@ -350,7 +350,17 @@ class BaseSaver:
         return self.dst_path
 
     def can_be_purged(self, path):
+        if os.path.isfile(path):
+            name = os.path.basename(path)
+            if name != REF_FILENAME and name.startswith(REF_FILENAME):
+                return True
         return get_file_mtime(path) < time.time() - self.retention_delta
+
+    def purge_dst(self, paths):
+        for dst_path in walk_paths(self.dst):
+            if dst_path not in paths and self.can_be_purged(dst_path):
+                remove_path(dst_path)
+                self.report.add('removed', self.src, dst_path)
 
     def notify_error(self, message, exc=None):
         Notifier().send(title=f'{NAME} error', body=message)
@@ -445,15 +455,11 @@ class LocalSaver(BaseSaver):
                     self.report.add('ok', src, src_file)
 
     def _requires_removal(self, dst_path, src, src_files):
-
-        def is_duplicate():
-            return os.path.basename(dst_path).startswith(REF_FILENAME)
-
         if os.path.isdir(dst_path) and not os.listdir(dst_path):
             return True
         src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
         if os.path.isfile(dst_path) and src_path not in src_files \
-                and (is_duplicate() or self.can_be_purged(dst_path)):
+                and self.can_be_purged(dst_path):
             return True
         return False
 
@@ -532,10 +538,7 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                     f'{file_meta["name"]}: {exc}')
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
             for p in paths}
-
-        for dst_path in walk_paths(self.dst):
-            if dst_path not in paths and self.can_be_purged(dst_path):
-                remove_path(dst_path)
+        self.purge_dst(paths)
 
 
 class GoogleContactsExportSaver(GoogleCloudSaver):
@@ -557,6 +560,7 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
         self.ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
+        self.purge_dst({file})
 
 
 class ChromiumBookmarksExportSaver(BaseSaver):
@@ -578,10 +582,7 @@ class ChromiumBookmarksExportSaver(BaseSaver):
                 self.report.add('saved', self.src, dst_file)
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
             for p in paths}
-
-        for dst_path in walk_paths(self.dst):
-            if dst_path not in paths and self.can_be_purged(dst_path):
-                remove_path(dst_path)
+        self.purge_dst(paths)
 
 
 class SaveItem:
