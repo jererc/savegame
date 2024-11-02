@@ -907,8 +907,7 @@ class SaveMonitor:
                 stale_hostnames.add(hostname)
             for rel_path, file_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, switch_os_sep(rel_path))
-                if os.path.getsize(dst_file) and \
-                        get_file_hash(dst_file) != file_hash:
+                if get_file_hash(dst_file) != file_hash:
                     invalid_files.add(dst_file)
                     logger.error(f'invalid file: {dst_file}')
         if stale_hostnames:
