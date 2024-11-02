@@ -175,6 +175,10 @@ def check_patterns(path, inclusions=None, exclusions=None):
     return True
 
 
+def switch_os_sep(x):
+    return x.replace('\\' if os.sep == '/' else '/', os.sep)
+
+
 def get_google_cloud():
     secrets_file = os.path.expanduser(GOOGLE_CLOUD_SECRETS_FILE)
     if not os.path.exists(secrets_file):
@@ -335,6 +339,7 @@ class BaseSaver:
         self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
+        self.dst_paths = set()
         self.ref = Reference(self.dst)
         self.meta = Metadata()
         self.report = Report()
@@ -348,19 +353,6 @@ class BaseSaver:
             return os.path.join(self.dst_path, self.hostname,
                 path_to_filename(self.src))
         return self.dst_path
-
-    def can_be_purged(self, path):
-        if os.path.isfile(path):
-            name = os.path.basename(path)
-            if name != REF_FILENAME and name.startswith(REF_FILENAME):
-                return True
-        return get_file_mtime(path) < time.time() - self.retention_delta
-
-    def purge_dst(self, paths):
-        for dst_path in walk_paths(self.dst):
-            if dst_path not in paths and self.can_be_purged(dst_path):
-                remove_path(dst_path)
-                self.report.add('removed', self.src, dst_path)
 
     def notify_error(self, message, exc=None):
         Notifier().send(title=f'{NAME} error', body=message)
@@ -385,6 +377,31 @@ class BaseSaver:
     def do_run(self):
         raise NotImplementedError()
 
+    def _requires_purge(self, path):
+        if os.path.isfile(path):
+            name = os.path.basename(path)
+            if name == REF_FILENAME:
+                return False
+            if path in self.dst_paths:
+                return False
+            if not name.startswith(REF_FILENAME) and \
+                    get_file_mtime(path) > time.time() - self.retention_delta:
+                return False
+        elif os.listdir(path):
+            return False
+        return True
+
+    def _purge_dst(self):
+        if self.dst_type != 'local':
+            return
+        if not self.dst_paths:
+            remove_path(self.dst)
+            return
+        for path in walk_paths(self.dst):
+            if self._requires_purge(path):
+                remove_path(path)
+                self.report.add('removed', self.src, path)
+
     def run(self, force=False):
         if not (force or self._must_run()):
             return
@@ -392,6 +409,7 @@ class BaseSaver:
         self.ref.src = self.src
         try:
             self.do_run()
+            self._purge_dst()
             if os.path.exists(self.ref.dst):
                 self.ref.save()
             self.success = True
@@ -454,39 +472,15 @@ class LocalSaver(BaseSaver):
                 else:
                     self.report.add('ok', src, src_file)
 
-    def _requires_removal(self, dst_path, src, src_files):
-        if os.path.isdir(dst_path) and not os.listdir(dst_path):
-            return True
-        src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
-        if os.path.isfile(dst_path) and src_path not in src_files \
-                and self.can_be_purged(dst_path):
-            return True
-        return False
-
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
-
-        dst_files = set()
-        for dst_path in walk_paths(self.dst):
-            if os.path.basename(dst_path) == REF_FILENAME:
-                continue
-            if self._requires_removal(dst_path, src, src_files):
-                remove_path(dst_path)
-                self.report.add('removed', self.src, dst_path)
-            elif os.path.isfile(dst_path):
-                dst_files.add(dst_path)
-
-        if not src_files:
-            if not dst_files:
-                remove_path(self.dst)
-            return
-
         self.ref.src = src
         self.ref.files = {}
         for src_file in src_files:
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
+            self.dst_paths.add(dst_file)
             src_hash = get_file_hash(src_file)
             dst_hash = get_file_hash(dst_file)
             try:
@@ -516,13 +510,12 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
 
     def do_run(self):
         gc = get_google_cloud()
-        paths = set()
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 self.report.add('skipped', self.src, file_meta['path'])
                 continue
             dst_file = os.path.join(self.dst, file_meta['path'])
-            paths.add(dst_file)
+            self.dst_paths.add(dst_file)
             dt = get_file_mtime_dt(dst_file)
             if dt and dt > file_meta['modified_time']:
                 self.report.add('skipped', self.src, dst_file)
@@ -537,8 +530,7 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
                 logger.error('failed to save google drive file '
                     f'{file_meta["name"]}: {exc}')
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
-            for p in paths}
-        self.purge_dst(paths)
+            for p in self.dst_paths}
 
 
 class GoogleContactsExportSaver(GoogleCloudSaver):
@@ -551,6 +543,7 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         contacts = gc.list_contacts()
         data = to_json(contacts)
         file = os.path.join(self.dst, 'contacts.json')
+        self.dst_paths = {file}
         if text_file_exists(file, data):
             self.report.add('skipped', self.src, file)
         else:
@@ -560,7 +553,6 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
         self.ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
-        self.purge_dst({file})
 
 
 class ChromiumBookmarksExportSaver(BaseSaver):
@@ -568,10 +560,9 @@ class ChromiumBookmarksExportSaver(BaseSaver):
     hostname = HOSTNAME
 
     def do_run(self):
-        paths = set()
         for file_meta in BookmarksHandler().export():
             dst_file = os.path.join(self.dst, file_meta['path'])
-            paths.add(dst_file)
+            self.dst_paths.add(dst_file)
             if text_file_exists(dst_file, file_meta['content'],
                     log_content_changed=True):
                 self.report.add('skipped', self.src, dst_file)
@@ -581,8 +572,7 @@ class ChromiumBookmarksExportSaver(BaseSaver):
                     fd.write(file_meta['content'])
                 self.report.add('saved', self.src, dst_file)
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
-            for p in paths}
-        self.purge_dst(paths)
+            for p in self.dst_paths}
 
 
 class SaveItem:
@@ -910,21 +900,28 @@ class SaveMonitor:
         if not self._must_run():
             return
         min_ts = time.time() - STALE_DELTA
-        stale_hostnames = {h for h, r in self._iterate_hostname_refs()
-            if r.ts < min_ts}
+        stale_hostnames = set()
+        invalid_files = set()
+        for hostname, ref in self._iterate_hostname_refs():
+            if ref.ts < min_ts:
+                stale_hostnames.add(hostname)
+            for rel_path, file_hash in ref.files.items():
+                dst_file = os.path.join(ref.dst, switch_os_sep(rel_path))
+                if os.path.getsize(dst_file) and \
+                        get_file_hash(dst_file) != file_hash:
+                    invalid_files.add(dst_file)
+                    logger.error(f'invalid file: {dst_file}')
         if stale_hostnames:
             Notifier().send(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
+        if invalid_files:
+            Notifier().send(title=f'{NAME} warning',
+                body=f'Invalid files: {len(invalid_files)}')
         self.run_file.touch()
 
     def _get_size(self, ref):
-        other_sep = '\\' if os.sep == '/' else '/'
-
-        def get_rel_path(x):
-            return x.replace(other_sep, os.sep)
-
         try:
-            sizes = [os.path.getsize(os.path.join(ref.dst, get_rel_path(r)))
+            sizes = [os.path.getsize(os.path.join(ref.dst, switch_os_sep(r)))
                 for r in ref.files.keys()]
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
@@ -1021,6 +1018,7 @@ def savegame(force=False):
 
 def status(**kwargs):
     SaveMonitor(force=True).generate_report(**kwargs)
+    SaveMonitor(force=True).run()
 
 
 def checkgame(hostname=None):
