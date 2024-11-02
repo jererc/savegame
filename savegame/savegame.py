@@ -326,7 +326,7 @@ class BaseSaver:
     src_type = 'local'
     dst_type = 'local'
 
-    def __init__(self, src, inclusions, exclusions, dst_path, run_delta=0,
+    def __init__(self, src, inclusions, exclusions, dst_path, run_delta=3600,
                  retention_delta=RETENTION_DELTA):
         self.src = src
         self.inclusions = inclusions
