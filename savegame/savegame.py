@@ -1018,7 +1018,6 @@ def savegame(force=False):
 
 def status(**kwargs):
     SaveMonitor(force=True).generate_report(**kwargs)
-    SaveMonitor(force=True).run()
 
 
 def checkgame(hostname=None):
