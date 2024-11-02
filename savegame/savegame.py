@@ -963,7 +963,7 @@ class SaveMonitor:
                 'src': ref.src,
                 'last_run': ref.run_file.get_ts(),
                 'updates': self._get_daily_updates(ref),
-                'size': self._get_size(ref),
+                'size': self._get_size(ref) or '',
                 'files': len(ref.files),
             })
         rows = [headers] + sorted(items, key=lambda x: x[sort_by],
