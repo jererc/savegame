@@ -444,7 +444,7 @@ class LocalSaver(BaseSaver):
                 else:
                     self.report.add('ok', src, src_file)
 
-    def _needs_removal(self, dst_path, src, src_files):
+    def _requires_removal(self, dst_path, src, src_files):
 
         def is_duplicate():
             return os.path.basename(dst_path).startswith(REF_FILENAME)
@@ -465,7 +465,7 @@ class LocalSaver(BaseSaver):
         for dst_path in walk_paths(self.dst):
             if os.path.basename(dst_path) == REF_FILENAME:
                 continue
-            if self._needs_removal(dst_path, src, src_files):
+            if self._requires_removal(dst_path, src, src_files):
                 remove_path(dst_path)
                 self.report.add('removed', self.src, dst_path)
             elif os.path.isfile(dst_path):
