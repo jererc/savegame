@@ -36,8 +36,6 @@ DAEMON_LOOP_DELAY = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 8 * 3600
-REF_TS_HISTORY_DELTA = 30 * 24 * 3600
-REF_MIN_TS_HISTORY = 3
 STALE_DELTA = 3 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
@@ -45,8 +43,6 @@ WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
-REF_RUN_FILENAME = f'.{NAME}.run'
-REF_FILENAMES = {REF_FILENAME, REF_RUN_FILENAME}
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
@@ -251,13 +247,9 @@ class RunFile:
 
 
 class Reference:
-    def __init__(self, dst, ts_history_delta=REF_TS_HISTORY_DELTA,
-                 min_ts_history=REF_MIN_TS_HISTORY):
+    def __init__(self, dst):
         self.dst = dst
-        self.ts_history_delta = ts_history_delta
-        self.min_ts_history = min_ts_history
         self.file = os.path.join(dst, REF_FILENAME)
-        self.run_file = RunFile(os.path.join(dst, REF_RUN_FILENAME))
         self.data = None
         self.src = None
         self.files = None
@@ -280,28 +272,20 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def _get_ts_history(self):
-        min_ts = time.time() - self.ts_history_delta
-        ts = [t for t in self.ts if t > min_ts]
-        if len(ts) < self.min_ts_history - 1:
-            ts = self.ts[-(self.min_ts_history - 1):]
-        return ts + [int(time.time())]
-
     def save(self):
-        self.run_file.touch()
-        data = {'src': self.src, 'files': self.files}
-        if data == {k: self.data.get(k) for k in data.keys()}:
-            return
-        data['ts'] = self._get_ts_history()
+        data = {
+            'src': self.src,
+            'files': self.files,
+            'ts': time.time(),
+        }
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
-        logger.debug(f'updated ref file {self.file}')
         self._load(data)
 
     @property
     def ts(self):
-        return self.data.get('ts', [])
+        return self.data.get('ts', 0)
 
 
 class Report:
@@ -457,11 +441,15 @@ class LocalSaver(BaseSaver):
                     self.report.add('ok', src, src_file)
 
     def _needs_removal(self, dst_path, src, src_files):
+
+        def is_duplicate():
+            return os.path.basename(dst_path).startswith(REF_FILENAME)
+
         if os.path.isdir(dst_path) and not os.listdir(dst_path):
             return True
         src_path = os.path.join(src, os.path.relpath(dst_path, self.dst))
         if os.path.isfile(dst_path) and src_path not in src_files \
-                and self.can_be_purged(dst_path):
+                and (is_duplicate() or self.can_be_purged(dst_path)):
             return True
         return False
 
@@ -471,7 +459,7 @@ class LocalSaver(BaseSaver):
 
         dst_files = set()
         for dst_path in walk_paths(self.dst):
-            if os.path.basename(dst_path) in REF_FILENAMES:
+            if os.path.basename(dst_path) == REF_FILENAME:
                 continue
             if self._needs_removal(dst_path, src, src_files):
                 remove_path(dst_path)
@@ -918,7 +906,7 @@ class SaveMonitor:
             return
         min_ts = time.time() - STALE_DELTA
         stale_hostnames = {h for h, r in self._iterate_hostname_refs()
-            if r.run_file.get_ts() < min_ts}
+            if r.ts < min_ts}
         if stale_hostnames:
             Notifier().send(title=f'{NAME} warning',
                 body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
@@ -936,12 +924,7 @@ class SaveMonitor:
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
-
-    def _get_daily_updates(self, ref):
-        if not ref.ts:
-            return None
-        sec = time.time() - ref.ts[0]
-        return to_float(len(ref.ts) * 3600 * 24 / sec) if sec else None
+            return -1
 
     def generate_report(self, sort_by='last_run', order='desc'):
 
@@ -952,7 +935,6 @@ class SaveMonitor:
             'hostname': 'Hostname',
             'src': 'Source path',
             'last_run': 'Last run',
-            'updates': 'Updates',
             'size': 'Size (MB)',
             'files': 'Files',
         }
@@ -961,9 +943,8 @@ class SaveMonitor:
             items.append({
                 'hostname': hostname,
                 'src': ref.src,
-                'last_run': ref.run_file.get_ts(),
-                'updates': self._get_daily_updates(ref),
-                'size': self._get_size(ref) or '',
+                'last_run': ref.ts,
+                'size': self._get_size(ref),
                 'files': len(ref.files),
             })
         rows = [headers] + sorted(items, key=lambda x: x[sort_by],
@@ -971,7 +952,7 @@ class SaveMonitor:
         for i, r in enumerate(rows):
             human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
             print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:10}  '
-                f'{r["files"]:10}  {r["updates"]:10}  {r["src"]}')
+                f'{r["files"]:10}  {r["src"]}')
 
 
 def with_lockfile():

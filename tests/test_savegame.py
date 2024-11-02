@@ -67,6 +67,12 @@ def count_matches(strings, pattern):
     return res
 
 
+def write_ref_data(ref):
+    with open(ref.file, 'wb') as fd:
+        fd.write(gzip.compress(
+            json.dumps(ref.data, sort_keys=True).encode('utf-8')))
+
+
 class LoadgamePathUsernameTestCase(unittest.TestCase):
     def setUp(self):
         self.own_username = os.getlogin()
@@ -259,14 +265,6 @@ class PatternTestCase(unittest.TestCase):
 
 
 class ReferenceTestCase(BaseTestCase):
-    def _get_mtime(self, ref):
-        return os.stat(ref.file).st_mtime
-
-    def _write_data(self, ref):
-        with open(ref.file, 'wb') as fd:
-            fd.write(gzip.compress(
-                json.dumps(ref.data, sort_keys=True).encode('utf-8')))
-
     def test_1(self):
         ref1 = savegame.Reference(self.dst_root)
         ref1.src = self.src_root
@@ -275,64 +273,19 @@ class ReferenceTestCase(BaseTestCase):
             'file2': 'hash2',
         }
         ref1.save()
-        ts1 = self._get_mtime(ref1)
-
-        time.sleep(.1)
-        ref1.save()
-        ts2 = self._get_mtime(ref1)
-        self.assertEqual(ts2, ts1)
+        ts1 = ref1.ts
 
         ref2 = savegame.Reference(self.dst_root)
         self.assertEqual(ref2.data, ref1.data)
         self.assertEqual(ref2.src, ref1.src)
         self.assertEqual(ref2.files, ref1.files)
+        self.assertEqual(ref2.ts, ts1)
 
-        time.sleep(.1)
         ref2.files['file3'] = 'hash3'
-        ref2.save()
-        ts3 = self._get_mtime(ref2)
-        self.assertTrue(ts3 > ts2)
-
-        time.sleep(.1)
-        ref2.files['file4'] = 'hash4'
-        ref2.save()
-        ts4 = self._get_mtime(ref2)
-        self.assertTrue(ts4 > ts3)
-
+        ts2 = ref2.ts
         time.sleep(.1)
         ref2.save()
-        ts5 = self._get_mtime(ref2)
-        self.assertEqual(ts5, ts4)
-
-        for i in range(10):
-            ref2.files[f'new_file{i}'] = f'new_hash{i}'
-            ref2.save()
-        self.assertTrue(len(ref2.data['ts']) > 10)
-
-        now_ts = int(time.time())
-        ref2.data['ts'] = [
-            now_ts - savegame.REF_TS_HISTORY_DELTA - 2,
-            now_ts - savegame.REF_TS_HISTORY_DELTA - 1,
-            now_ts,
-        ]
-        self._write_data(ref2)
-        ref2 = savegame.Reference(self.dst_root)
-        ref2.files['another_new_file'] = 'another_new_hash'
-        ref2.save()
-        self.assertEqual(len(ref2.data['ts']), 3)
-
-        ref2.data['ts'] = [
-            now_ts - savegame.REF_TS_HISTORY_DELTA - 2,
-            now_ts - savegame.REF_TS_HISTORY_DELTA - 1,
-            now_ts - 2,
-            now_ts - 1,
-            now_ts,
-        ]
-        self._write_data(ref2)
-        ref2 = savegame.Reference(self.dst_root)
-        ref2.files['another_new_file2'] = 'another_new_hash2'
-        ref2.save()
-        self.assertEqual(len(ref2.data['ts']), 4)
+        self.assertTrue(ref2.ts > ts2)
 
 
 class SaveItemTestCase(BaseTestCase):
@@ -617,7 +570,8 @@ class SavegameTestCase(BaseTestCase):
         refs = self._get_ref()
         for src_path, ref in refs.items():
             if src_path.endswith('src1'):
-                remove_path(ref.run_file.file)
+                ref.data['ts'] = time.time() - savegame.STALE_DELTA - 1
+                write_ref_data(ref)
 
         with patch.object(savegame.Notifier, 'send') as mock_send:
             sc = savegame.SaveMonitor(force=True)
