@@ -151,28 +151,6 @@ def get_file_hash(file, chunk_size=8192):
     return md5_hash.hexdigest()
 
 
-class Notifier:
-    def _send_nt(self, title, body, on_click=None):
-        from win11toast import notify
-        notify(title=title, body=body, on_click=on_click)
-
-    def _send_posix(self, title, body, on_click=None):
-        env = os.environ.copy()
-        env['DISPLAY'] = ':0'
-        env['DBUS_SESSION_BUS_ADDRESS'] = \
-            f'unix:path=/run/user/{os.getuid()}/bus'
-        subprocess.check_call(['notify-send', title, body], env=env)
-
-    def send(self, *args, **kwargs):
-        try:
-            {
-                'nt': self._send_nt,
-                'posix': self._send_posix,
-            }[os.name](*args, **kwargs)
-        except Exception:
-            logger.exception('failed to send notification')
-
-
 def text_file_exists(file, data, encoding='utf-8', log_content_changed=False):
     if not os.path.exists(file):
         return False
@@ -318,6 +296,28 @@ class Report:
             for k2, v2 in v.items():
                 res[k][k2] = len(v2)
         return res
+
+
+class Notifier:
+    def _send_nt(self, title, body, on_click=None):
+        from win11toast import notify
+        notify(title=title, body=body, on_click=on_click)
+
+    def _send_posix(self, title, body, on_click=None):
+        env = os.environ.copy()
+        env['DISPLAY'] = ':0'
+        env['DBUS_SESSION_BUS_ADDRESS'] = \
+            f'unix:path=/run/user/{os.getuid()}/bus'
+        subprocess.check_call(['notify-send', title, body], env=env)
+
+    def send(self, *args, **kwargs):
+        try:
+            {
+                'nt': self._send_nt,
+                'posix': self._send_posix,
+            }[os.name](*args, **kwargs)
+        except Exception:
+            logger.exception('failed to send notification')
 
 
 class BaseSaver:
