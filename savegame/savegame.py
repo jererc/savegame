@@ -151,14 +151,8 @@ def get_file_hash(file, chunk_size=8192):
     return md5_hash.hexdigest()
 
 
-def text_file_exists(file, data, encoding='utf-8', log_content_changed=False):
-    if not os.path.exists(file):
-        return False
-    with open(file, encoding=encoding) as fd:
-        res = fd.read() == data
-    if not res and log_content_changed:
-        logger.warning(f'content has changed in {file}')
-    return res
+def get_hash(data, encoding='utf-8'):
+    return hashlib.md5(data.encode(encoding)).hexdigest()
 
 
 def check_patterns(path, inclusions=None, exclusions=None):
@@ -542,9 +536,10 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         gc = get_google_cloud()
         contacts = gc.list_contacts()
         data = to_json(contacts)
-        file = os.path.join(self.dst, 'contacts.json')
+        rel_path = 'contacts.json'
+        file = os.path.join(self.dst, rel_path)
         self.dst_paths = {file}
-        if text_file_exists(file, data):
+        if get_hash(data) == self.ref.files.get(rel_path):
             self.report.add('skipped', self.src, file)
         else:
             makedirs(os.path.dirname(file))
@@ -552,7 +547,7 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
                 fd.write(data)
             self.report.add('saved', self.src, file)
             logger.info(f'saved {len(contacts)} google contacts')
-        self.ref.files = {os.path.relpath(file, self.dst): get_file_hash(file)}
+        self.ref.files = {rel_path: get_file_hash(file)}
 
 
 class ChromiumBookmarksExportSaver(BaseSaver):
@@ -563,8 +558,8 @@ class ChromiumBookmarksExportSaver(BaseSaver):
         for file_meta in BookmarksHandler().export():
             dst_file = os.path.join(self.dst, file_meta['path'])
             self.dst_paths.add(dst_file)
-            if text_file_exists(dst_file, file_meta['content'],
-                    log_content_changed=True):
+            if get_hash(file_meta['content']) == self.ref.files.get(
+                    file_meta['path']):
                 self.report.add('skipped', self.src, dst_file)
             else:
                 makedirs(os.path.dirname(dst_file))
