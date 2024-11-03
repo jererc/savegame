@@ -538,7 +538,7 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         data = to_json(contacts)
         rel_path = 'contacts.json'
         dst_file = os.path.join(self.dst, rel_path)
-        self.dst_paths = {dst_file}
+        self.dst_paths.add(dst_file)
         file_hash = get_hash(data)
         if file_hash == self.ref.files.get(rel_path):
             self.report.add('skipped', self.src, dst_file)
