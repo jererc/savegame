@@ -540,11 +540,13 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         dst_file = os.path.join(self.dst, rel_path)
         self.dst_paths.add(dst_file)
         file_hash = get_hash(data)
-        if file_hash == self.ref.files.get(rel_path):
+        if os.path.exists(dst_file) and \
+                file_hash == self.ref.files.get(rel_path):
             self.report.add('skipped', self.src, dst_file)
         else:
             makedirs(os.path.dirname(dst_file))
-            with open(dst_file, 'w', encoding='utf-8') as fd:
+            with open(dst_file, 'w', encoding='utf-8',
+                    newline='\n') as fd:
                 fd.write(data)
             self.report.add('saved', self.src, dst_file)
             logger.info(f'saved {len(contacts)} google contacts')
@@ -563,11 +565,13 @@ class ChromiumBookmarksExportSaver(BaseSaver):
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
             file_hash = get_hash(file_meta['content'])
-            if file_hash == ref_files.get(rel_path):
+            if os.path.exists(dst_file) and \
+                    file_hash == ref_files.get(rel_path):
                 self.report.add('skipped', self.src, dst_file)
             else:
                 makedirs(os.path.dirname(dst_file))
-                with open(dst_file, 'w', encoding='utf-8') as fd:
+                with open(dst_file, 'w', encoding='utf-8',
+                        newline='\n') as fd:
                     fd.write(file_meta['content'])
                 self.report.add('saved', self.src, dst_file)
             self.ref.files[rel_path] = file_hash
