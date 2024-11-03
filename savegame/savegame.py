@@ -537,17 +537,18 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         contacts = gc.list_contacts()
         data = to_json(contacts)
         rel_path = 'contacts.json'
-        file = os.path.join(self.dst, rel_path)
-        self.dst_paths = {file}
-        if get_hash(data) == self.ref.files.get(rel_path):
-            self.report.add('skipped', self.src, file)
+        dst_file = os.path.join(self.dst, rel_path)
+        self.dst_paths = {dst_file}
+        file_hash = get_hash(data)
+        if file_hash == self.ref.files.get(rel_path):
+            self.report.add('skipped', self.src, dst_file)
         else:
-            makedirs(os.path.dirname(file))
-            with open(file, 'w', encoding='utf-8') as fd:
+            makedirs(os.path.dirname(dst_file))
+            with open(dst_file, 'w', encoding='utf-8') as fd:
                 fd.write(data)
-            self.report.add('saved', self.src, file)
+            self.report.add('saved', self.src, dst_file)
             logger.info(f'saved {len(contacts)} google contacts')
-        self.ref.files = {rel_path: get_file_hash(file)}
+        self.ref.files = {rel_path: file_hash}
 
 
 class ChromiumBookmarksExportSaver(BaseSaver):
@@ -555,19 +556,21 @@ class ChromiumBookmarksExportSaver(BaseSaver):
     hostname = HOSTNAME
 
     def do_run(self):
+        ref_files = deepcopy(self.ref.files)
+        self.ref.files = {}
         for file_meta in BookmarksHandler().export():
-            dst_file = os.path.join(self.dst, file_meta['path'])
+            rel_path = file_meta['path']
+            dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
-            if get_hash(file_meta['content']) == self.ref.files.get(
-                    file_meta['path']):
+            file_hash = get_hash(file_meta['content'])
+            if file_hash == ref_files.get(rel_path):
                 self.report.add('skipped', self.src, dst_file)
             else:
                 makedirs(os.path.dirname(dst_file))
                 with open(dst_file, 'w', encoding='utf-8') as fd:
                     fd.write(file_meta['content'])
                 self.report.add('saved', self.src, dst_file)
-        self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
-            for p in self.dst_paths}
+            self.ref.files[rel_path] = file_hash
 
 
 class SaveItem:
