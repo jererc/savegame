@@ -924,7 +924,7 @@ class SaveMonitor:
                         logger.error(f'missing file: {dst_file}')
                     elif os.path.getsize(dst_file) == 0:
                         remove_path(dst_file)
-                        logger.error(f'removed empty file: {dst_file} (sync error?)')
+                        logger.error(f'removed empty file: {dst_file}')
                     else:
                         logger.error(f'invalid file: {dst_file}')
 
