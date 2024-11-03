@@ -910,16 +910,18 @@ class SaveMonitor:
             return -1
 
     def _monitor(self):
+        report = {
+            'invalid_files': set(),
+            'stale_hostnames': set(),
+            'items': [],
+        }
         min_ts = time.time() - STALE_DELTA
-        stale_hostnames = set()
-        invalid_files = set()
-        items = []
         for hostname, ref in self._iterate_hostname_refs():
-            ref_invalid_files = set()
+            invalid_files = set()
             for rel_path, file_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
                 if get_file_hash(dst_file) != file_hash:
-                    ref_invalid_files.add(dst_file)
+                    invalid_files.add(dst_file)
                     if not os.path.exists(dst_file):
                         logger.error(f'missing file: {dst_file}')
                     elif os.path.getsize(dst_file) == 0:
@@ -927,24 +929,20 @@ class SaveMonitor:
                         logger.error(f'removed empty file: {dst_file}')
                     else:
                         logger.error(f'invalid file: {dst_file}')
-            invalid_files.update(ref_invalid_files)
+            report['invalid_files'].update(invalid_files)
             is_stale = ref.ts < min_ts
             if is_stale:
-                stale_hostnames.add(hostname)
-            items.append({
+                report['stale_hostnames'].add(hostname)
+            report['items'].append({
                 'hostname': hostname,
                 'src': ref.src,
                 'last_run': ref.ts,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
-                'invalid': len(ref_invalid_files),
+                'invalid': len(invalid_files),
                 'is_stale': is_stale,
             })
-        return {
-            'items': items,
-            'invalid_files': invalid_files,
-            'stale_hostnames': stale_hostnames,
-        }
+        return report
 
     def run(self):
         if not self._must_run():
