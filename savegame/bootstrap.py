@@ -83,15 +83,13 @@ class Bootstrapper:
             updated_crontab += new_job
         res = subprocess.run(['crontab', '-'], input=updated_crontab,
             text=True)
-        if res.returncode == 0:
-            print('Crontab updated successfully')
-        else:
-            print('Failed to update crontab')
+        if res.returncode != 0:
+            raise SystemExit('Failed to update crontab')
+        print('Successfully updated crontab')
 
     def _setup_win_task(self, task_name, cmd):
         if ctypes.windll.shell32.IsUserAnAdmin() == 0:
-            print('Failed: must run as admin')
-            sys.exit(1)
+            raise SystemExit('Failed: must run as admin')
         subprocess.check_call(['schtasks', '/create',
             '/tn', task_name,
             '/tr', cmd,
