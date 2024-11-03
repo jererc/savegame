@@ -175,7 +175,7 @@ def check_patterns(path, inclusions=None, exclusions=None):
     return True
 
 
-def switch_os_sep(x):
+def get_local_path(x):
     return x.replace('\\' if os.sep == '/' else '/', os.sep)
 
 
@@ -896,64 +896,81 @@ class SaveMonitor:
                         continue
                     yield hostname, ref
 
-    def run(self):
-        if not self._must_run():
-            return
-        min_ts = time.time() - STALE_DELTA
-        stale_hostnames = set()
-        invalid_files = set()
-        for hostname, ref in self._iterate_hostname_refs():
-            if ref.ts < min_ts:
-                stale_hostnames.add(hostname)
-            for rel_path, file_hash in ref.files.items():
-                dst_file = os.path.join(ref.dst, switch_os_sep(rel_path))
-                if get_file_hash(dst_file) != file_hash:
-                    invalid_files.add(dst_file)
-                    logger.error(f'invalid file: {dst_file}')
-        if stale_hostnames:
-            Notifier().send(title=f'{NAME} warning',
-                body=f'Stale hostnames: {", ".join(sorted(stale_hostnames))}')
-        if invalid_files:
-            Notifier().send(title=f'{NAME} warning',
-                body=f'Invalid files: {len(invalid_files)}')
-        self.run_file.touch()
-
     def _get_size(self, ref):
         try:
-            sizes = [os.path.getsize(os.path.join(ref.dst, switch_os_sep(r)))
+            sizes = [os.path.getsize(os.path.join(ref.dst, get_local_path(r)))
                 for r in ref.files.keys()]
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
             return -1
 
-    def generate_report(self, sort_by='last_run', order='desc'):
-
-        def to_human_dt(ts):
-            return datetime.fromtimestamp(int(ts)).isoformat(' ')
-
-        headers = {
-            'hostname': 'Hostname',
-            'src': 'Source path',
-            'last_run': 'Last run',
-            'size': 'Size (MB)',
-            'files': 'Files',
-        }
+    def _generate_report(self):
+        min_ts = time.time() - STALE_DELTA
+        stale_hostnames = set()
+        invalid_files = set()
         items = []
         for hostname, ref in self._iterate_hostname_refs():
+            ref_invalid_files = set()
+            for rel_path, file_hash in ref.files.items():
+                dst_file = os.path.join(ref.dst, get_local_path(rel_path))
+                if get_file_hash(dst_file) != file_hash:
+                    ref_invalid_files.add(dst_file)
+                    logger.error(f'invalid file: {dst_file} '
+                        f'(size: {os.path.getsize(dst_file)})')
+            is_stale = ref.ts < min_ts
             items.append({
                 'hostname': hostname,
                 'src': ref.src,
                 'last_run': ref.ts,
                 'size': self._get_size(ref),
                 'files': len(ref.files),
+                'invalid_files': len(ref_invalid_files),
+                'status': 'stale' if is_stale else 'OK',
             })
-        rows = [headers] + sorted(items, key=lambda x: x[sort_by],
+            if is_stale:
+                stale_hostnames.add(hostname)
+            invalid_files.update(ref_invalid_files)
+        return {
+            'items': items,
+            'invalid_files': invalid_files,
+            'stale_hostnames': stale_hostnames,
+        }
+
+    def run(self):
+        if not self._must_run():
+            return
+        report = self._generate_report()
+        if report['invalid_files']:
+            Notifier().send(title=f'{NAME} warning', body=f'Invalid files: '
+                f'{len(report["invalid_files"])}')
+        if report['stale_hostnames']:
+            Notifier().send(title=f'{NAME} warning', body='Stale hostnames: '
+                    f'{", ".join(sorted(report["stale_hostnames"]))}')
+        self.run_file.touch()
+
+    def get_status(self, sort_by='last_run', order='desc'):
+
+        def to_human_dt(ts):
+            return datetime.fromtimestamp(int(ts)).isoformat(' ')
+
+        report = self._generate_report()
+        headers = {
+            'hostname': 'Hostname',
+            'src': 'Source path',
+            'last_run': 'Last run',
+            'size': 'Size (MB)',
+            'files': 'Files',
+            'invalid_files': 'Invalid files',
+            'status': 'Status',
+        }
+        rows = [headers] + sorted(report['items'], key=lambda x: x[sort_by],
             reverse=order == 'desc')
         for i, r in enumerate(rows):
             human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
             print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:10}  '
-                f'{r["files"]:10}  {r["src"]}')
+                f'{r["files"]:9}  {r["invalid_files"] or "":9}  '
+                f'{r["status"]:10}  {r["src"]}')
 
 
 def with_lockfile():
@@ -1016,7 +1033,7 @@ def savegame(force=False):
 
 
 def status(**kwargs):
-    SaveMonitor(force=True).generate_report(**kwargs)
+    SaveMonitor(force=True).get_status(**kwargs)
 
 
 def checkgame(hostname=None):
