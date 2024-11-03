@@ -927,20 +927,19 @@ class SaveMonitor:
                         logger.error(f'removed empty file: {dst_file}')
                     else:
                         logger.error(f'invalid file: {dst_file}')
-
+            invalid_files.update(ref_invalid_files)
             is_stale = ref.ts < min_ts
+            if is_stale:
+                stale_hostnames.add(hostname)
             items.append({
                 'hostname': hostname,
                 'src': ref.src,
                 'last_run': ref.ts,
-                'size': self._get_size(ref),
+                'size_MB': self._get_size(ref),
                 'files': len(ref.files),
-                'invalid_files': len(ref_invalid_files),
+                'invalid': len(ref_invalid_files),
                 'is_stale': is_stale,
             })
-            if is_stale:
-                stale_hostnames.add(hostname)
-            invalid_files.update(ref_invalid_files)
         return {
             'items': items,
             'invalid_files': invalid_files,
@@ -965,22 +964,16 @@ class SaveMonitor:
             return datetime.fromtimestamp(int(ts)).isoformat(' ')
 
         report = self._monitor()
-        headers = {
-            'hostname': 'Hostname',
-            'src': 'Source path',
-            'last_run': 'Last run',
-            'size': 'Size (MB)',
-            'files': 'Files',
-            'invalid_files': 'Invalid files',
-            'is_stale': 'Stale',
-        }
+        if not report['items']:
+            return
+        headers = {k: k for k in report['items'][0].keys()}
         rows = [headers] + sorted(report['items'], key=lambda x: x[sort_by],
             reverse=order == 'desc')
         for i, r in enumerate(rows):
             human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
-            print(f'{human_dt:19}  {r["hostname"]:20}  {r["size"]:10}  '
-                f'{r["files"]:9}  {r["invalid_files"] or "":9}  '
-                f'{r["is_stale"] or "":10}  {r["src"]}')
+            print(f'{human_dt:19}  {r["hostname"]:20}  {r["size_MB"]:10}  '
+                f'{r["files"]:8}  {r["invalid"] or "":8}  '
+                f'{r["is_stale"] or "":8}  {r["src"]}')
 
 
 def with_lockfile():
