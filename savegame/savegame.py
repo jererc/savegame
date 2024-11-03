@@ -379,10 +379,10 @@ class BaseSaver:
 
     def _requires_purge(self, path):
         if os.path.isfile(path):
+            if path in self.dst_paths:
+                return False
             name = os.path.basename(path)
             if name == REF_FILENAME:
-                return False
-            if path in self.dst_paths:
                 return False
             if not name.startswith(REF_FILENAME) and \
                     get_file_mtime(path) > time.time() - self.retention_delta:
