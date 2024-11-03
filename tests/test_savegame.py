@@ -573,8 +573,10 @@ class SavegameTestCase(BaseTestCase):
                 ref.data['ts'] = time.time() - savegame.STALE_DELTA - 1
                 write_ref_data(ref)
 
-        with patch.object(savegame.Notifier, 'send') as mock_send:
-            sc = savegame.SaveMonitor(force=True)
+        with patch.object(savegame.SaveMonitor, '_must_run') as mock__must_run, \
+                patch.object(savegame.Notifier, 'send') as mock_send:
+            mock__must_run.return_value = True
+            sc = savegame.SaveMonitor()
             sc.run()
         self.assertTrue(mock_send.call_args_list)
 

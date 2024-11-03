@@ -876,13 +876,11 @@ class LoadHandler:
 
 
 class SaveMonitor:
-    def __init__(self, force=False):
-        self.force = force
+    def __init__(self):
         self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor.run'))
 
     def _must_run(self):
-        return (self.force or time.time() > self.run_file.get_ts()
-            + MONITOR_DELTA)
+        return time.time() > self.run_file.get_ts() + MONITOR_DELTA
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items()
@@ -1030,11 +1028,11 @@ def must_run(last_run_ts):
 
 def savegame(force=False):
     SaveHandler(force=force).run()
-    SaveMonitor(force=False).run()
+    SaveMonitor().run()
 
 
 def status(**kwargs):
-    SaveMonitor(force=True).get_status(**kwargs)
+    SaveMonitor().get_status(**kwargs)
 
 
 def checkgame(hostname=None):
