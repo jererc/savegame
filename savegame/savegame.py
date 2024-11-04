@@ -777,10 +777,6 @@ class LoadHandler:
         for dst_path in dst_paths:
             yield LocalLoader(dst_path=dst_path, **self.loader_args)
 
-    def list_hostnames(self):
-        return {h for lo in self._iterate_loaders()
-            for h in lo.hostnames}
-
     def run(self):
         report = Report()
         for loader in self._iterate_loaders():
@@ -957,11 +953,6 @@ def loadgame(**kwargs):
     LoadHandler(**kwargs).run()
 
 
-def list_hostnames(**kwargs):
-    hostnames = "\n".join(sorted(LoadHandler(**kwargs).list_hostnames()))
-    print(f'available hostnames:\n{hostnames}')
-
-
 def google_oauth(**kwargs):
     get_google_cloud().get_oauth_creds(interact=True)
 
@@ -1010,7 +1001,6 @@ def _parse_args():
     load_parser.add_argument('--exclude', nargs='*')
     load_parser.add_argument('--overwrite', action='store_true')
     load_parser.add_argument('--dry-run', action='store_true')
-    subparsers.add_parser('hostnames')
     subparsers.add_parser('google_oauth')
     args = parser.parse_args()
     if not args.cmd:
@@ -1032,7 +1022,6 @@ def main():
         {
             'status': status,
             'load': loadgame,
-            'hostnames': list_hostnames,
             'google_oauth': google_oauth,
         }[args.cmd](**{k: v for k, v in vars(args).items() if k != 'cmd'})
 

@@ -834,7 +834,6 @@ class SavegameTestCase(BaseTestCase):
         src_paths = self._list_src_root_src_paths()
         remove_path(self.src_root)
         self.assertEqual(src_paths, set())
-        savegame.list_hostnames()
 
     def test_load_username(self):
         username2 = 'username2'
