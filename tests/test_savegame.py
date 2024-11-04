@@ -755,60 +755,6 @@ class SavegameTestCase(BaseTestCase):
         pprint(dst_paths)
         self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
 
-    def test_check(self):
-        self._generate_src_data(index_start=1, src_count=5, dir_count=2,
-            file_count=2)
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1', '*'),
-                    os.path.join(self.src_root, 'src2', '*'),
-                ],
-                'dst_path': self.dst_root,
-            },
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src3', '*'),
-                    os.path.join(self.src_root, 'src4', '*'),
-                ],
-                'dst_path': self.dst_root,
-            },
-        ]
-        savegame.savegame()
-        src_paths = self._list_src_root_paths()
-        print('src data:')
-        pprint(src_paths)
-        dst_paths = self._list_dst_root_paths()
-        print('dst data:')
-        pprint(dst_paths)
-
-        savegame.checkgame()
-
-        for file in walk_files(self.src_root):
-            if fnmatch(file, '*src1*dir1*file1'):
-                with open(file) as fd:
-                    content = fd.read()
-                with open(file, 'w') as fd:
-                    fd.write(content + 'a')
-            if fnmatch(file, '*src2*dir2*file1'):
-                remove_path(file)
-        for file in walk_files(self.dst_root):
-            if fnmatch(file, '*src4*dir1*file1'):
-                with open(file) as fd:
-                    content = fd.read()
-                with open(file, 'w') as fd:
-                    fd.write(content + 'b')
-            if fnmatch(file, '*src4*dir2*file2'):
-                remove_path(file)
-
-        savegame.checkgame()
-
-        remove_path(os.path.join(self.src_root, 'src4'))
-        savegame.checkgame()
-
-        remove_path(os.path.join(self.src_root))
-        savegame.checkgame()
-
     def test_load_skipped_identical(self):
         self._savegame(index_start=1, file_count=2)
         src_paths = self._list_src_root_paths()

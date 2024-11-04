@@ -365,9 +365,6 @@ class BaseSaver:
                 else self.meta.get(self.src).get('success_ts', 0),
         })
 
-    def check_data(self):
-        raise NotImplementedError()
-
     def do_run(self):
         raise NotImplementedError()
 
@@ -435,36 +432,6 @@ class LocalSaver(BaseSaver):
                 files = list(walk_files(src))
             return src, {f for f in files if is_valid(f)}
         return self.src, set()
-
-    def check_data(self):
-        src, src_files = self._get_src_and_files()
-        if not src_files:
-            return
-        src_hashes = {os.path.relpath(f, src): get_file_hash(f)
-            for f in src_files}
-        dst_hashes = {p: get_file_hash(os.path.join(self.dst, p))
-            for p in self.ref.files.keys()}
-        if src_hashes == dst_hashes:
-            self.report.add('ok', src, src_files)
-        else:
-            for path in set(list(src_hashes.keys()) + list(dst_hashes.keys())):
-                src_hash = src_hashes.get(path)
-                dst_hash = dst_hashes.get(path)
-                src_file = os.path.join(src, path)
-                dst_file = os.path.join(self.dst, path)
-                if not src_hash:
-                    self.report.add('missing_at_src', src, src_file)
-                elif not dst_hash:
-                    self.report.add('missing_at_dst', src, dst_file)
-                elif src_hash != dst_hash:
-                    if get_file_mtime(src_file) > get_file_mtime(dst_file):
-                        self.report.add('conflict_src_more_recent',
-                            src, src_file)
-                    else:
-                        self.report.add('conflict_dst_more_recent',
-                            src, src_file)
-                else:
-                    self.report.add('ok', src, src_file)
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
@@ -661,16 +628,6 @@ class SaveHandler:
         for si in iterate_save_items():
             yield from si.generate_savers()
 
-    def check_data(self):
-        report = Report()
-        for saver in self._generate_savers():
-            try:
-                saver.check_data()
-            except NotImplementedError:
-                continue
-            report.merge(saver.report)
-        return report
-
     def run(self):
         start_ts = time.time()
         savers = list(self._generate_savers())
@@ -730,37 +687,6 @@ class LocalLoader:
                 ref = Reference(dst)
                 if ref.src:
                     yield ref
-
-    def check_data(self):
-        for ref in self._iterate_refs():
-            try:
-                validate_path(ref.src)
-            except UnhandledPath:
-                self.report.add('unhandled_path', ref.src, ref.src)
-                continue
-            for rel_path, ref_hash in ref.files.items():
-                dst_file = os.path.join(ref.dst, rel_path)
-                dst_hash = get_file_hash(dst_file)
-                if dst_hash != ref_hash:
-                    self.report.add('invalid_dst_files', ref.dst, dst_file)
-                src_file_raw = os.path.join(ref.src, rel_path)
-                src_file = self._get_src_file_for_user(src_file_raw)
-                if not src_file:
-                    self.report.add('skipped_other_username', ref.src,
-                        src_file_raw)
-                    continue
-                if os.path.exists(src_file):
-                    if get_file_hash(src_file) == dst_hash == ref_hash:
-                        self.report.add('ok', ref.src, src_file)
-                    else:
-                        if get_file_mtime(src_file) > get_file_mtime(dst_file):
-                            self.report.add('conflict_src_more_recent',
-                                ref.src, src_file)
-                        else:
-                            self.report.add('conflict_dst_more_recent',
-                                ref.src, src_file)
-                else:
-                    self.report.add('missing_at_src', ref.src, src_file)
 
     def _requires_load(self, dst_file, src_file, src):
         if not check_patterns(src_file, self.include, self.exclude):
@@ -854,16 +780,6 @@ class LoadHandler:
     def list_hostnames(self):
         return {h for lo in self._iterate_loaders()
             for h in lo.hostnames}
-
-    def check_data(self):
-        report = Report()
-        for loader in self._iterate_loaders():
-            try:
-                loader.check_data()
-            except Exception:
-                logger.exception(f'failed to check {loader.dst_path}')
-            report.merge(loader.report)
-        return report
 
     def run(self):
         report = Report()
@@ -1037,19 +953,6 @@ def status(**kwargs):
     SaveMonitor().get_status(**kwargs)
 
 
-def checkgame(hostname=None):
-    save_report = SaveHandler().check_data()
-    load_report = LoadHandler(hostname=hostname).check_data()
-    print('save report:\n'
-        f'{to_json(save_report.clean())}')
-    print('load report:\n'
-        f'{to_json(load_report.clean())}')
-    print('save summary:\n'
-        f'{to_json(save_report.get_summary())}')
-    print('load summary:\n'
-        f'{to_json(load_report.get_summary())}')
-
-
 def loadgame(**kwargs):
     LoadHandler(**kwargs).run()
 
@@ -1100,8 +1003,6 @@ def _parse_args():
     status_parser = subparsers.add_parser('status')
     status_parser.add_argument('--sort-by', default='last_run')
     status_parser.add_argument('--order', default='desc')
-    check_parser = subparsers.add_parser('check')
-    check_parser.add_argument('--hostname')
     load_parser = subparsers.add_parser('load')
     load_parser.add_argument('--hostname')
     load_parser.add_argument('--username')
@@ -1130,7 +1031,6 @@ def main():
     else:
         {
             'status': status,
-            'check': checkgame,
             'load': loadgame,
             'hostnames': list_hostnames,
             'google_oauth': google_oauth,
