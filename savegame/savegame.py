@@ -96,7 +96,7 @@ class InvalidPath(Exception):
 
 
 def validate_path(x):
-    if os.sep not in x:
+    if os.path.sep not in x:
         raise UnhandledPath(f'unhandled path {x}: not {os.name}')
 
 
@@ -170,7 +170,14 @@ def check_patterns(path, inclusions=None, exclusions=None):
 
 
 def get_local_path(x):
-    return x.replace('\\' if os.sep == '/' else '/', os.sep)
+    return x.replace('\\' if os.path.sep == '/' else '/', os.path.sep)
+
+
+def get_path_separator(path):
+    for sep in ('/', '\\'):
+        if sep in path:
+            return sep
+    return os.path.sep
 
 
 def get_google_cloud():
@@ -821,6 +828,12 @@ class SaveMonitor:
             logger.exception(f'failed to get {ref.dst} size')
             return -1
 
+    def _get_src(self, ref):
+        if len(ref.files) == 1:
+            sep = get_path_separator(ref.src)
+            return f'{ref.src}{sep}{list(ref.files.keys())[0]}'
+        return ref.src
+
     def _monitor(self):
         report = {
             'invalid_files': set(),
@@ -847,7 +860,7 @@ class SaveMonitor:
                 report['stale_hostnames'].add(hostname)
             report['items'].append({
                 'hostname': hostname,
-                'src': ref.src,
+                'src': self._get_src(ref),
                 'last_run': ref.ts,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
