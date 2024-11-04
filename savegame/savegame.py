@@ -890,8 +890,8 @@ class SaveMonitor:
         if not report['items']:
             return
         headers = {k: k for k in report['items'][0].keys()}
-        rows = [headers] + sorted(report['items'], key=lambda x: x[sort_by],
-            reverse=order == 'desc')
+        rows = [headers] + sorted(report['items'],
+            key=lambda x: (x[sort_by], x['src']), reverse=order == 'desc')
         for i, r in enumerate(rows):
             human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
             print(f'{human_dt:19}  {r["hostname"]:20}  {r["size_MB"]:10}  '
