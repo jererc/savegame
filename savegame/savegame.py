@@ -602,8 +602,6 @@ class SaveItem:
     def generate_savers(self):
         if self.os_name and os.name != self.os_name:
             return
-        if self.saver_cls.dst_type == 'local':
-            makedirs(self.dst_path)
         for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(
                 *src_and_patterns,
@@ -805,7 +803,7 @@ class SaveMonitor:
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items()
-            if s.saver_cls.dst_type == 'local'}
+            if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):

@@ -632,6 +632,25 @@ class SavegameTestCase(BaseTestCase):
                 'src_paths': [
                     [
                         os.path.join(self.src_root, '*'),
+                        ['*XXX*'],
+                        [],
+                    ],
+                ],
+                'dst_path': self.dst_root,
+                'retention_delta': 0,
+            },
+        ]
+        savegame.savegame()
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(dst_paths)
+
+        savegame.SAVES = [
+            {
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, '*'),
                         [],
                         ['*src1*'],
                     ],
