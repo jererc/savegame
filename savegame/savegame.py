@@ -205,7 +205,6 @@ class Metadata:
         if os.path.exists(self.file):
             with open(self.file) as fd:
                 self.data = json.load(fd)
-            logger.debug(f'loaded {len(self.data)} meta items')
 
     def get(self, key):
         return self.data.get(key, {})
@@ -351,7 +350,6 @@ class BaseSaver:
         self.start_ts = None
         self.end_ts = None
         self.success = None
-        self.stats = {}
 
     def get_dst(self):
         if self.dst_type == 'local':
@@ -421,7 +419,6 @@ class BaseSaver:
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         self.end_ts = time.time()
         self._update_meta()
-        self.stats['duration'] = to_float(self.end_ts - self.start_ts)
 
 
 class LocalSaver(BaseSaver):
@@ -641,7 +638,6 @@ class SaveHandler:
         start_ts = time.time()
         savers = list(self._generate_savers())
         report = Report()
-        stats = {}
         for saver in savers:
             try:
                 saver.run(force=self.force)
@@ -649,14 +645,13 @@ class SaveHandler:
                 logger.exception(f'failed to save {saver.src}')
                 Notifier().send(title=f'{NAME} exception',
                     body=f'failed to save {saver.src}: {exc}')
-            stats[saver.src] = saver.stats
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
-        print(f'stats:\n{to_json(stats)}')
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        logger.info(f'completed in {time.time() - start_ts:.02f} seconds')
+        logger.info(f'processed {len(savers)} saves in '
+            f'{time.time() - start_ts:.02f} seconds')
 
 
 class LocalLoader:
@@ -848,7 +843,8 @@ class SaveMonitor:
             invalid_files = set()
             for rel_path, file_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
-                mtimes.append(get_file_mtime(dst_file))
+                if os.path.exists(dst_file):
+                    mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != file_hash:
                     invalid_files.add(dst_file)
                     if not os.path.exists(dst_file):
