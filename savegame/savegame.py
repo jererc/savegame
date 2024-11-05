@@ -121,6 +121,10 @@ def to_float(x):
     return float(f'{x:.02f}')
 
 
+def ts_to_str(x):
+    return datetime.fromtimestamp(int(x)).isoformat(' ')
+
+
 def remove_path(path):
     if os.path.exists(path):
         if os.path.isdir(path):
@@ -840,9 +844,11 @@ class SaveMonitor:
         }
         min_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
+            mtimes = []
             invalid_files = set()
             for rel_path, file_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
+                mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != file_hash:
                     invalid_files.add(dst_file)
                     if not os.path.exists(dst_file):
@@ -860,6 +866,7 @@ class SaveMonitor:
                 'hostname': hostname,
                 'src': self._get_src(ref),
                 'last_run': ref.ts,
+                'last_modified': sorted(mtimes)[-1] if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
                 'invalid': len(invalid_files),
@@ -880,10 +887,6 @@ class SaveMonitor:
         self.run_file.touch()
 
     def get_status(self, sort_by='last_run', order='desc'):
-
-        def to_human_dt(ts):
-            return datetime.fromtimestamp(int(ts)).isoformat(' ')
-
         report = self._monitor()
         if not report['items']:
             return
@@ -891,10 +894,13 @@ class SaveMonitor:
         rows = [headers] + sorted(report['items'],
             key=lambda x: (x[sort_by], x['src']), reverse=order == 'desc')
         for i, r in enumerate(rows):
-            human_dt = to_human_dt(r['last_run']) if i > 0 else r['last_run']
-            print(f'{human_dt:19}  {r["hostname"]:20}  {r["size_MB"]:10}  '
-                f'{r["files"]:8}  {r["invalid"] or "":8}  '
-                f'{r["is_stale"] or "":8}  {r["src"]}')
+            h_last_run = ts_to_str(r['last_run']) \
+                if i > 0 else r['last_run']
+            h_last_modified = ts_to_str(r['last_modified']) \
+                if i > 0 else r['last_modified']
+            print(f'{h_last_run:19}  {h_last_modified:19}  '
+                f'{r["hostname"]:20}  {r["size_MB"]:10}  {r["files"]:8}  '
+                f'{r["invalid"] or "":8}  {r["is_stale"] or "":8}  {r["src"]}')
 
 
 def with_lockfile():
