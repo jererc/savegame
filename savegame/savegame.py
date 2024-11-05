@@ -35,7 +35,7 @@ FORCE_RUN_DELTA = 90 * 60
 DAEMON_LOOP_DELAY = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
-MONITOR_DELTA = 8 * 3600
+MONITOR_DELTA = 12 * 3600
 STALE_DELTA = 3 * 24 * 3600
 NAME = os.path.splitext(os.path.basename(os.path.realpath(__file__)))[0]
 HOME_PATH = os.path.expanduser('~')
@@ -878,12 +878,10 @@ class SaveMonitor:
         if not self._must_run():
             return
         report = self._monitor()
-        if report['invalid_files']:
-            Notifier().send(title=f'{NAME} warning', body=f'Invalid files: '
-                f'{len(report["invalid_files"])}')
-        if report['stale_hostnames']:
-            Notifier().send(title=f'{NAME} warning', body='Stale hostnames: '
-                    f'{", ".join(sorted(report["stale_hostnames"]))}')
+        Notifier().send(title=f'{NAME} status',
+            body=f'sources: {len(report['items'])}, '
+                f'invalid files: {len(report["invalid_files"])}, '
+                f'stale hostnames: {len(report["stale_hostnames"])}')
         self.run_file.touch()
 
     def get_status(self, sort_by='last_run', order='desc'):
