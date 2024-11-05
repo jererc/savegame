@@ -840,7 +840,7 @@ class SaveMonitor:
         report = {
             'invalid_files': set(),
             'stale_hostnames': set(),
-            'items': [],
+            'saves': [],
         }
         min_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
@@ -862,7 +862,7 @@ class SaveMonitor:
             is_stale = ref.ts < min_ts
             if is_stale:
                 report['stale_hostnames'].add(hostname)
-            report['items'].append({
+            report['saves'].append({
                 'hostname': hostname,
                 'src': self._get_src(ref),
                 'last_run': ref.ts,
@@ -878,18 +878,17 @@ class SaveMonitor:
         if not self._must_run():
             return
         report = self._monitor()
-        Notifier().send(title=f'{NAME} status',
-            body=f'sources: {len(report['items'])}, '
-                f'invalid files: {len(report["invalid_files"])}, '
-                f'stale hostnames: {len(report["stale_hostnames"])}')
+        body = ', '.join([f'{k}: {len(report[k])}'
+            for k in ('saves', 'invalid_files', 'stale_hostnames')])
+        Notifier().send(title=f'{NAME} status', body=body)
         self.run_file.touch()
 
     def get_status(self, sort_by='last_run', order='desc'):
         report = self._monitor()
-        if not report['items']:
+        if not report['saves']:
             return
-        headers = {k: k for k in report['items'][0].keys()}
-        rows = [headers] + sorted(report['items'],
+        headers = {k: k for k in report['saves'][0].keys()}
+        rows = [headers] + sorted(report['saves'],
             key=lambda x: (x[sort_by], x['src']), reverse=order == 'desc')
         for i, r in enumerate(rows):
             h_last_run = ts_to_str(r['last_run']) \
