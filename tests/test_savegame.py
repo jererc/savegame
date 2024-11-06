@@ -338,6 +338,14 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*file3*'))
 
+    def test_no_save(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
+        savegame.SAVES = []
+        with patch.object(savegame.Notifier, 'send') as mock_send:
+            savegame.savegame()
+        self.assertTrue(mock_send.call_args_list)
+
     def test_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)

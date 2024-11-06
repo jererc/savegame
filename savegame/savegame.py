@@ -253,7 +253,8 @@ class Reference:
                         gzip.decompress(fd.read()).decode('utf-8'))
             except Exception as exc:
                 os.remove(self.file)
-                logger.exception(f'removed invalid ref file {self.file}: {exc}')
+                logger.exception('removed invalid ref file '
+                    f'{self.file}: {exc}')
                 self.data = {}
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
@@ -637,6 +638,8 @@ class SaveHandler:
     def run(self):
         start_ts = time.time()
         savers = list(self._generate_savers())
+        if not savers:
+            raise Exception('nothing to save')
         report = Report()
         for saver in savers:
             try:
@@ -952,8 +955,16 @@ def must_run(last_run_ts):
 
 
 def savegame(force=False):
-    SaveHandler(force=force).run()
-    SaveMonitor().run()
+    try:
+        SaveHandler(force=force).run()
+    except Exception as exc:
+        logger.exception('failed to save')
+        Notifier().send(title=f'{NAME} error', body=str(exc))
+    try:
+        SaveMonitor().run()
+    except Exception as exc:
+        logger.exception('failed to monitor')
+        Notifier().send(title=f'{NAME} error', body=str(exc))
 
 
 def status(**kwargs):
