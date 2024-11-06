@@ -997,8 +997,7 @@ class Daemon:
 
 
 class Task:
-    def __init__(self):
-        self.run_file = RunFile(os.path.join(WORK_PATH, 'task.run'))
+    run_file = RunFile(os.path.join(WORK_PATH, 'task.run'))
 
     @with_lockfile()
     def run(self):
