@@ -47,7 +47,7 @@ SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
 }.get(os.name, set())
-DST_PATH = os.path.join('~', 'OneDrive')
+DST_PATH = os.path.join('~', 'MEGA')
 GOOGLE_CLOUD_SECRETS_FILE = None
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
