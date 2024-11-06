@@ -32,7 +32,7 @@ SAVES = []
 MAX_LOG_FILE_SIZE = 1000 * 1024
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
-DAEMON_LOOP_DELAY = 10
+DAEMON_LOOP_DELAY = 30
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
@@ -990,9 +990,9 @@ class Daemon:
                     savegame()
                     self.last_run_ts = time.time()
             except Exception:
-                logger.exception('wtf')
+                logger.exception('failed')
             finally:
-                logger.debug('sleeping')
+                logger.debug(f'sleeping for {DAEMON_LOOP_DELAY} seconds')
                 time.sleep(DAEMON_LOOP_DELAY)
 
 
@@ -1002,9 +1002,12 @@ class Task:
 
     @with_lockfile()
     def run(self):
-        if must_run(self.run_file.get_ts()):
-            savegame()
-            self.run_file.touch()
+        try:
+            if must_run(self.run_file.get_ts()):
+                savegame()
+                self.run_file.touch()
+        except Exception:
+            logger.exception('failed')
 
 
 def _parse_args():
