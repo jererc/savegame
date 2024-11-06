@@ -850,8 +850,9 @@ class SaveMonitor:
                     if not os.path.exists(dst_file):
                         logger.error(f'missing file: {dst_file}')
                     elif os.path.getsize(dst_file) == 0:
-                        remove_path(dst_file)
-                        logger.error(f'removed empty file: {dst_file}')
+                        logger.error(f'empty file: {dst_file}')
+                        # remove_path(dst_file)
+                        # logger.error(f'removed empty file: {dst_file}')
                     else:
                         logger.error(f'invalid file: {dst_file}')
             report['invalid_files'].update(invalid_files)
