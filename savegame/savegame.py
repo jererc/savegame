@@ -846,16 +846,13 @@ class SaveMonitor:
             invalid_files = set()
             for rel_path, file_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
-                if os.path.exists(dst_file):
+                dst_exists = os.path.exists(dst_file)
+                if dst_exists:
                     mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != file_hash:
                     invalid_files.add(dst_file)
-                    if not os.path.exists(dst_file):
-                        logger.error(f'missing file: {dst_file}')
-                    elif os.path.getsize(dst_file) == 0:
-                        logger.error(f'empty file: {dst_file}')
-                    else:
-                        logger.error(f'invalid file: {dst_file}')
+                    logger.error(f'{"invalid" if dst_exists else "missing"} '
+                        f'file: {dst_file}')
             report['invalid_files'].update(invalid_files)
             is_stale = ref.ts < min_ts
             if is_stale:
