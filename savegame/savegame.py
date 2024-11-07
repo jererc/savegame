@@ -843,12 +843,12 @@ class SaveMonitor:
         for hostname, ref in self._iterate_hostname_refs():
             mtimes = []
             invalid_files = set()
-            for rel_path, file_hash in ref.files.items():
+            for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
                 dst_exists = os.path.exists(dst_file)
                 if dst_exists:
                     mtimes.append(get_file_mtime(dst_file))
-                if get_file_hash(dst_file) != file_hash:
+                if get_file_hash(dst_file) != ref_hash:
                     invalid_files.add(dst_file)
                     logger.error(f'{"invalid" if dst_exists else "missing"} '
                         f'file: {dst_file}')
