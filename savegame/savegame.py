@@ -816,7 +816,6 @@ class SaveMonitor:
                     yield hostname, ref
 
     def _get_size(self, ref):
-
         def get_size(x):
             return os.path.getsize(x) if os.path.exists(x) else 0
 
