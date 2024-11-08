@@ -26,6 +26,11 @@ WIN_SAVE = {
 }
 
 
+class NotifyTestCase(unittest.TestCase):
+    def test_1(self):
+        savegame.Notifier().send(title='test title', body='test body')
+
+
 class SavegameIntegrationTestCase(BaseTestCase):
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_glob_and_empty_dirs_win(self):
