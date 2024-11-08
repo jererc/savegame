@@ -834,56 +834,62 @@ class SaveMonitor:
         return ref.src
 
     def _monitor(self):
-        report = {
-            'invalid_files': set(),
-            'stale_hostnames': set(),
-            'saves': [],
-        }
-        min_ts = time.time() - STALE_DELTA
+        saves = []
+        invalid_files = []
+        stale_saves = []
+        # stale_hostnames = set()
+        stale_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
+            src = self._get_src(ref)
             mtimes = []
-            invalid_files = set()
+            ref_invalid_files = []
             for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
                 dst_exists = os.path.exists(dst_file)
                 if dst_exists:
                     mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != ref_hash:
-                    invalid_files.add(dst_file)
+                    ref_invalid_files.append(dst_file)
                     logger.error(f'{"invalid" if dst_exists else "missing"} '
                         f'file: {dst_file}')
-            report['invalid_files'].update(invalid_files)
-            is_stale = ref.ts < min_ts
+            invalid_files += ref_invalid_files
+            is_stale = ref.ts < stale_ts
             if is_stale:
-                report['stale_hostnames'].add(hostname)
-            report['saves'].append({
+                stale_saves.append(src)
+                # stale_hostnames.add(hostname)
+            saves.append({
                 'hostname': hostname,
-                'src': self._get_src(ref),
+                'src': src,
                 'last_run': ref.ts,
                 'last_modified': sorted(mtimes)[-1] if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
-                'invalid': len(invalid_files),
+                'invalid': len(ref_invalid_files),
                 'is_stale': is_stale,
             })
+        report = {
+            'saves': saves,
+            'invalid_files': invalid_files,
+            'stale_saves': stale_saves,
+            # 'stale_hostnames': stale_hostnames,
+        }
+        report['message'] = ', '.join([f'{k}: {len(report[k])}'
+            for k in ('saves', 'invalid_files', 'stale_saves')])
         return report
 
     def run(self):
         if not self._must_run():
             return
         report = self._monitor()
-        body = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'invalid_files', 'stale_hostnames')])
-        Notifier().send(title=f'{NAME} status', body=body)
+        Notifier().send(title=f'{NAME} status', body=report['message'])
         self.run_file.touch()
 
-    def get_status(self, sort_by='last_run', order='desc'):
-        report = self._monitor()
-        if not report['saves']:
+    def _print_saves(self, saves, order_by):
+        if not saves:
             return
-        headers = {k: k for k in report['saves'][0].keys()}
-        rows = [headers] + sorted(report['saves'],
-            key=lambda x: (x[sort_by], x['src']), reverse=order == 'desc')
+        headers = {k: k for k in saves[0].keys()}
+        rows = [headers] + sorted(saves,
+            key=lambda x: (x[order_by], x['src']), reverse=True)
         for i, r in enumerate(rows):
             h_last_run = ts_to_str(r['last_run']) \
                 if i > 0 else r['last_run']
@@ -891,7 +897,13 @@ class SaveMonitor:
                 if i > 0 else r['last_modified']
             print(f'{h_last_run:19}  {h_last_modified:19}  '
                 f'{r["hostname"]:20}  {r["size_MB"]:10}  {r["files"]:8}  '
-                f'{r["invalid"] or "":8}  {r["is_stale"] or "":8}  {r["src"]}')
+                f'{r["invalid"] or "":8}  {str(r["is_stale"] or ""):8}  '
+                f'{r["src"]}')
+
+    def get_status(self, order_by='last_run'):
+        report = self._monitor()
+        self._print_saves(report['saves'], order_by=order_by)
+        print(report['message'])
 
 
 def with_lockfile():
@@ -1010,8 +1022,7 @@ def _parse_args():
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
     status_parser = subparsers.add_parser('status')
-    status_parser.add_argument('--sort-by', default='last_run')
-    status_parser.add_argument('--order', default='desc')
+    status_parser.add_argument('--order-by', default='last_run')
     load_parser = subparsers.add_parser('load')
     load_parser.add_argument('--hostname')
     load_parser.add_argument('--username')
