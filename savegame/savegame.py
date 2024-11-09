@@ -939,7 +939,7 @@ def with_lockfile():
 
 
 def is_idle():
-    res = psutil.cpu_times_percent(interval=1).idle > 95
+    res = psutil.cpu_percent(interval=1) < 5
     if not res:
         logger.warning('not idle')
     return res
