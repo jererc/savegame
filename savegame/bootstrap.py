@@ -1,12 +1,12 @@
 import ctypes
 import os
 import subprocess
-import sys
 
 
+SCRIPT_FILENAME = 'savegame.py'
 ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
-SCRIPT_PATH = os.path.join(ROOT_PATH, 'savegame.py')
-NAME = os.path.splitext(os.path.basename(SCRIPT_PATH))[0]
+SCRIPT_PATH = os.path.join(ROOT_PATH, SCRIPT_FILENAME)
+NAME = os.path.splitext(SCRIPT_FILENAME)[0]
 ROOT_VENV_PATH = os.path.join(os.path.expanduser('~'), 'venv')
 VENV_PATH = os.path.join(ROOT_VENV_PATH, NAME)
 PIP_PATH = {
@@ -101,20 +101,13 @@ class Bootstrapper:
             '/tn', task_name,
         ])
 
-    def setup(self):
+    def run(self):
         if os.name == 'nt':
             self._setup_win_task(task_name=NAME,
                 cmd=f'{SVC_PY_PATH} {SCRIPT_PATH} save --daemon')
         else:
             self._setup_linux_crontab(
                 cmd=f'{SVC_PY_PATH} {SCRIPT_PATH} save --task')
-
-    def run_cmd(self):
-        subprocess.check_call([PY_PATH, SCRIPT_PATH] + sys.argv[1:],
-            cwd=ROOT_PATH)
-
-    def run(self):
-        self.run_cmd() if len(sys.argv) > 1 else self.setup()
 
 
 def main():
