@@ -109,7 +109,6 @@ class Autoauth(Browser):
         el_textarea = self.driver.find_element(By.XPATH, '//textarea')
         self._wait_for_element(el_textarea)
         res = el_textarea.get_attribute('innerHTML')
-        self.driver.quit()
         return res
 
     def acquire_credentials(self):
@@ -120,7 +119,10 @@ class Autoauth(Browser):
         )
         auth_url, _ = flow.authorization_url(prompt='consent')
         logger.debug(f'auth url: {auth_url}')
-        code = self._fetch_code(auth_url)
+        try:
+            code = self._fetch_code(auth_url)
+        finally:
+            self.driver.quit()
         flow.fetch_token(code=code)
         return flow.credentials
 
