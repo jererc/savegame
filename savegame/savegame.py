@@ -25,7 +25,7 @@ import urllib.parse
 import psutil
 
 from bookmarks import BookmarksHandler
-from google_cloud import GoogleCloud, AuthError, RefreshError
+from google_cloud import GoogleCloud
 
 
 SAVES = []
@@ -49,8 +49,6 @@ SHARED_USERNAMES = {
 }.get(os.name, set())
 DST_PATH = os.path.join('~', 'MEGA')
 GOOGLE_CLOUD_SECRETS_FILE = None
-GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
-    os.path.realpath(__file__)), 'run_google_oauth.pyw')
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
 try:
@@ -469,16 +467,7 @@ class LocalSaver(BaseSaver):
                 logger.exception(f'failed to save {src_file}')
 
 
-class GoogleCloudSaver(BaseSaver):
-    def notify_error(self, message, exc=None):
-        if isinstance(exc, (AuthError, RefreshError)):
-            Notifier().send(title=f'{NAME} google auth error', body=message,
-                on_click=GOOGLE_OAUTH_WIN_SCRIPT)
-        else:
-            super().notify_error(message, exc)
-
-
-class GoogleDriveExportSaver(GoogleCloudSaver):
+class GoogleDriveExportSaver(BaseSaver):
     id = 'google_drive_export'
     hostname = 'google_cloud'
     src_type = 'remote'
@@ -508,7 +497,7 @@ class GoogleDriveExportSaver(GoogleCloudSaver):
             for p in self.dst_paths}
 
 
-class GoogleContactsExportSaver(GoogleCloudSaver):
+class GoogleContactsExportSaver(BaseSaver):
     id = 'google_contacts_export'
     hostname = 'google_cloud'
     src_type = 'remote'
