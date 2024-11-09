@@ -16,11 +16,10 @@ from selenium.common.exceptions import (ElementNotInteractableException,
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from chromium import Chromium
+from browser import Browser
 
 
 CREDS_FILENAME = 'gc.json'
-OAUTH_TIMEOUT = 60
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/drive.readonly',
@@ -51,9 +50,9 @@ class AuthError(Exception):
     pass
 
 
-class GoogleAutoauth(Chromium):
-    def __init__(self, client_secrets_file, scopes):
-        super().__init__()
+class Autoauth(Browser):
+    def __init__(self, client_secrets_file, scopes, **browser_args):
+        super().__init__(**browser_args)
         self.client_secrets_file = client_secrets_file
         self.scopes = scopes
 
@@ -74,6 +73,13 @@ class GoogleAutoauth(Chromium):
         except NoSuchElementException:
             return False
 
+    def _requires_manual_auth(self):
+        try:
+            self.driver.find_element(By.XPATH, '//input[@type="email"]')
+            return True
+        except NoSuchElementException:
+            return False
+
     def _wait_for_login(self, url, poll_frequency=1, timeout=120):
         self.driver.get(url)
         end_ts = time.time() + timeout
@@ -83,6 +89,8 @@ class GoogleAutoauth(Chromium):
             except NoSuchElementException:
                 if self._click_continue():
                     return
+                elif self._requires_manual_auth() and self.headless:
+                    raise Exception('requires manual auth')
             else:
                 if self._click_continue():
                     return
@@ -118,9 +126,11 @@ class GoogleAutoauth(Chromium):
 
 
 class GoogleCloud:
-    def __init__(self, oauth_secrets_file=None, service_secrets_file=None):
+    def __init__(self, oauth_secrets_file=None, service_secrets_file=None,
+            **browser_args):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
         self.service_secrets_file = get_file(service_secrets_file)
+        self.browser_args = browser_args
         if not (self.oauth_secrets_file or self.service_secrets_file):
             raise Exception('requires a secrets file')
         self.creds_file = os.path.join(os.path.dirname(
@@ -136,22 +146,23 @@ class GoogleCloud:
         return service_account.Credentials.from_service_account_file(
             self.service_secrets_file, scopes=SCOPES)
 
-    def _auth(self):
-        try:
-            creds = GoogleAutoauth(self.oauth_secrets_file,
-                SCOPES).acquire_credentials()
-        except Exception as exc:
-            logger.error(f'failed to auto: {exc}')
-            flow = InstalledAppFlow.from_client_secrets_file(
-                self.oauth_secrets_file, SCOPES)
-            try:
-                creds = flow.run_local_server(port=0, open_browser=True,
-                    timeout_seconds=OAUTH_TIMEOUT)
-            except Exception:
-                raise Exception('failed to auth')
-        return creds
+    # def _manual_auth(self):
+    #     flow = InstalledAppFlow.from_client_secrets_file(
+    #         self.oauth_secrets_file, SCOPES)
+    #     try:
+    #         return flow.run_local_server(port=0, open_browser=True,
+    #             timeout_seconds=60)
+    #     except Exception:
+    #         raise Exception('failed to auth')
 
-    def get_oauth_creds(self, interact=False):
+    def _auth(self):
+        return Autoauth(
+            client_secrets_file=self.oauth_secrets_file,
+            scopes=SCOPES,
+            **self.browser_args
+        ).acquire_credentials()
+
+    def get_oauth_creds(self):
         if not self.oauth_secrets_file:
             raise Exception('missing oauth secrets')
         creds = None
@@ -163,21 +174,14 @@ class GoogleCloud:
                 try:
                     creds.refresh(Request())
                 except RefreshError as exc:
-                    if exc.args[1]['error'] != 'invalid_grant' \
-                            or not interact:
+                    if exc.args[1]['error'] != 'invalid_grant':
                         raise
                     creds = self._auth()
             else:
-                if not interact:
-                    raise AuthError('requires auth')
                 creds = self._auth()
             with open(self.creds_file, 'w') as fd:
                 fd.write(creds.to_json())
         return creds
-
-    #
-    # Drive
-    #
 
     # def _get_drive_service(self):
     #     if not self.service_creds:
@@ -256,10 +260,6 @@ class GoogleCloud:
             status, done = downloader.next_chunk()
             logger.debug('Download progress: '
                 f'{int(status.progress() * 100)}%')
-
-    #
-    # People
-    #
 
     def _get_people_service(self):
         if not self.oauth_creds:

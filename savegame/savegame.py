@@ -51,6 +51,7 @@ DST_PATH = os.path.join('~', 'MEGA')
 GOOGLE_CLOUD_SECRETS_FILE = None
 GOOGLE_OAUTH_WIN_SCRIPT = os.path.join(os.path.dirname(
     os.path.realpath(__file__)), 'run_google_oauth.pyw')
+GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
 try:
     from user_settings import *
@@ -184,11 +185,15 @@ def get_path_separator(path):
     return os.path.sep
 
 
-def get_google_cloud():
+def get_google_cloud(headless=True):
     secrets_file = os.path.expanduser(GOOGLE_CLOUD_SECRETS_FILE)
     if not os.path.exists(secrets_file):
         raise Exception('missing google secrets file')
-    return GoogleCloud(oauth_secrets_file=secrets_file)
+    return GoogleCloud(
+        oauth_secrets_file=secrets_file,
+        browser_id=GOOGLE_AUTOAUTH_BROWSER_ID,
+        headless=headless,
+    )
 
 
 class Metadata:
@@ -982,7 +987,7 @@ def loadgame(**kwargs):
 
 
 def google_oauth(**kwargs):
-    get_google_cloud().get_oauth_creds(interact=True)
+    get_google_cloud(headless=False).get_oauth_creds()
 
 
 class Daemon:

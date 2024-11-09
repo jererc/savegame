@@ -64,6 +64,14 @@ class LoadgameIntegrationTestCase(BaseTestCase):
         pprint(self._list_src_root_paths())
 
 
+class GoogleAutoauthIntegrationTestCase(BaseTestCase):
+    def test_1(self):
+        try:
+            savegame.get_google_cloud(headless=True).get_oauth_creds()
+        except Exception:
+            savegame.get_google_cloud(headless=False).get_oauth_creds()
+
+
 class GoogleDriveExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.google_oauth()

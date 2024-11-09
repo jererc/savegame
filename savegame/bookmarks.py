@@ -1,7 +1,7 @@
 import json
 import os
 
-from chromium import CONFIGS
+from browser import CONFIGS
 
 
 class BookmarksHandler:
@@ -62,11 +62,9 @@ class BookmarksHandler:
         return '\n'.join(lines)
 
     def export(self):
-        for config in CONFIGS:
+        for browser_id, config in CONFIGS.items():
             if not os.path.exists(config['binary']):
                 continue
-            browser_name = os.path.splitext(
-                os.path.basename(config['binary']))[0]
             data_dir = os.path.expanduser(config['data_dir'])
             for profile_name, profile_path in self._get_profile_paths(
                     os.path.expanduser(data_dir)).items():
@@ -78,12 +76,12 @@ class BookmarksHandler:
                 self._set_date_last_used_to_zero(data)
                 dirname = os.path.basename(profile_path)
                 yield {
-                    'path': os.path.join(browser_name, dirname,
+                    'path': os.path.join(browser_id, dirname,
                         self.filename),
                     'content': json.dumps(data, sort_keys=True, indent=4),
                 }
                 yield {
-                    'path': os.path.join(browser_name, dirname,
+                    'path': os.path.join(browser_id, dirname,
                         f'{self.filename}.html'),
                     'content': self._to_html(data),
                 }
