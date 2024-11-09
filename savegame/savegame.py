@@ -24,7 +24,7 @@ import urllib.parse
 
 import psutil
 
-from chromium import BookmarksHandler
+from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud, AuthError, RefreshError
 
 
@@ -529,8 +529,8 @@ class GoogleContactsExportSaver(GoogleCloudSaver):
         self.ref.files = {rel_path: dst_hash}
 
 
-class ChromiumBookmarksExportSaver(BaseSaver):
-    id = 'chromium_bookmarks_export'
+class BookmarksExportSaver(BaseSaver):
+    id = 'bookmarks_export'
     hostname = HOSTNAME
 
     def do_run(self):

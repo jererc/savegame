@@ -92,11 +92,11 @@ class GoogleContactsExportIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class ChromiumBookmarksExportIntegrationTestCase(BaseTestCase):
+class BookmarksExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
         savegame.SAVES = [
             {
-                'saver_id': 'chromium_bookmarks_export',
+                'saver_id': 'bookmarks_export',
                 'dst_path': self.dst_root,
             },
         ]
