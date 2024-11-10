@@ -1,38 +1,31 @@
 import argparse
-import atexit
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from fnmatch import fnmatch
-import functools
 from glob import glob
 import gzip
 import hashlib
 import inspect
 import json
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from pathlib import PurePath
 import shutil
-import signal
 import socket
-import subprocess
 import sys
 import time
 import urllib.parse
 
-import psutil
-
 from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud
+from service import (Daemon, Notifier, RunFile, Task, get_file_mtime,
+    setup_logging)
 
 
 SAVES = []
-MAX_LOG_FILE_SIZE = 1000 * 1024
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
-DAEMON_LOOP_DELAY = 30
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
@@ -62,28 +55,9 @@ def makedirs(x):
         os.makedirs(x)
 
 
-def setup_logging(logger, path):
-    logging.basicConfig(level=logging.DEBUG)
-    formatter = logging.Formatter(
-        '%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
-    if sys.stdout and not sys.stdout.isatty():
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setFormatter(formatter)
-        stdout_handler.setLevel(logging.DEBUG)
-        logger.addHandler(stdout_handler)
-    makedirs(path)
-    file_handler = RotatingFileHandler(
-        os.path.join(path, f'{NAME}.log'),
-        mode='a', maxBytes=MAX_LOG_FILE_SIZE, backupCount=0,
-        encoding='utf-8', delay=0)
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-
-
 logger = logging.getLogger(__name__)
 makedirs(WORK_PATH)
-setup_logging(logger, WORK_PATH)
+setup_logging(logger, path=WORK_PATH, name=NAME)
 
 
 class UnhandledPath(Exception):
@@ -101,10 +75,6 @@ def validate_path(x):
 
 def path_to_filename(x):
     return urllib.parse.quote(x, safe='')
-
-
-def get_file_mtime(x):
-    return os.stat(x).st_mtime
 
 
 def get_file_mtime_dt(x):
@@ -221,20 +191,6 @@ class Metadata:
             fd.write(to_json(self.data))
 
 
-class RunFile:
-    def __init__(self, file):
-        self.file = file
-
-    def get_ts(self, default=0):
-        if not os.path.exists(self.file):
-            return default
-        return get_file_mtime(self.file)
-
-    def touch(self):
-        with open(self.file, 'w'):
-            pass
-
-
 class Reference:
     def __init__(self, dst):
         self.dst = dst
@@ -308,28 +264,6 @@ class Report:
             for k2, v2 in v.items():
                 res[k][k2] = len(v2)
         return res
-
-
-class Notifier:
-    def _send_nt(self, title, body, on_click=None):
-        from win11toast import notify
-        notify(title=title, body=body, on_click=on_click)
-
-    def _send_posix(self, title, body, on_click=None):
-        env = os.environ.copy()
-        env['DISPLAY'] = ':0'
-        env['DBUS_SESSION_BUS_ADDRESS'] = \
-            f'unix:path=/run/user/{os.getuid()}/bus'
-        subprocess.check_call(['notify-send', title, body], env=env)
-
-    def send(self, *args, **kwargs):
-        try:
-            {
-                'nt': self._send_nt,
-                'posix': self._send_posix,
-            }[os.name](*args, **kwargs)
-        except Exception:
-            logger.exception('failed to send notification')
 
 
 class BaseSaver:
@@ -900,60 +834,6 @@ class SaveMonitor:
         print(report['message'])
 
 
-def with_lockfile():
-    lockfile_path = os.path.join(WORK_PATH, 'lock')
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            if os.name == 'posix' and os.path.exists(lockfile_path):
-                logger.error(f'Lock file {lockfile_path} exists. '
-                    'Another process may be running.')
-                raise RuntimeError(f'Lock file {lockfile_path} exists. '
-                    'Another process may be running.')
-
-            def remove_lockfile():
-                if os.path.exists(lockfile_path):
-                    os.remove(lockfile_path)
-
-            atexit.register(remove_lockfile)
-
-            def handle_signal(signum, frame):
-                remove_lockfile()
-                raise SystemExit(f'Program terminated by signal {signum}')
-
-            if os.name == 'posix':
-                signal.signal(signal.SIGINT, handle_signal)
-                signal.signal(signal.SIGTERM, handle_signal)
-
-            try:
-                with open(lockfile_path, 'w') as lockfile:
-                    lockfile.write('locked')
-                result = func(*args, **kwargs)
-            finally:
-                remove_lockfile()
-            return result
-
-        return wrapper
-    return decorator
-
-
-def is_idle():
-    res = psutil.cpu_percent(interval=1) < 5
-    if not res:
-        logger.warning('not idle')
-    return res
-
-
-def must_run(last_run_ts):
-    now_ts = time.time()
-    if now_ts > last_run_ts + FORCE_RUN_DELTA:
-        return True
-    if now_ts > last_run_ts + RUN_DELTA and is_idle():
-        return True
-    return False
-
-
 def savegame(force=False):
     try:
         SaveHandler(force=force).run()
@@ -977,36 +857,6 @@ def loadgame(**kwargs):
 
 def google_oauth(**kwargs):
     get_google_cloud(headless=False).get_oauth_creds()
-
-
-class Daemon:
-    last_run_ts = 0
-
-    @with_lockfile()
-    def run(self):
-        while True:
-            try:
-                if must_run(self.last_run_ts):
-                    savegame()
-                    self.last_run_ts = time.time()
-            except Exception:
-                logger.exception('failed')
-            finally:
-                logger.debug(f'sleeping for {DAEMON_LOOP_DELAY} seconds')
-                time.sleep(DAEMON_LOOP_DELAY)
-
-
-class Task:
-    run_file = RunFile(os.path.join(WORK_PATH, 'task.run'))
-
-    @with_lockfile()
-    def run(self):
-        try:
-            if must_run(self.run_file.get_ts()):
-                savegame()
-                self.run_file.touch()
-        except Exception:
-            logger.exception('failed')
 
 
 def _parse_args():
@@ -1036,9 +886,22 @@ def main():
     args = _parse_args()
     if args.cmd == 'save':
         if args.daemon:
-            Daemon().run()
+            Daemon(
+                callable=savegame,
+                work_path=WORK_PATH,
+                run_delta=RUN_DELTA,
+                force_run_delta=FORCE_RUN_DELTA,
+                run_file_path=os.path.join(WORK_PATH, 'daemon.run'),
+                loop_delay=60,
+            ).run()
         elif args.task:
-            Task().run()
+            Task(
+                callable=savegame,
+                work_path=WORK_PATH,
+                run_delta=RUN_DELTA,
+                force_run_delta=FORCE_RUN_DELTA,
+                run_file_path=os.path.join(WORK_PATH, 'task.run'),
+            ).run()
         else:
             savegame(force=True)
     else:

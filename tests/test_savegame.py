@@ -17,7 +17,7 @@ REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
 import savegame
 import user_settings
-assert savegame.WORK_PATH, user_settings.WORK_PATH
+assert savegame.WORK_PATH == user_settings.WORK_PATH
 
 
 HOSTNAME = socket.gethostname()
@@ -528,30 +528,6 @@ class SavegameTestCase(BaseTestCase):
         ]
         self._savegame()
         pprint(self.meta.data)
-
-    def test_task(self):
-        self._generate_src_data(index_start=1, src_count=4, dir_count=2,
-            file_count=2)
-        savegame.SAVES = [
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                    os.path.join(self.src_root, 'src2'),
-                ],
-                'dst_path': self.dst_root,
-            },
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src3'),
-                    os.path.join(self.src_root, 'src4'),
-                ],
-                'dst_path': self.dst_root,
-            },
-        ]
-        with patch.object(savegame, 'savegame') as mock_savegame:
-            for i in range(3):
-                savegame.Task().run()
-        self.assertEqual(len(mock_savegame.call_args_list), 1)
 
     def test_monitor(self):
         self._generate_src_data(index_start=1, src_count=4, dir_count=2,

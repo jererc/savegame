@@ -46,10 +46,6 @@ def get_file(path):
     raise Exception(f'{path} does not exist')
 
 
-class AuthError(Exception):
-    pass
-
-
 class Autoauth(Browser):
     def __init__(self, client_secrets_file, scopes, **browser_args):
         super().__init__(**browser_args)
