@@ -19,7 +19,7 @@ import urllib.parse
 
 from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud
-from service import (Daemon, Notifier, RunFile, Task, get_file_mtime,
+from svcutils import (Daemon, Notifier, RunFile, Task, get_file_mtime,
     setup_logging)
 
 
@@ -891,7 +891,6 @@ def main():
                 work_path=WORK_PATH,
                 run_delta=RUN_DELTA,
                 force_run_delta=FORCE_RUN_DELTA,
-                run_file_path=os.path.join(WORK_PATH, 'daemon.run'),
                 loop_delay=60,
             ).run()
         elif args.task:
@@ -900,7 +899,6 @@ def main():
                 work_path=WORK_PATH,
                 run_delta=RUN_DELTA,
                 force_run_delta=FORCE_RUN_DELTA,
-                run_file_path=os.path.join(WORK_PATH, 'task.run'),
             ).run()
         else:
             savegame(force=True)
