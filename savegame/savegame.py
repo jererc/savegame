@@ -19,8 +19,7 @@ import urllib.parse
 
 from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud
-from svcutils import (Daemon, Notifier, RunFile, Task, get_file_mtime,
-    setup_logging)
+from svcutils import Notifier, RunFile, Service, get_file_mtime, setup_logging
 
 
 SAVES = []
@@ -886,7 +885,7 @@ def main():
     args = _parse_args()
     if args.cmd == 'save':
         if args.daemon:
-            Daemon(
+            Service(
                 callable=savegame,
                 work_path=WORK_PATH,
                 run_delta=RUN_DELTA,
@@ -894,12 +893,12 @@ def main():
                 loop_delay=60,
             ).run()
         elif args.task:
-            Task(
+            Service(
                 callable=savegame,
                 work_path=WORK_PATH,
                 run_delta=RUN_DELTA,
                 force_run_delta=FORCE_RUN_DELTA,
-            ).run()
+            ).run_once()
         else:
             savegame(force=True)
     else:
