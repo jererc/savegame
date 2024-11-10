@@ -16,7 +16,7 @@ from selenium.common.exceptions import (ElementNotInteractableException,
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from browser import Browser
+from webutils import Browser
 
 
 CREDS_FILENAME = 'gc.json'
