@@ -53,9 +53,9 @@ def is_idle():
 
 def is_online(host='8.8.8.8', port=53, timeout=3):
     try:
-        socket.setdefaulttimeout(timeout)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM
-            ).connect((host, port))
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect((host, port))
         return True
     except OSError:
         return False
@@ -83,6 +83,7 @@ class OnlineTracker:
     def __init__(self, work_path, min_online_time):
         self.file = os.path.join(work_path, 'online.json')
         self.min_online_time = min_online_time
+        self.check_delta = self.min_online_time * 2
 
     def _load(self):
         if not os.path.exists(self.file):
@@ -93,9 +94,9 @@ class OnlineTracker:
     def _update(self):
         data = self._load()
         if is_online():
-            data.append(int(time.time()))
+            now_ts = time.time()
             data = [r for r in data
-                if r >= time.time() - self.min_online_time * 2]
+                if r > now_ts - self.check_delta] + [int(now_ts)]
             with open(self.file, 'w') as fd:
                 fd.write(json.dumps(data))
         return data
@@ -103,7 +104,7 @@ class OnlineTracker:
     def check(self):
         data = self._update()
         now_ts = time.time()
-        ts1 = now_ts - self.min_online_time * 2
+        ts1 = now_ts - self.check_delta
         ts2 = now_ts - self.min_online_time
         ts_before = [r for r in data if ts1 < r < ts2]
         ts_after = [r for r in data if r > ts2]
@@ -111,28 +112,6 @@ class OnlineTracker:
         if not res:
             logger.info(f'not online for {self.min_online_time} seconds')
         return res
-
-
-class Notifier:
-    def _send_nt(self, title, body, on_click=None):
-        from win11toast import notify
-        notify(title=title, body=body, on_click=on_click)
-
-    def _send_posix(self, title, body, on_click=None):
-        env = os.environ.copy()
-        env['DISPLAY'] = ':0'
-        env['DBUS_SESSION_BUS_ADDRESS'] = \
-            f'unix:path=/run/user/{os.getuid()}/bus'
-        subprocess.check_call(['notify-send', title, body], env=env)
-
-    def send(self, *args, **kwargs):
-        try:
-            {
-                'nt': self._send_nt,
-                'posix': self._send_posix,
-            }[os.name](*args, **kwargs)
-        except Exception:
-            logger.exception('failed to send notification')
 
 
 def with_lockfile(path):
@@ -180,17 +159,14 @@ class Service:
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
-        self.run_file = RunFile(os.path.join(work_path, 'service.run'))
-        if min_online_time:
-            self.online_tracker = OnlineTracker(work_path, min_online_time)
-        else:
-            self.online_tracker = None
+        self.online_tracker = OnlineTracker(work_path, min_online_time) \
+            if min_online_time else None
         self.loop_delay = loop_delay
+        self.run_file = RunFile(os.path.join(work_path, 'service.run'))
 
     def _must_run(self):
         if self.online_tracker and not self.online_tracker.check():
             return False
-
         run_ts = self.run_file.get_ts()
         now_ts = time.time()
         if self.force_run_delta and now_ts > run_ts + self.force_run_delta:
@@ -227,6 +203,28 @@ class Service:
                     time.sleep(self.loop_delay)
 
         run()
+
+
+class Notifier:
+    def _send_nt(self, title, body, on_click=None):
+        from win11toast import notify
+        notify(title=title, body=body, on_click=on_click)
+
+    def _send_posix(self, title, body, on_click=None):
+        env = os.environ.copy()
+        env['DISPLAY'] = ':0'
+        env['DBUS_SESSION_BUS_ADDRESS'] = \
+            f'unix:path=/run/user/{os.getuid()}/bus'
+        subprocess.check_call(['notify-send', title, body], env=env)
+
+    def send(self, *args, **kwargs):
+        try:
+            {
+                'nt': self._send_nt,
+                'posix': self._send_posix,
+            }[os.name](*args, **kwargs)
+        except Exception:
+            logger.exception('failed to send notification')
 
 
 class Bootstrapper:
