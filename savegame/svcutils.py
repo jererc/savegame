@@ -79,11 +79,11 @@ class RunFile:
             pass
 
 
-class OnlineTracker:
-    def __init__(self, work_path, min_online_time):
-        self.file = os.path.join(work_path, 'online.json')
-        self.min_online_time = min_online_time
-        self.check_delta = self.min_online_time * 2
+class ServiceTracker:
+    def __init__(self, work_path, min_running_time, requires_online=False):
+        self.file = os.path.join(work_path, 'tracker.json')
+        self.min_running_time = min_running_time
+        self.requires_online = requires_online
 
     def _load(self):
         if not os.path.exists(self.file):
@@ -92,23 +92,22 @@ class OnlineTracker:
             return json.load(fd)
 
     def _update(self):
-        if is_online():
-            now_ts = time.time()
-            begin = now_ts - self.min_online_time * 2
-            data = [r for r in self._load() if r > begin] + [int(now_ts)]
-        else:
-            data = []
+        now_ts = time.time()
+        begin = now_ts - self.min_running_time * 2
+        data = [r for r in self._load() if r[0] > begin] \
+            + [(int(now_ts), is_online())]
         with open(self.file, 'w') as fd:
             fd.write(json.dumps(data))
         return data
 
     def check(self):
         data = self._update()
-        ts = time.time() - self.min_online_time
-        values = [t - ts for t in data]
+        ts = time.time() - self.min_running_time
+        values = [t - ts for t, o in data if (o or not self.requires_online)]
         res = min(values) < 0 and max(values) > 0
         if not res:
-            logger.info(f'not online for {self.min_online_time} seconds')
+            logger.info('running time is less than '
+                f'{self.min_running_time} seconds')
         return res
 
 
@@ -152,18 +151,22 @@ def with_lockfile(path):
 
 class Service:
     def __init__(self, callable, work_path, run_delta, force_run_delta=None,
-                 min_online_time=None, loop_delay=SERVICE_LOOP_DELAY):
+                 min_running_time=None, requires_online=False,
+                 loop_delay=SERVICE_LOOP_DELAY):
         self.callable = callable
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
-        self.online_tracker = OnlineTracker(work_path, min_online_time) \
-            if min_online_time else None
+        if min_running_time:
+            self.tracker = ServiceTracker(work_path, min_running_time,
+                requires_online)
+        else:
+            self.tracker = None
         self.loop_delay = loop_delay
         self.run_file = RunFile(os.path.join(work_path, 'service.run'))
 
     def _must_run(self):
-        if self.online_tracker and not self.online_tracker.check():
+        if self.tracker and not self.tracker.check():
             return False
         run_ts = self.run_file.get_ts()
         now_ts = time.time()
