@@ -764,7 +764,6 @@ class SaveMonitor:
         saves = []
         invalid_files = []
         stale_saves = []
-        # stale_hostnames = set()
         stale_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
             src = self._get_src(ref)
@@ -783,7 +782,6 @@ class SaveMonitor:
             is_stale = ref.ts < stale_ts
             if is_stale:
                 stale_saves.append(src)
-                # stale_hostnames.add(hostname)
             saves.append({
                 'hostname': hostname,
                 'src': src,
@@ -798,7 +796,6 @@ class SaveMonitor:
             'saves': saves,
             'invalid_files': invalid_files,
             'stale_saves': stale_saves,
-            # 'stale_hostnames': stale_hostnames,
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
             for k in ('saves', 'invalid_files', 'stale_saves')])
