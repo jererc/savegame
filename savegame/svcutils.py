@@ -92,23 +92,21 @@ class OnlineTracker:
             return json.load(fd)
 
     def _update(self):
-        data = self._load()
         if is_online():
             now_ts = time.time()
-            data = [r for r in data
-                if r > now_ts - self.check_delta] + [int(now_ts)]
-            with open(self.file, 'w') as fd:
-                fd.write(json.dumps(data))
+            begin = now_ts - self.min_online_time * 2
+            data = [r for r in self._load() if r > begin] + [int(now_ts)]
+        else:
+            data = []
+        with open(self.file, 'w') as fd:
+            fd.write(json.dumps(data))
         return data
 
     def check(self):
         data = self._update()
-        now_ts = time.time()
-        ts1 = now_ts - self.check_delta
-        ts2 = now_ts - self.min_online_time
-        ts_before = [r for r in data if ts1 < r < ts2]
-        ts_after = [r for r in data if r > ts2]
-        res = len(ts_before) and len(ts_after)
+        ts = time.time() - self.min_online_time
+        values = [t - ts for t in data]
+        res = min(values) < 0 and max(values) > 0
         if not res:
             logger.info(f'not online for {self.min_online_time} seconds')
         return res
