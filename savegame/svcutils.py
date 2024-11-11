@@ -51,20 +51,6 @@ def is_idle():
     return res
 
 
-def get_uptime():
-    try:
-        if os.name == 'nt':
-            GetTickCount64 = ctypes.windll.kernel32.GetTickCount64
-            GetTickCount64.restype = ctypes.c_ulonglong
-            return GetTickCount64() / 1000
-        else:
-            with open('/proc/uptime', 'r') as f:
-                return float(f.readline().split()[0])
-    except Exception:
-        logger.exception('failed to get uptime')
-        return None
-
-
 def is_online(host='8.8.8.8', port=53, timeout=3):
     try:
         socket.setdefaulttimeout(timeout)
@@ -189,13 +175,11 @@ def with_lockfile(path):
 
 class Service:
     def __init__(self, callable, work_path, run_delta, force_run_delta=None,
-                 min_uptime=None, min_online_time=None,
-                 loop_delay=SERVICE_LOOP_DELAY):
+                 min_online_time=None, loop_delay=SERVICE_LOOP_DELAY):
         self.callable = callable
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
-        self.min_uptime = min_uptime
         self.run_file = RunFile(os.path.join(work_path, 'service.run'))
         if min_online_time:
             self.online_tracker = OnlineTracker(work_path, min_online_time)
@@ -206,13 +190,6 @@ class Service:
     def _must_run(self):
         if self.online_tracker and not self.online_tracker.check():
             return False
-
-        if self.min_uptime:
-            uptime = get_uptime()
-            if uptime and uptime < self.min_uptime:
-                logger.info(f'uptime less than {self.min_uptime} '
-                    f'seconds ({uptime})')
-                return False
 
         run_ts = self.run_file.get_ts()
         now_ts = time.time()
