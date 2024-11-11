@@ -1,14 +1,20 @@
 import atexit
 import ctypes
 import functools
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
 
+
+VENV_DIR = 'venv'
+SERVICE_LOOP_DELAY = 30
+CRONTAB_SCHEDULE = '*/2 * * * *'
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +43,38 @@ def setup_logging(logger, path, name, max_size=1024000):
     logger.addHandler(file_handler)
 
 
+def is_idle():
+    import psutil
+    res = psutil.cpu_percent(interval=1) < 5
+    if not res:
+        logger.info('not idle')
+    return res
+
+
+def get_uptime():
+    try:
+        if os.name == 'nt':
+            GetTickCount64 = ctypes.windll.kernel32.GetTickCount64
+            GetTickCount64.restype = ctypes.c_ulonglong
+            return GetTickCount64() / 1000
+        else:
+            with open('/proc/uptime', 'r') as f:
+                return float(f.readline().split()[0])
+    except Exception:
+        logger.exception('failed to get uptime')
+        return None
+
+
+def is_online(host='8.8.8.8', port=53, timeout=3):
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM
+            ).connect((host, port))
+        return True
+    except OSError:
+        return False
+
+
 def get_file_mtime(x):
     return os.stat(x).st_mtime
 
@@ -53,6 +91,40 @@ class RunFile:
     def touch(self):
         with open(self.file, 'w'):
             pass
+
+
+class OnlineTracker:
+    def __init__(self, work_path, min_online_time):
+        self.file = os.path.join(work_path, 'online.json')
+        self.min_online_time = min_online_time
+
+    def _load(self):
+        if not os.path.exists(self.file):
+            return []
+        with open(self.file) as fd:
+            return json.load(fd)
+
+    def _update(self):
+        data = self._load()
+        if is_online():
+            data.append(int(time.time()))
+            data = [r for r in data
+                if r >= time.time() - self.min_online_time * 2]
+            with open(self.file, 'w') as fd:
+                fd.write(json.dumps(data))
+        return data
+
+    def check(self):
+        data = self._update()
+        now_ts = time.time()
+        ts1 = now_ts - self.min_online_time * 2
+        ts2 = now_ts - self.min_online_time
+        ts_before = [r for r in data if ts1 < r < ts2]
+        ts_after = [r for r in data if r > ts2]
+        res = len(ts_before) and len(ts_after)
+        if not res:
+            logger.info(f'not online for {self.min_online_time} seconds')
+        return res
 
 
 class Notifier:
@@ -115,36 +187,43 @@ def with_lockfile(path):
     return decorator
 
 
-def is_idle():
-    import psutil
-    res = psutil.cpu_percent(interval=1) < 5
-    if not res:
-        logger.warning('not idle')
-    return res
-
-
-def must_run(last_run_ts, run_delta, force_run_delta):
-    now_ts = time.time()
-    if now_ts > last_run_ts + force_run_delta:
-        return True
-    if now_ts > last_run_ts + run_delta and is_idle():
-        return True
-    return False
-
-
 class Service:
     def __init__(self, callable, work_path, run_delta, force_run_delta=None,
-                 loop_delay=30):
+                 min_uptime=None, min_online_time=None,
+                 loop_delay=SERVICE_LOOP_DELAY):
         self.callable = callable
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
+        self.min_uptime = min_uptime
         self.run_file = RunFile(os.path.join(work_path, 'service.run'))
+        if min_online_time:
+            self.online_tracker = OnlineTracker(work_path, min_online_time)
+        else:
+            self.online_tracker = None
         self.loop_delay = loop_delay
 
+    def _must_run(self):
+        if self.online_tracker and not self.online_tracker.check():
+            return False
+
+        if self.min_uptime:
+            uptime = get_uptime()
+            if uptime and uptime < self.min_uptime:
+                logger.info(f'uptime less than {self.min_uptime} '
+                    f'seconds ({uptime})')
+                return False
+
+        run_ts = self.run_file.get_ts()
+        now_ts = time.time()
+        if self.force_run_delta and now_ts > run_ts + self.force_run_delta:
+            return True
+        if now_ts > run_ts + self.run_delta and is_idle():
+            return True
+        return False
+
     def _run_once(self):
-        if must_run(self.run_file.get_ts(),
-                self.run_delta, self.force_run_delta):
+        if self._must_run():
             self.callable()
             self.run_file.touch()
 
@@ -174,8 +253,8 @@ class Service:
 
 
 class Bootstrapper:
-    def __init__(self, script_path, requirements_file=None, venv_dir='venv',
-                 crontab_schedule='*/2 * * * *', linux_args=None,
+    def __init__(self, script_path, requirements_file=None, venv_dir=VENV_DIR,
+                 crontab_schedule=CRONTAB_SCHEDULE, linux_args=None,
                  windows_args=None,
                  ):
         self.script_path = os.path.realpath(script_path)

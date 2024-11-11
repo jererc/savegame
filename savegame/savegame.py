@@ -884,21 +884,17 @@ def _parse_args():
 def main():
     args = _parse_args()
     if args.cmd == 'save':
+        service = Service(
+            callable=savegame,
+            work_path=WORK_PATH,
+            run_delta=RUN_DELTA,
+            force_run_delta=FORCE_RUN_DELTA,
+            loop_delay=60,
+        )
         if args.daemon:
-            Service(
-                callable=savegame,
-                work_path=WORK_PATH,
-                run_delta=RUN_DELTA,
-                force_run_delta=FORCE_RUN_DELTA,
-                loop_delay=60,
-            ).run()
+            service.run()
         elif args.task:
-            Service(
-                callable=savegame,
-                work_path=WORK_PATH,
-                run_delta=RUN_DELTA,
-                force_run_delta=FORCE_RUN_DELTA,
-            ).run_once()
+            service.run_once()
         else:
             savegame(force=True)
     else:
