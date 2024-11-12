@@ -174,17 +174,19 @@ class Service:
         return False
 
     def _run_once(self):
-        if self._must_run():
-            self.callable()
-            self.run_file.touch()
+        try:
+            if self._must_run():
+                try:
+                    self.callable()
+                finally:
+                    self.run_file.touch()
+        except Exception:
+            logger.exception('failed')
 
     def run_once(self):
         @with_lockfile(self.work_path)
         def run():
-            try:
-                self._run_once()
-            except Exception:
-                logger.exception('failed')
+            self._run_once()
 
         run()
 
@@ -192,13 +194,9 @@ class Service:
         @with_lockfile(self.work_path)
         def run():
             while True:
-                try:
-                    self._run_once()
-                except Exception:
-                    logger.exception('failed')
-                finally:
-                    logger.debug(f'sleeping for {self.loop_delay} seconds')
-                    time.sleep(self.loop_delay)
+                self._run_once()
+                logger.debug(f'sleeping for {self.loop_delay} seconds')
+                time.sleep(self.loop_delay)
 
         run()
 
