@@ -100,8 +100,8 @@ class ServiceTracker:
     def check(self):
         data = self._update()
         ts = time.time() - self.min_running_time
-        values = [t - ts for t, o in data if (o or not self.requires_online)]
-        return min(values) < 0 and max(values) > 0
+        res = [t - ts for t, o in data if (o or not self.requires_online)]
+        return len(res) > 0 and min(res) < 0 and max(res) > 0
 
 
 def with_lockfile(path):
