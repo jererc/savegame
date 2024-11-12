@@ -19,7 +19,8 @@ import urllib.parse
 
 from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud
-from svcutils import Notifier, RunFile, Service, get_file_mtime, setup_logging
+from svcutils import (Notifier, RunFile, Service, get_file_mtime, logger,
+    setup_logging)
 
 
 SAVES = []
@@ -55,7 +56,6 @@ def makedirs(x):
         os.makedirs(x)
 
 
-logger = logging.getLogger(__name__)
 makedirs(WORK_PATH)
 setup_logging(logger, path=WORK_PATH, name=NAME)
 

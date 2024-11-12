@@ -45,10 +45,7 @@ def setup_logging(logger, path, name, max_size=1024000):
 
 def is_idle():
     import psutil
-    res = psutil.cpu_percent(interval=1) < 5
-    if not res:
-        logger.info('not idle')
-    return res
+    return psutil.cpu_percent(interval=1) < 5
 
 
 def is_online(host='8.8.8.8', port=53, timeout=3):
@@ -104,11 +101,7 @@ class ServiceTracker:
         data = self._update()
         ts = time.time() - self.min_running_time
         values = [t - ts for t, o in data if (o or not self.requires_online)]
-        res = min(values) < 0 and max(values) > 0
-        if not res:
-            logger.info('running time is less than '
-                f'{self.min_running_time} seconds')
-        return res
+        return min(values) < 0 and max(values) > 0
 
 
 def with_lockfile(path):
@@ -167,13 +160,17 @@ class Service:
 
     def _must_run(self):
         if self.tracker and not self.tracker.check():
+            logger.info('running time is less than '
+                f'{self.tracker.min_running_time} seconds')
             return False
         run_ts = self.run_file.get_ts()
         now_ts = time.time()
         if self.force_run_delta and now_ts > run_ts + self.force_run_delta:
             return True
-        if now_ts > run_ts + self.run_delta and is_idle():
-            return True
+        if now_ts > run_ts + self.run_delta:
+            if is_idle():
+                return True
+            logger.info('not idle')
         return False
 
     def _run_once(self):
