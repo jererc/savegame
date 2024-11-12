@@ -43,11 +43,6 @@ def setup_logging(logger, path, name, max_size=1024000):
     logger.addHandler(file_handler)
 
 
-def is_idle():
-    import psutil
-    return psutil.cpu_percent(interval=1) < 5
-
-
 def is_online(host='8.8.8.8', port=53, timeout=3):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -145,7 +140,7 @@ def with_lockfile(path):
 class Service:
     def __init__(self, callable, work_path, run_delta, force_run_delta=None,
                  min_running_time=None, requires_online=False,
-                 loop_delay=SERVICE_LOOP_DELAY):
+                 max_cpu_percent=None, loop_delay=SERVICE_LOOP_DELAY):
         self.callable = callable
         self.work_path = work_path
         self.run_delta = run_delta
@@ -155,6 +150,7 @@ class Service:
                 requires_online)
         else:
             self.tracker = None
+        self.max_cpu_percent = max_cpu_percent
         self.loop_delay = loop_delay
         self.run_file = RunFile(os.path.join(work_path, 'service.run'))
 
@@ -168,9 +164,15 @@ class Service:
         if self.force_run_delta and now_ts > run_ts + self.force_run_delta:
             return True
         if now_ts > run_ts + self.run_delta:
-            if is_idle():
+            if self.max_cpu_percent:
+                import psutil
+                cpu_percent = psutil.cpu_percent(interval=1)
+                if cpu_percent < self.max_cpu_percent:
+                    return True
+                logger.info('cpu percent is greater than '
+                    f'{self.max_cpu_percent} ({cpu_percent})')
+            else:
                 return True
-            logger.info('not idle')
         return False
 
     def _run_once(self):

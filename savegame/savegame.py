@@ -27,6 +27,7 @@ SAVES = []
 RUN_DELTA = 30 * 60
 FORCE_RUN_DELTA = 90 * 60
 MIN_RUNNING_TIME = 300
+MAX_CPU_PERCENT = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
@@ -888,6 +889,7 @@ def main():
             run_delta=RUN_DELTA,
             force_run_delta=FORCE_RUN_DELTA,
             min_running_time=MIN_RUNNING_TIME,
+            max_cpu_percent=MAX_CPU_PERCENT,
             loop_delay=60,
         )
         if args.daemon:
