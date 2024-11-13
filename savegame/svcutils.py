@@ -115,18 +115,19 @@ class RunFile:
 
 
 class ServiceTracker:
-    def __init__(self, work_path, min_running_time, requires_online=False,
-            check_precision=None):
+    def __init__(self, work_path, min_runtime, requires_online=False,
+            runtime_precision=None):
         self.file = os.path.join(work_path, 'tracker.json')
-        self.min_running_time = min_running_time
+        self.min_runtime = min_runtime
         self.requires_online = requires_online
-        self.check_precision = self._get_check_precision(check_precision)
+        self.runtime_precision = self._get_runtime_precision(
+            runtime_precision)
         self.data = self._load()
 
-    def _get_check_precision(self, check_precision):
-        if check_precision:
-            return check_precision
-        return self.min_running_time // 2 if self.min_running_time else None
+    def _get_runtime_precision(self, runtime_precision):
+        if runtime_precision:
+            return runtime_precision
+        return self.min_runtime // 2 if self.min_runtime else None
 
     def _load(self):
         if not os.path.exists(self.file):
@@ -135,41 +136,40 @@ class ServiceTracker:
             return json.load(fd)
 
     def update(self):
-        if not (self.min_running_time and self.check_precision):
+        if not (self.min_runtime and self.runtime_precision):
             return
         now_ts = time.time()
-        begin = now_ts - self.min_running_time - self.check_precision
+        begin = now_ts - self.min_runtime - self.runtime_precision
         self.data = [r for r in self.data if r[0] > begin] \
             + [(int(now_ts), int(is_online()))]
         with open(self.file, 'w') as fd:
             fd.write(json.dumps(self.data))
 
     def check(self):
-        if not (self.min_running_time and self.check_precision):
+        if not (self.min_runtime and self.runtime_precision):
             return True
-        check_delta = self.min_running_time + self.check_precision
+        check_delta = self.min_runtime + self.runtime_precision
         now = time.time()
         updates = [int(t - now) for t, o in self.data
             if (o or not self.requires_online) and t > now - check_delta]
-        val = set([int((r + check_delta) // self.check_precision)
+        val = set([int((r + check_delta) // self.runtime_precision)
             for r in updates])
-        expected = set(range(0, check_delta // self.check_precision))
+        expected = set(range(0, check_delta // self.runtime_precision))
         res = val >= expected
         if not res:
-            logger.info('running time is less than '
-                f'{self.min_running_time} seconds')
+            logger.info(f'runtime is less than {self.min_runtime} seconds')
         return res
 
 
 class Service:
     def __init__(self, callable, work_path, run_delta, force_run_delta=None,
-                 min_running_time=None, requires_online=False,
+                 min_runtime=None, requires_online=False,
                  max_cpu_percent=None, loop_delay=SERVICE_LOOP_DELAY):
         self.callable = callable
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
-        self.tracker = ServiceTracker(work_path, min_running_time,
+        self.tracker = ServiceTracker(work_path, min_runtime,
             requires_online)
         self.max_cpu_percent = max_cpu_percent
         self.loop_delay = loop_delay
@@ -249,8 +249,7 @@ class Notifier:
 class Bootstrapper:
     def __init__(self, script_path, requirements_file=None, venv_dir=VENV_DIR,
                  crontab_schedule=CRONTAB_SCHEDULE, linux_args=None,
-                 windows_args=None,
-                 ):
+                 windows_args=None):
         self.script_path = os.path.realpath(script_path)
         self.requirements_file = requirements_file or os.path.join(
             os.path.dirname(os.path.realpath(__file__)), 'requirements.txt')
