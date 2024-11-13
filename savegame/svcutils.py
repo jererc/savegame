@@ -120,8 +120,7 @@ class ServiceTracker:
         self.file = os.path.join(work_path, 'tracker.json')
         self.min_runtime = min_runtime
         self.requires_online = requires_online
-        self.runtime_precision = self._get_runtime_precision(
-            runtime_precision)
+        self.runtime_precision = self._get_runtime_precision(runtime_precision)
         self.data = self._load()
 
     def _get_runtime_precision(self, runtime_precision):
