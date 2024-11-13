@@ -57,48 +57,6 @@ def get_file_mtime(x):
     return os.stat(x).st_mtime
 
 
-class RunFile:
-    def __init__(self, file):
-        self.file = file
-
-    def get_ts(self, default=0):
-        if not os.path.exists(self.file):
-            return default
-        return get_file_mtime(self.file)
-
-    def touch(self):
-        with open(self.file, 'w'):
-            pass
-
-
-class ServiceTracker:
-    def __init__(self, work_path, min_running_time, requires_online=False):
-        self.file = os.path.join(work_path, 'tracker.json')
-        self.min_running_time = min_running_time
-        self.requires_online = requires_online
-
-    def _load(self):
-        if not os.path.exists(self.file):
-            return []
-        with open(self.file) as fd:
-            return json.load(fd)
-
-    def _update(self):
-        now_ts = time.time()
-        begin = now_ts - self.min_running_time * 2
-        data = [r for r in self._load() if r[0] > begin] \
-            + [(int(now_ts), is_online())]
-        with open(self.file, 'w') as fd:
-            fd.write(json.dumps(data))
-        return data
-
-    def check(self):
-        data = self._update()
-        ts = time.time() - self.min_running_time
-        res = [t - ts for t, o in data if (o or not self.requires_online)]
-        return len(res) > 0 and min(res) < 0 and max(res) > 0
-
-
 def with_lockfile(path):
     lockfile_path = os.path.join(path, 'lock')
 
@@ -137,6 +95,67 @@ def with_lockfile(path):
     return decorator
 
 
+class RunFile:
+    def __init__(self, file):
+        self.file = file
+
+    def get_ts(self, default=0):
+        if not os.path.exists(self.file):
+            return default
+        return get_file_mtime(self.file)
+
+    def touch(self):
+        with open(self.file, 'w'):
+            pass
+
+
+class ServiceTracker:
+    def __init__(self, work_path, min_running_time, requires_online=False,
+            check_precision=None):
+        self.file = os.path.join(work_path, 'tracker.json')
+        self.min_running_time = min_running_time
+        self.requires_online = requires_online
+        self.check_precision = self._get_check_precision(check_precision)
+        self.data = self._load()
+
+    def _get_check_precision(self, check_precision):
+        if check_precision:
+            return check_precision
+        return self.min_running_time // 2 if self.min_running_time else None
+
+    def _load(self):
+        if not os.path.exists(self.file):
+            return []
+        with open(self.file) as fd:
+            return json.load(fd)
+
+    def update(self):
+        if not (self.min_running_time and self.check_precision):
+            return
+        now_ts = time.time()
+        begin = now_ts - self.min_running_time - self.check_precision
+        self.data = [r for r in self.data if r[0] > begin] \
+            + [(int(now_ts), int(is_online()))]
+        with open(self.file, 'w') as fd:
+            fd.write(json.dumps(self.data))
+
+    def check(self):
+        if not (self.min_running_time and self.check_precision):
+            return True
+        check_delta = self.min_running_time + self.check_precision
+        now = time.time()
+        updates = [int(t - now) for t, o in self.data
+            if (o or not self.requires_online) and t > now - check_delta]
+        val = set([int((r + check_delta) // self.check_precision)
+            for r in updates])
+        expected = set(range(0, check_delta // self.check_precision))
+        res = val >= expected
+        if not res:
+            logger.info('running time is less than '
+                f'{self.min_running_time} seconds')
+        return res
+
+
 class Service:
     def __init__(self, callable, work_path, run_delta, force_run_delta=None,
                  min_running_time=None, requires_online=False,
@@ -145,34 +164,31 @@ class Service:
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
-        if min_running_time:
-            self.tracker = ServiceTracker(work_path, min_running_time,
-                requires_online)
-        else:
-            self.tracker = None
+        self.tracker = ServiceTracker(work_path, min_running_time,
+            requires_online)
         self.max_cpu_percent = max_cpu_percent
         self.loop_delay = loop_delay
         self.run_file = RunFile(os.path.join(work_path, 'service.run'))
 
-    def _must_run(self):
-        if self.tracker and not self.tracker.check():
-            logger.info('running time is less than '
-                f'{self.tracker.min_running_time} seconds')
+    def _check_cpu_usage(self):
+        if not self.max_cpu_percent:
+            return True
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=1)
+        if cpu_percent > self.max_cpu_percent:
+            logger.info('cpu percent is greater than '
+                f'{self.max_cpu_percent} ({cpu_percent})')
             return False
+        return True
+
+    def _must_run(self):
+        self.tracker.update()
         run_ts = self.run_file.get_ts()
         now_ts = time.time()
         if self.force_run_delta and now_ts > run_ts + self.force_run_delta:
-            return True
+            return self.tracker.check()
         if now_ts > run_ts + self.run_delta:
-            if self.max_cpu_percent:
-                import psutil
-                cpu_percent = psutil.cpu_percent(interval=1)
-                if cpu_percent < self.max_cpu_percent:
-                    return True
-                logger.info('cpu percent is greater than '
-                    f'{self.max_cpu_percent} ({cpu_percent})')
-            else:
-                return True
+            return self.tracker.check() and self._check_cpu_usage()
         return False
 
     def _run_once(self):

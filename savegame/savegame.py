@@ -889,6 +889,7 @@ def main():
             run_delta=RUN_DELTA,
             force_run_delta=FORCE_RUN_DELTA,
             min_running_time=MIN_RUNNING_TIME,
+            requires_online=False,
             max_cpu_percent=MAX_CPU_PERCENT,
             loop_delay=60,
         )
