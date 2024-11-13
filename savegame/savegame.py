@@ -19,8 +19,7 @@ import urllib.parse
 
 from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud
-from svcutils import (Notifier, RunFile, Service, get_file_mtime, logger,
-    setup_logging)
+from svcutils import Notifier, RunFile, Service, get_file_mtime, get_logger
 
 
 SAVES = []
@@ -58,7 +57,7 @@ def makedirs(x):
 
 
 makedirs(WORK_PATH)
-setup_logging(logger, path=WORK_PATH, name=NAME)
+logger = get_logger(path=WORK_PATH, name=NAME)
 
 
 class UnhandledPath(Exception):

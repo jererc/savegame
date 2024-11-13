@@ -43,6 +43,11 @@ def setup_logging(logger, path, name, max_size=1024000):
     logger.addHandler(file_handler)
 
 
+def get_logger(path, name):
+    setup_logging(logger, path=path, name=name)
+    return logger
+
+
 def is_online(host='8.8.8.8', port=53, timeout=3):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
