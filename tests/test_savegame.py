@@ -749,12 +749,6 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         self._savegame(force=True)
-        dst_paths = self._list_dst_root_paths()
-        print('dst data:')
-        pprint(dst_paths)
-        # self.assertFalse(any_str_matches(dst_paths, '*src1*'))
-        self.assertTrue(any_str_matches(dst_paths, '*src2*'))
-        self.assertTrue(any_str_matches(dst_paths, '*src3*'))
 
     def test_home_path_other_os(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,

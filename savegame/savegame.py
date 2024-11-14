@@ -8,7 +8,6 @@ import gzip
 import hashlib
 import inspect
 import json
-import logging
 import os
 from pathlib import PurePath
 import shutil
@@ -563,14 +562,13 @@ class SaveHandler:
         for si in iterate_save_items():
             yield from si.generate_savers()
 
-    def _clean_dsts(self, savers):
+    def _check_dsts(self, savers):
         dsts = {s.dst for s in savers}
         orphans = set()
         for dirname in {os.path.dirname(r) for r in dsts}:
             orphans.update(set(glob(os.path.join(dirname, '*'))) - dsts)
         for orphan in orphans:
-            # remove_path(orphan)
-            logger.warning(f'removed orphan path {orphan}')
+            logger.warning(f'orphan path: {orphan}')
 
     def run(self):
         start_ts = time.time()
@@ -590,7 +588,7 @@ class SaveHandler:
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        self._clean_dsts(savers)
+        self._check_dsts(savers)
         logger.info(f'processed {len(savers)} saves in '
             f'{time.time() - start_ts:.02f} seconds')
 
