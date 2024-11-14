@@ -46,11 +46,11 @@ def get_file(path):
     raise Exception(f'{path} does not exist')
 
 
-class Autoauth(Browser):
+class Autoauth:
     def __init__(self, client_secrets_file, scopes, **browser_args):
-        super().__init__(**browser_args)
         self.client_secrets_file = client_secrets_file
         self.scopes = scopes
+        self.driver = Browser(**browser_args).driver
 
     def _wait_for_element(self, element):
         wait = WebDriverWait(self.driver, timeout=5, poll_frequency=.2,

@@ -14,7 +14,8 @@ class AutoauthTestCase(unittest.TestCase):
             'https://www.googleapis.com/auth/contacts.readonly',
             'https://www.googleapis.com/auth/drive.readonly',
         ]
-        res = Autoauth(creds_file, scopes).acquire_credentials()
+        res = Autoauth(creds_file, scopes,
+            browser_id='chrome').acquire_credentials()
         self.assertTrue(res)
         creds_json = res.to_json()
         print(creds_json)
