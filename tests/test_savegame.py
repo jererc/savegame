@@ -223,17 +223,6 @@ class BaseTestCase(unittest.TestCase):
         with patch.object(savegame.Notifier, 'send') as mock_send:
             savegame.loadgame(**kwargs)
 
-    def _savegame_with_data(self, run_delta=0, **kwargs):
-        self._generate_src_data(**kwargs)
-        savegame.SAVES = [
-            {
-                'src_paths': self._get_src_paths(**kwargs),
-                'dst_path': self.dst_root,
-                'run_delta': run_delta,
-            },
-        ]
-        self._savegame()
-
 
 class PatternTestCase(unittest.TestCase):
     def setUp(self):
@@ -724,6 +713,49 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
+    def test_old_save(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
+            file_count=3)
+        savegame.SAVES = [
+            {
+                'src_paths': [os.path.join(self.src_root, 'src1')],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [os.path.join(self.src_root, 'src2')],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [os.path.join(self.src_root, 'src3')],
+                'dst_path': self.dst_root,
+            },
+        ]
+        self._savegame()
+        dst_paths = self._list_dst_root_paths()
+        print('dst data:')
+        pprint(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src3*'))
+
+        savegame.SAVES = [
+            {
+                'src_paths': [os.path.join(self.src_root, 'src2')],
+                'dst_path': self.dst_root,
+            },
+            {
+                'src_paths': [os.path.join(self.src_root, 'src3')],
+                'dst_path': self.dst_root,
+            },
+        ]
+        self._savegame(force=True)
+        dst_paths = self._list_dst_root_paths()
+        print('dst data:')
+        pprint(dst_paths)
+        # self.assertFalse(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src2*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src3*'))
+
     def test_home_path_other_os(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
@@ -757,6 +789,21 @@ class SavegameTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
+
+
+class LoadgameTestCase(BaseTestCase):
+    def _savegame_with_data(self, run_delta=0, **kwargs):
+        self._generate_src_data(**kwargs)
+        savegame.SAVES = [
+            {
+                'src_paths': self._get_src_paths(**kwargs),
+                'dst_path': self.dst_root,
+                'run_delta': run_delta,
+            },
+        ]
+        with patch.object(savegame.SaveHandler, '_clean_dsts'
+                ) as mock__clean_dsts:
+            self._savegame()
 
     def test_load_skipped_identical(self):
         self._savegame_with_data(index_start=1, file_count=2)
