@@ -116,13 +116,11 @@ class RunFile:
 
 class ServiceTracker:
     def __init__(self, work_path, min_runtime, requires_online=False,
-            runtime_precision=None, history_delta=24 * 3600,
-            history_count=1000):
+            runtime_precision=None, history_count=1000):
         self.file = os.path.join(work_path, 'tracker.json')
         self.min_runtime = min_runtime
         self.requires_online = requires_online
         self.runtime_precision = self._get_runtime_precision(runtime_precision)
-        self.history_delta = history_delta
         self.history_count = history_count
         self.data = self._load()
 
@@ -139,11 +137,8 @@ class ServiceTracker:
             return json.load(fd)
 
     def update(self):
-        now_ts = time.time()
-        begin = now_ts - self.history_delta
-        self.data = [r for r in self.data
-            if r[0] > begin][-self.history_count + 1:] \
-            + [(int(now_ts), int(is_online()))]
+        self.data = self.data[-self.history_count + 1:] \
+            + [(int(time.time()), int(is_online()))]
         with open(self.file, 'w') as fd:
             fd.write(json.dumps(self.data))
 
