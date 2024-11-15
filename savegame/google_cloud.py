@@ -16,7 +16,7 @@ from selenium.common.exceptions import (ElementNotInteractableException,
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from webutils import Browser
+from webutils import get_browser_driver
 
 
 CREDS_FILENAME = 'gc.json'
@@ -50,7 +50,7 @@ class Autoauth:
     def __init__(self, client_secrets_file, scopes, **browser_args):
         self.client_secrets_file = client_secrets_file
         self.scopes = scopes
-        self.driver = Browser(**browser_args).driver
+        self.driver = get_browser_driver(**browser_args)
 
     def _wait_for_element(self, element):
         wait = WebDriverWait(self.driver, timeout=5, poll_frequency=.2,
