@@ -116,17 +116,21 @@ class RunFile:
 
 class ServiceTracker:
     def __init__(self, work_path, min_runtime, requires_online=False,
-            runtime_precision=None):
+            runtime_precision=None, history_delta=24 * 3600,
+            history_count=1000):
         self.file = os.path.join(work_path, 'tracker.json')
         self.min_runtime = min_runtime
         self.requires_online = requires_online
         self.runtime_precision = self._get_runtime_precision(runtime_precision)
+        self.history_delta = history_delta
+        self.history_count = history_count
         self.data = self._load()
 
     def _get_runtime_precision(self, runtime_precision):
-        if runtime_precision:
-            return runtime_precision
-        return self.min_runtime // 2 if self.min_runtime else None
+        try:
+            return max(1, runtime_precision or self.min_runtime // 2)
+        except TypeError:
+            return None
 
     def _load(self):
         if not os.path.exists(self.file):
@@ -135,11 +139,10 @@ class ServiceTracker:
             return json.load(fd)
 
     def update(self):
-        if not (self.min_runtime and self.runtime_precision):
-            return
         now_ts = time.time()
-        begin = now_ts - self.min_runtime - self.runtime_precision
-        self.data = [r for r in self.data if r[0] > begin] \
+        begin = now_ts - self.history_delta
+        self.data = [r for r in self.data
+            if r[0] > begin][-self.history_count + 1:] \
             + [(int(now_ts), int(is_online()))]
         with open(self.file, 'w') as fd:
             fd.write(json.dumps(self.data))
@@ -149,14 +152,15 @@ class ServiceTracker:
             return True
         check_delta = self.min_runtime + self.runtime_precision
         now = time.time()
-        updates = [int(t - now) for t, o in self.data
-            if (o or not self.requires_online) and t > now - check_delta]
+        tds = [int(t - now) for t, o in self.data
+            if t > now - check_delta and (o or not self.requires_online)]
         val = set([int((r + check_delta) // self.runtime_precision)
-            for r in updates])
+            for r in tds])
         expected = set(range(0, check_delta // self.runtime_precision))
         res = val >= expected
         if not res:
-            logger.info(f'runtime is less than {self.min_runtime} seconds')
+            logger.info(f'runtime is less than {self.min_runtime} seconds '
+                f'(track deltas: {tds})')
         return res
 
 
