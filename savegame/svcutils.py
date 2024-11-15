@@ -13,8 +13,8 @@ import time
 
 
 VENV_DIR = 'venv'
-SERVICE_LOOP_DELAY = 30
-CRONTAB_SCHEDULE = '*/2 * * * *'
+SERVICE_LOOP_DELAY = 60
+TASK_SCHEDULE_MINS = 2
 
 logger = logging.getLogger(__name__)
 
@@ -254,13 +254,13 @@ class Notifier:
 
 class Bootstrapper:
     def __init__(self, script_path, requirements_file=None, venv_dir=VENV_DIR,
-                 crontab_schedule=CRONTAB_SCHEDULE, linux_args=None,
-                 windows_args=None):
+                 task_schedule_mins=TASK_SCHEDULE_MINS,
+                 linux_args=None, windows_args=None):
         self.script_path = os.path.realpath(script_path)
         self.requirements_file = requirements_file or os.path.join(
             os.path.dirname(os.path.realpath(__file__)), 'requirements.txt')
         self.venv_dir = venv_dir
-        self.crontab_schedule = crontab_schedule
+        self.task_schedule_mins = task_schedule_mins
         self.linux_args = linux_args
         self.windows_args = windows_args
         self.script_name = os.path.splitext(os.path.basename(
@@ -287,11 +287,16 @@ class Bootstrapper:
             self.requirements_file])
         print(f'Created the virtualenv in {self.venv_path}')
 
+    def _get_crontab_schedule(self):
+        if 1 < self.task_schedule_mins < 60:
+            return f'*/{self.task_schedule_mins} * * * *'
+        return '* * * * *'
+
     def _setup_linux_crontab(self, cmd):
         res = subprocess.run(['crontab', '-l'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         current_crontab = res.stdout if res.returncode == 0 else ''
-        new_job = f'{self.crontab_schedule} {cmd}\n'
+        new_job = f'{self._get_crontab_schedule()} {cmd}\n'
         updated_crontab = ''
         job_found = False
         for line in current_crontab.splitlines():
@@ -311,10 +316,18 @@ class Bootstrapper:
     def _setup_windows_task(self, cmd, task_name):
         if ctypes.windll.shell32.IsUserAnAdmin() == 0:
             raise SystemExit('Failed: must run as admin')
+        # subprocess.check_call(['schtasks', '/create',
+        #     '/tn', task_name,
+        #     '/tr', cmd,
+        #     '/sc', 'onlogon',
+        #     '/rl', 'highest',
+        #     '/f',
+        # ])
         subprocess.check_call(['schtasks', '/create',
             '/tn', task_name,
             '/tr', cmd,
-            '/sc', 'onlogon',
+            '/sc', 'minute',
+            '/mo', str(self.task_schedule_mins),
             '/rl', 'highest',
             '/f',
         ])
