@@ -313,16 +313,23 @@ class Bootstrapper:
             raise SystemExit('Failed to update crontab')
         print('Successfully updated crontab')
 
+    # def _setup_windows_task_onlogon(self, cmd, task_name):
+    #     if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+    #         raise SystemExit('Failed: must run as admin')
+    #     subprocess.check_call(['schtasks', '/create',
+    #         '/tn', task_name,
+    #         '/tr', cmd,
+    #         '/sc', 'onlogon',
+    #         '/rl', 'highest',
+    #         '/f',
+    #     ])
+    #     subprocess.check_call(['schtasks', '/run',
+    #         '/tn', task_name,
+    #     ])
+
     def _setup_windows_task(self, cmd, task_name):
         if ctypes.windll.shell32.IsUserAnAdmin() == 0:
             raise SystemExit('Failed: must run as admin')
-        # subprocess.check_call(['schtasks', '/create',
-        #     '/tn', task_name,
-        #     '/tr', cmd,
-        #     '/sc', 'onlogon',
-        #     '/rl', 'highest',
-        #     '/f',
-        # ])
         subprocess.check_call(['schtasks', '/create',
             '/tn', task_name,
             '/tr', cmd,
