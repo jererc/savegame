@@ -292,7 +292,7 @@ class Bootstrapper:
             return f'*/{self.task_schedule_mins} * * * *'
         return '* * * * *'
 
-    def _setup_linux_crontab(self, cmd):
+    def _setup_linux_task(self, cmd):
         res = subprocess.run(['crontab', '-l'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         current_crontab = res.stdout if res.returncode == 0 else ''
@@ -352,4 +352,4 @@ class Bootstrapper:
             self._setup_windows_task(cmd=self._get_cmd(self.windows_args),
                 task_name=self.script_name)
         else:
-            self._setup_linux_crontab(cmd=self._get_cmd(self.linux_args))
+            self._setup_linux_task(cmd=self._get_cmd(self.linux_args))
