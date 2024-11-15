@@ -168,10 +168,10 @@ class ServiceTracker:
 
 
 class Service:
-    def __init__(self, callable, work_path, run_delta, force_run_delta=None,
+    def __init__(self, target, work_path, run_delta, force_run_delta=None,
                  min_runtime=None, requires_online=False,
                  max_cpu_percent=None, loop_delay=SERVICE_LOOP_DELAY):
-        self.callable = callable
+        self.target = target
         self.work_path = work_path
         self.run_delta = run_delta
         self.force_run_delta = force_run_delta or run_delta * 2
@@ -206,7 +206,7 @@ class Service:
             self.tracker.update()
             if self._must_run():
                 try:
-                    self.callable()
+                    self.target()
                 finally:
                     self.run_file.touch()
         except Exception:

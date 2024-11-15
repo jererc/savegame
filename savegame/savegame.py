@@ -891,7 +891,7 @@ def main():
     args = _parse_args()
     if args.cmd == 'save':
         service = Service(
-            callable=savegame,
+            target=savegame,
             work_path=WORK_PATH,
             run_delta=RUN_DELTA,
             force_run_delta=FORCE_RUN_DELTA,
