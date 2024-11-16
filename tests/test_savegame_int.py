@@ -2,7 +2,7 @@ import os
 from pprint import pprint
 import unittest
 
-from .test_savegame import BaseTestCase, savegame
+from tests.test_savegame import BaseTestCase, savegame
 
 
 LINUX_SAVE = {
@@ -26,15 +26,10 @@ WIN_SAVE = {
 }
 
 
-class NotifyTestCase(unittest.TestCase):
-    def test_1(self):
-        savegame.Notifier().send(title='test title', body='test body')
-
-
 class SavegameIntegrationTestCase(BaseTestCase):
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_glob_and_empty_dirs_win(self):
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -47,67 +42,69 @@ class SavegameIntegrationTestCase(BaseTestCase):
             },
         ]
         for i in range(2):
-            savegame.savegame(force=True)
+            self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
 
     def test_1(self):
-        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
+        saves = [LINUX_SAVE, WIN_SAVE]
         for i in range(2):
-            savegame.savegame(force=True)
+            self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
 
 
 class LoadgameIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        savegame.SAVES = [LINUX_SAVE, WIN_SAVE]
-        savegame.loadgame(dry_run=True)
+        saves = [LINUX_SAVE, WIN_SAVE]
+        self._loadgame(dry_run=True)
         pprint(self._list_src_root_paths())
 
 
 class GoogleAutoauthIntegrationTestCase(BaseTestCase):
     def test_1(self):
         try:
-            savegame.get_google_cloud(headless=True).get_oauth_creds()
+            savegame.get_google_cloud(self.config,
+                headless=True).get_oauth_creds()
         except Exception:
-            savegame.get_google_cloud(headless=False).get_oauth_creds()
+            savegame.get_google_cloud(self.config,
+                headless=False).get_oauth_creds()
 
 
 class GoogleDriveExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        savegame.google_oauth()
-        savegame.SAVES = [
+        savegame.google_oauth(self.config)
+        saves = [
             {
                 'saver_id': 'google_drive_export',
                 'dst_path': self.dst_root,
             },
         ]
         for i in range(2):
-            savegame.savegame(force=True)
+            self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
 
 
 class GoogleContactsExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        savegame.google_oauth()
-        savegame.SAVES = [
+        savegame.google_oauth(self.config)
+        saves = [
             {
                 'saver_id': 'google_contacts_export',
                 'dst_path': self.dst_root,
             },
         ]
         for i in range(2):
-            savegame.savegame(force=True)
+            self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
 
 
 class BookmarksExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        savegame.SAVES = [
+        saves = [
             {
                 'saver_id': 'bookmarks_export',
                 'dst_path': self.dst_root,
             },
         ]
         for i in range(2):
-            savegame.savegame(force=True)
+            self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())

@@ -1,4 +1,3 @@
-import argparse
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -18,14 +17,9 @@ import urllib.parse
 
 from bookmarks import BookmarksHandler
 from google_cloud import GoogleCloud
-from svcutils import Notifier, RunFile, Service, get_file_mtime, get_logger
+from svcutils.service import Notifier, RunFile, get_file_mtime, get_logger
 
 
-SAVES = []
-RUN_DELTA = 30 * 60
-FORCE_RUN_DELTA = 90 * 60
-MIN_RUNTIME = 300
-MAX_CPU_PERCENT = 10
 RETRY_DELTA = 2 * 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
@@ -40,8 +34,6 @@ SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},
 }.get(os.name, set())
-DST_PATH = os.path.join('~', 'MEGA')
-GOOGLE_CLOUD_SECRETS_FILE = None
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
 try:
@@ -152,13 +144,14 @@ def get_path_separator(path):
     return os.path.sep
 
 
-def get_google_cloud(headless=True):
-    secrets_file = os.path.expanduser(GOOGLE_CLOUD_SECRETS_FILE)
+def get_google_cloud(config, headless=True):
+    secrets_file = os.path.expanduser(config.GOOGLE_CLOUD_SECRETS_FILE)
     if not os.path.exists(secrets_file):
         raise Exception('missing google secrets file')
     return GoogleCloud(
         oauth_secrets_file=secrets_file,
-        browser_id=GOOGLE_AUTOAUTH_BROWSER_ID,
+        browser_id=config.GOOGLE_AUTOAUTH_BROWSER_ID \
+            or GOOGLE_AUTOAUTH_BROWSER_ID,
         headless=headless,
     )
 
@@ -271,8 +264,9 @@ class BaseSaver:
     src_type = 'local'
     dst_type = 'local'
 
-    def __init__(self, src, inclusions, exclusions, dst_path, run_delta=3600,
+    def __init__(self, config, src, inclusions, exclusions, dst_path, run_delta=3600,
                  retention_delta=RETENTION_DELTA):
+        self.config = config
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
@@ -406,7 +400,7 @@ class GoogleDriveExportSaver(BaseSaver):
     src_type = 'remote'
 
     def do_run(self):
-        gc = get_google_cloud()
+        gc = get_google_cloud(self.config)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 self.report.add('skipped', self.src, file_meta['path'])
@@ -436,7 +430,7 @@ class GoogleContactsExportSaver(BaseSaver):
     src_type = 'remote'
 
     def do_run(self):
-        gc = get_google_cloud()
+        gc = get_google_cloud(self.config)
         contacts = gc.list_contacts()
         data = to_json(contacts)
         rel_path = 'contacts.json'
@@ -481,9 +475,10 @@ class BookmarksExportSaver(BaseSaver):
 
 
 class SaveItem:
-    def __init__(self, src_paths=None, saver_id=LocalSaver.id,
-                 dst_path=DST_PATH, run_delta=0,
+    def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
+                 dst_path=None, run_delta=0,
                  retention_delta=RETENTION_DELTA, loadable=True, os_name=None):
+        self.config = config
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
         self.saver_cls = self._get_saver_class()
@@ -498,6 +493,8 @@ class SaveItem:
             else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
+        if not dst_path:
+            dst_path = self.config.DST_PATH
         if self.saver_cls.dst_type == 'local':
             validate_path(dst_path)
             dst_path = os.path.expanduser(dst_path)
@@ -533,6 +530,7 @@ class SaveItem:
             return
         for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(
+                self.config,
                 *src_and_patterns,
                 dst_path=self.dst_path,
                 run_delta=self.run_delta,
@@ -540,10 +538,10 @@ class SaveItem:
             )
 
 
-def iterate_save_items(log_unhandled=False, log_invalid=True):
-    for save in SAVES:
+def iterate_save_items(config, log_unhandled=False, log_invalid=True):
+    for save in config.SAVES:
         try:
-            yield SaveItem(**save)
+            yield SaveItem(config, **save)
         except UnhandledPath as exc:
             if log_unhandled:
                 logger.warning(exc)
@@ -555,11 +553,12 @@ def iterate_save_items(log_unhandled=False, log_invalid=True):
 
 
 class SaveHandler:
-    def __init__(self, force=False):
+    def __init__(self, config, force=False):
+        self.config = config
         self.force = force
 
     def _generate_savers(self):
-        for si in iterate_save_items():
+        for si in iterate_save_items(self.config):
             yield from si.generate_savers()
 
     def _check_dsts(self, savers):
@@ -708,12 +707,13 @@ class LocalLoader:
 
 
 class LoadHandler:
-    def __init__(self, **loader_args):
+    def __init__(self, config, **loader_args):
+        self.config = config
         self.loader_args = loader_args
 
     def _iterate_loaders(self):
         dst_paths = {s.dst_path
-            for s in iterate_save_items(log_unhandled=True)
+            for s in iterate_save_items(self.config, log_unhandled=True)
             if s.saver_cls == LocalSaver and s.loadable}
         if not dst_paths:
             logger.info('nothing to load')
@@ -733,14 +733,15 @@ class LoadHandler:
 
 
 class SaveMonitor:
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
         self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor.run'))
 
     def _must_run(self):
         return time.time() > self.run_file.get_ts() + MONITOR_DELTA
 
     def _iterate_hostname_refs(self):
-        dst_paths = {s.dst_path for s in iterate_save_items()
+        dst_paths = {s.dst_path for s in iterate_save_items(self.config)
             if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
@@ -839,80 +840,26 @@ class SaveMonitor:
         print(report['message'])
 
 
-def savegame(force=False):
+def savegame(config, force=False):
     try:
-        SaveHandler(force=force).run()
+        SaveHandler(config, force=force).run()
     except Exception as exc:
         logger.exception('failed to save')
         Notifier().send(title=f'{NAME} error', body=str(exc))
     try:
-        SaveMonitor().run()
+        SaveMonitor(config).run()
     except Exception as exc:
         logger.exception('failed to monitor')
         Notifier().send(title=f'{NAME} error', body=str(exc))
 
 
-def status(**kwargs):
-    SaveMonitor().get_status(**kwargs)
+def status(config, **kwargs):
+    SaveMonitor(config).get_status(**kwargs)
 
 
-def loadgame(**kwargs):
-    LoadHandler(**kwargs).run()
+def loadgame(config, **kwargs):
+    LoadHandler(config, **kwargs).run()
 
 
-def google_oauth(**kwargs):
-    get_google_cloud(headless=False).get_oauth_creds()
-
-
-def _parse_args():
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(dest='cmd')
-    save_parser = subparsers.add_parser('save')
-    save_parser.add_argument('--daemon', action='store_true')
-    save_parser.add_argument('--task', action='store_true')
-    status_parser = subparsers.add_parser('status')
-    status_parser.add_argument('--order-by', default='last_run')
-    load_parser = subparsers.add_parser('load')
-    load_parser.add_argument('--hostname')
-    load_parser.add_argument('--username')
-    load_parser.add_argument('--include', nargs='*')
-    load_parser.add_argument('--exclude', nargs='*')
-    load_parser.add_argument('--overwrite', action='store_true')
-    load_parser.add_argument('--dry-run', action='store_true')
-    subparsers.add_parser('google_oauth')
-    args = parser.parse_args()
-    if not args.cmd:
-        parser.print_help()
-        sys.exit()
-    return args
-
-
-def main():
-    args = _parse_args()
-    if args.cmd == 'save':
-        service = Service(
-            target=savegame,
-            work_path=WORK_PATH,
-            run_delta=RUN_DELTA,
-            force_run_delta=FORCE_RUN_DELTA,
-            min_runtime=MIN_RUNTIME,
-            requires_online=False,
-            max_cpu_percent=MAX_CPU_PERCENT,
-            loop_delay=60,
-        )
-        if args.daemon:
-            service.run()
-        elif args.task:
-            service.run_once()
-        else:
-            savegame(force=True)
-    else:
-        {
-            'status': status,
-            'load': loadgame,
-            'google_oauth': google_oauth,
-        }[args.cmd](**{k: v for k, v in vars(args).items() if k != 'cmd'})
-
-
-if __name__ == '__main__':
-    main()
+def google_oauth(config, **kwargs):
+    get_google_cloud(config, headless=False).get_oauth_creds()

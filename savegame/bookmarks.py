@@ -1,7 +1,7 @@
 import json
 import os
 
-from webutils import BROWSER_CONFIGS
+from webutils.browser import CONFIGS
 
 
 class BookmarksHandler:
@@ -62,7 +62,7 @@ class BookmarksHandler:
         return '\n'.join(lines)
 
     def export(self):
-        for browser_id, config in BROWSER_CONFIGS.items():
+        for browser_id, config in CONFIGS.items():
             if not os.path.exists(config['binary']):
                 continue
             data_dir = os.path.expanduser(config['data_dir'])

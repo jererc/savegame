@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
+from svcutils.service import Config
 import savegame
 import user_settings
 assert savegame.WORK_PATH == user_settings.WORK_PATH
@@ -157,6 +158,8 @@ class BaseTestCase(unittest.TestCase):
         self.meta = savegame.Metadata()
         self.meta.data = {}
 
+        self.config = self._get_config(SAVES=[])
+
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
         for s in range(index_start, index_start + src_count):
@@ -215,13 +218,17 @@ class BaseTestCase(unittest.TestCase):
             if os.path.basename(path) == savegame.REF_FILENAME:
                 switch_ref_path(path)
 
-    def _savegame(self, **kwargs):
+    def _get_config(self, **kwargs):
+        return Config(user_settings.__file__, **kwargs)
+
+    def _savegame(self, saves, **kwargs):
+        self.config = self._get_config(SAVES=saves)
         with patch.object(savegame.Notifier, 'send') as mock_send:
-            savegame.savegame(**kwargs)
+            savegame.savegame(self._get_config(SAVES=saves), **kwargs)
 
     def _loadgame(self, **kwargs):
         with patch.object(savegame.Notifier, 'send') as mock_send:
-            savegame.loadgame(**kwargs)
+            savegame.loadgame(self.config, **kwargs)
 
 
 class PatternTestCase(unittest.TestCase):
@@ -287,7 +294,8 @@ class SaveItemTestCase(BaseTestCase):
         dst_path = os.path.expanduser('~')
         src_paths = glob(os.path.join(dst_path, '*'))[:3]
         self.assertTrue(src_paths)
-        si = savegame.SaveItem(src_paths=src_paths, dst_path=dst_path)
+        si = savegame.SaveItem(self.config, src_paths=src_paths,
+            dst_path=dst_path)
         self.assertTrue(list(si.generate_savers()))
 
         if os.name == 'nt':
@@ -295,14 +303,15 @@ class SaveItemTestCase(BaseTestCase):
         else:
             dst_path = r'C:\Users\jerer\data'
         self.assertRaises(savegame.UnhandledPath,
-            savegame.SaveItem, src_paths=src_paths, dst_path=dst_path)
+            savegame.SaveItem, self.config,
+            src_paths=src_paths, dst_path=dst_path)
 
 
 class SavegameTestCase(BaseTestCase):
     def test_save_glob_and_exclusions(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -314,7 +323,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertFalse(any_str_matches(dst_paths, '*src2*'))
@@ -330,15 +339,14 @@ class SavegameTestCase(BaseTestCase):
     def test_no_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        savegame.SAVES = []
         with patch.object(savegame.Notifier, 'send') as mock_send:
-            savegame.savegame()
+            savegame.savegame(self.config)
         self.assertTrue(mock_send.call_args_list)
 
     def test_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
@@ -350,7 +358,7 @@ class SavegameTestCase(BaseTestCase):
                 'run_delta': 600,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         src_paths = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths)
@@ -369,7 +377,7 @@ class SavegameTestCase(BaseTestCase):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
-        self._savegame()
+        self._savegame(saves=saves)
         meta2 = deepcopy(self.meta.data)
         pprint(meta2)
         self.assertEqual(meta2, meta)
@@ -385,14 +393,14 @@ class SavegameTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, src_count=2, dir_count=2,
             file_count=2)
         src1 = os.path.join(self.src_root, 'src1')
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [src1],
                 'dst_path': self.dst_root,
                 'run_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
@@ -411,7 +419,7 @@ class SavegameTestCase(BaseTestCase):
 
         with patch.object(savegame.shutil, 'copyfile') as mock_copyfile:
             mock_copyfile.side_effect = side_copyfile
-            self._savegame()
+            self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
         self.assertFalse('dir1/file1' in ref_files)
@@ -419,7 +427,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse('dir2/file1' in ref_files)
         self.assertTrue(ref_files.get('dir2/file2'))
 
-        self._savegame()
+        self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
@@ -436,7 +444,7 @@ class SavegameTestCase(BaseTestCase):
         pprint(dst_paths)
         self.assertFalse(any_str_matches(dst_paths, '*file2*'))
 
-        self._savegame()
+        self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
@@ -458,7 +466,7 @@ class SavegameTestCase(BaseTestCase):
         src1 = os.path.join(self.src_root, 'src1')
         src2 = os.path.join(self.src_root, 'src2')
         src3 = os.path.join(self.src_root, 'src3')
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [src1],
                 'dst_path': self.dst_root,
@@ -472,11 +480,11 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(set(self.meta.data.keys()), {src1, src2, src3})
 
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [src1],
                 'dst_path': self.dst_root,
@@ -486,7 +494,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(set(self.meta.data.keys()), {src1, src2})
 
@@ -498,14 +506,14 @@ class SavegameTestCase(BaseTestCase):
                 patch.object(savegame.LocalSaver,
                     'do_run') as mock_do_run:
             mock_do_run.side_effect = side_do_run
-            self._savegame()
+            self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(set(self.meta.data.keys()), {src1, src2})
 
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
@@ -515,13 +523,13 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         pprint(self.meta.data)
 
     def test_monitor(self):
         self._generate_src_data(index_start=1, src_count=4, dir_count=2,
             file_count=2)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     os.path.join(self.src_root, 'src1'),
@@ -537,8 +545,8 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
-        self.assertFalse(savegame.SaveMonitor()._must_run())
+        self._savegame(saves=saves)
+        self.assertFalse(savegame.SaveMonitor(self.config)._must_run())
 
         refs = self._get_ref()
         for src_path, ref in refs.items():
@@ -549,26 +557,26 @@ class SavegameTestCase(BaseTestCase):
         with patch.object(savegame.SaveMonitor, '_must_run') as mock__must_run, \
                 patch.object(savegame.Notifier, 'send') as mock_send:
             mock__must_run.return_value = True
-            sc = savegame.SaveMonitor()
+            sc = savegame.SaveMonitor(self.config)
             sc.run()
         self.assertTrue(mock_send.call_args_list)
 
     def test_retention(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
             file_count=4)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
                 'retention_delta': 300,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         remove_path(self.src_root)
         self._generate_src_data(index_start=1, src_count=1, dir_count=2,
             file_count=2)
         src_paths = self._list_src_root_paths()
-        self._savegame()
+        self._savegame(saves=saves)
 
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
@@ -576,14 +584,14 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*file3*'))
         self.assertTrue(any_str_matches(dst_paths, '*file4*'))
 
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
                 'retention_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
@@ -600,7 +608,7 @@ class SavegameTestCase(BaseTestCase):
     def test_src_path_patterns(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3,
             file_count=3)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -613,13 +621,13 @@ class SavegameTestCase(BaseTestCase):
                 'retention_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertFalse(dst_paths)
 
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -632,7 +640,7 @@ class SavegameTestCase(BaseTestCase):
                 'retention_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
@@ -643,7 +651,7 @@ class SavegameTestCase(BaseTestCase):
     def test_remove_dst_path_patterns(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3,
             file_count=3)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -656,7 +664,7 @@ class SavegameTestCase(BaseTestCase):
                 'retention_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
@@ -664,7 +672,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -677,7 +685,7 @@ class SavegameTestCase(BaseTestCase):
                 'retention_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
@@ -689,7 +697,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     [
@@ -702,7 +710,7 @@ class SavegameTestCase(BaseTestCase):
                 'retention_delta': 0,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
@@ -716,7 +724,7 @@ class SavegameTestCase(BaseTestCase):
     def test_old_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
@@ -730,7 +738,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         print('dst data:')
         pprint(dst_paths)
@@ -738,7 +746,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*src2*'))
         self.assertTrue(any_str_matches(dst_paths, '*src3*'))
 
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src2')],
                 'dst_path': self.dst_root,
@@ -748,7 +756,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame(force=True)
+        self._savegame(saves=saves, force=True)
 
     def test_home_path_other_os(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
@@ -757,13 +765,13 @@ class SavegameTestCase(BaseTestCase):
             'posix': f'~\\{user_settings.TEST_DIR}\\*',
             'nt': f'~/{user_settings.TEST_DIR}/*',
         }[os.name]
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [src_path],
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertFalse(any_str_matches(dst_paths, '*src*'))
@@ -771,7 +779,7 @@ class SavegameTestCase(BaseTestCase):
     def test_home_paths(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=2,
             file_count=2)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': [
                     os.path.join('~', user_settings.TEST_DIR, SRC_DIR),
@@ -779,7 +787,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': os.path.join('~', user_settings.TEST_DIR, DST_DIR),
             },
         ]
-        self._savegame()
+        self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
@@ -788,16 +796,16 @@ class SavegameTestCase(BaseTestCase):
 class LoadgameTestCase(BaseTestCase):
     def _savegame_with_data(self, run_delta=0, **kwargs):
         self._generate_src_data(**kwargs)
-        savegame.SAVES = [
+        saves = [
             {
                 'src_paths': self._get_src_paths(**kwargs),
                 'dst_path': self.dst_root,
                 'run_delta': run_delta,
             },
         ]
-        with patch.object(savegame.SaveHandler, '_clean_dsts'
+        with patch.object(savegame.SaveHandler, '_check_dsts'
                 ) as mock__clean_dsts:
-            self._savegame()
+            self._savegame(saves=saves)
 
     def test_load_skipped_identical(self):
         self._savegame_with_data(index_start=1, file_count=2)
@@ -805,12 +813,12 @@ class LoadgameTestCase(BaseTestCase):
         pprint(src_paths)
         remove_path(self.src_root)
 
-        savegame.loadgame(overwrite=False)
+        self._loadgame(overwrite=False)
         src_paths2 = self._list_src_root_paths()
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
 
-        savegame.loadgame(overwrite=False)
+        self._loadgame(overwrite=False)
         src_paths3 = self._list_src_root_paths()
         pprint(src_paths3)
         self.assertEqual(src_paths3, src_paths)
@@ -821,7 +829,7 @@ class LoadgameTestCase(BaseTestCase):
         pprint(src_paths)
         remove_path(self.src_root)
 
-        savegame.loadgame(overwrite=False)
+        self._loadgame(overwrite=False)
         src_paths2 = self._list_src_root_paths()
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
@@ -831,12 +839,12 @@ class LoadgameTestCase(BaseTestCase):
             with open(file, 'w') as fd:
                 fd.write(content + file)
 
-        savegame.loadgame(overwrite=False)
+        self._loadgame(overwrite=False)
         src_paths3 = self._list_src_root_paths()
         pprint(src_paths3)
         self.assertEqual(src_paths3, src_paths)
 
-        savegame.loadgame(overwrite=True)
+        self._loadgame(overwrite=True)
         src_paths4 = self._list_src_root_paths()
         pprint(src_paths4)
         diff = src_paths4 - src_paths
@@ -934,7 +942,7 @@ class LoadgameTestCase(BaseTestCase):
                 with open(file, 'w') as fd:
                     fd.write('corrupted data')
 
-        savegame.loadgame()
+        self._loadgame()
         src_paths2 = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths2)
@@ -950,18 +958,18 @@ class LoadgameTestCase(BaseTestCase):
         print('dst data:')
         pprint(self._list_dst_root_paths())
 
-        savegame.loadgame()
+        self._loadgame()
         src_paths2 = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths2)
         self.assertEqual(src_paths2, src_paths)
 
-        savegame.loadgame(include=['*dir1*'])
+        self._loadgame(include=['*dir1*'])
         src_paths2 = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths2)
 
-        savegame.loadgame(exclude=['*dir1*'])
+        self._loadgame(exclude=['*dir1*'])
         src_paths2 = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths2)
