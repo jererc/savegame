@@ -51,7 +51,7 @@ def main():
         elif args.task:
             service.run_once()
         else:
-            savegame.savegame(force=True)
+            savegame.savegame(config, force=True)
     else:
         {
             'status': savegame.status,
