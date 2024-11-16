@@ -11,7 +11,7 @@ import socket
 import sys
 import time
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
