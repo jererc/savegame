@@ -482,7 +482,7 @@ class SaveItem:
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
         self.saver_cls = self._get_saver_class()
-        self.dst_path = self._get_dst_path(dst_path)
+        self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
         self.run_delta = run_delta
         self.retention_delta = retention_delta
         self.loadable = loadable
@@ -494,7 +494,7 @@ class SaveItem:
 
     def _get_dst_path(self, dst_path):
         if not dst_path:
-            dst_path = self.config.DST_PATH
+            raise Exception('missing dst_path')
         if self.saver_cls.dst_type == 'local':
             validate_path(dst_path)
             dst_path = os.path.expanduser(dst_path)

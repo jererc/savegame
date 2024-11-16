@@ -13,4 +13,6 @@ Bootstrapper(
     requires=[
         'git+https://github.com/jererc/savegame.git',
     ],
+    linux_args=['save', '--task'],
+    windows_args=['save', '--task'],
 ).run()
