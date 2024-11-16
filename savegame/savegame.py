@@ -150,7 +150,7 @@ def get_google_cloud(config, headless=True):
         raise Exception('missing google secrets file')
     return GoogleCloud(
         oauth_secrets_file=secrets_file,
-        browser_id=config.GOOGLE_AUTOAUTH_BROWSER_ID \
+        browser_id=config.GOOGLE_AUTOAUTH_BROWSER_ID
             or GOOGLE_AUTOAUTH_BROWSER_ID,
         headless=headless,
     )
@@ -264,8 +264,8 @@ class BaseSaver:
     src_type = 'local'
     dst_type = 'local'
 
-    def __init__(self, config, src, inclusions, exclusions, dst_path, run_delta=3600,
-                 retention_delta=RETENTION_DELTA):
+    def __init__(self, config, src, inclusions, exclusions, dst_path,
+                 run_delta=3600, retention_delta=RETENTION_DELTA):
         self.config = config
         self.src = src
         self.inclusions = inclusions
