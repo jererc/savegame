@@ -6,7 +6,7 @@ setup(
     author='jererc',
     author_email='jererc@gmail.com',
     url='https://github.com/jererc/savegame',
-    packages=find_packages(exclude=['tests']),
+    packages=find_packages(exclude=['tests*']),
     python_requires='>=3.10',
     install_requires=[
         'dateutils',
