@@ -15,9 +15,9 @@ import sys
 import time
 import urllib.parse
 
-from .bookmarks import BookmarksHandler
-from .google_cloud import GoogleCloud
 from svcutils.service import Notifier, RunFile, get_file_mtime, get_logger
+from webutils.bookmarks import BookmarksHandler
+from webutils.google_cloud import GoogleCloud
 
 
 RETRY_DELTA = 2 * 3600

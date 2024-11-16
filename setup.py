@@ -9,10 +9,6 @@ setup(
     packages=find_packages(exclude=['tests*']),
     python_requires='>=3.10',
     install_requires=[
-        'dateutils',
-        'google-api-python-client',
-        'google-auth-httplib2',
-        'google-auth-oauthlib',
         'svcutils @ git+https://github.com/jererc/svcutils.git@main#egg=svcutils',
         'webutils @ git+https://github.com/jererc/webutils.git@main#egg=webutils',
     ],
