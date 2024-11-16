@@ -1,7 +1,8 @@
-psutil
-win11toast ; sys_platform == 'win32'
 dateutils
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
-selenium
+git+https://github.com/jererc/svcutils.git
+git+https://github.com/jererc/webutils.git
+flake8
+pytest
