@@ -2,8 +2,9 @@ import argparse
 import os
 import sys
 
-from savegame import WORK_PATH, load, save
 from svcutils.service import Config, Service
+
+from savegame import WORK_PATH, load, save
 
 
 CWD = os.path.dirname(os.path.realpath(__file__))
