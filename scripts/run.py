@@ -2,7 +2,7 @@ import argparse
 import os
 import sys
 
-from savegame import savegame
+from savegame import WORK_PATH, load, save
 from svcutils.service import Config, Service
 
 
@@ -37,9 +37,9 @@ def main():
     config = Config(os.path.join(CWD, 'user_settings.py'))
     if args.cmd == 'save':
         service = Service(
-            target=savegame.savegame,
+            target=save.savegame,
             args=(config,),
-            work_path=savegame.WORK_PATH,
+            work_path=WORK_PATH,
             run_delta=30 * 60,
             force_run_delta=90 * 60,
             min_runtime=300,
@@ -51,12 +51,12 @@ def main():
         elif args.task:
             service.run_once()
         else:
-            savegame.savegame(config, force=True)
+            save.savegame(config, force=True)
     else:
         {
-            'status': savegame.status,
-            'load': savegame.loadgame,
-            'google_oauth': savegame.google_oauth,
+            'status': save.status,
+            'load': load.loadgame,
+            'google_oauth': save.google_oauth,
         }[args.cmd](config, **{k: v for k, v in vars(args).items()
             if k != 'cmd'})
 

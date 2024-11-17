@@ -2,7 +2,7 @@ import os
 from pprint import pprint
 import unittest
 
-from tests.test_savegame import BaseTestCase, savegame
+from tests.test_savegame import BaseTestCase, module
 
 
 LINUX_SAVE = {
@@ -59,19 +59,9 @@ class LoadgameIntegrationTestCase(BaseTestCase):
         pprint(self._list_src_root_paths())
 
 
-class GoogleAutoauthIntegrationTestCase(BaseTestCase):
-    def test_1(self):
-        try:
-            savegame.get_google_cloud(self.config,
-                headless=True).get_oauth_creds()
-        except Exception:
-            savegame.get_google_cloud(self.config,
-                headless=False).get_oauth_creds()
-
-
 class GoogleDriveExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        savegame.google_oauth(self.config)
+        module.save.google_oauth(self.config)
         saves = [
             {
                 'saver_id': 'google_drive_export',
@@ -85,7 +75,7 @@ class GoogleDriveExportIntegrationTestCase(BaseTestCase):
 
 class GoogleContactsExportIntegrationTestCase(BaseTestCase):
     def test_1(self):
-        savegame.google_oauth(self.config)
+        module.save.google_oauth(self.config)
         saves = [
             {
                 'saver_id': 'google_contacts_export',

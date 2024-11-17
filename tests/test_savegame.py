@@ -8,25 +8,27 @@ import os
 from pprint import pprint
 import shutil
 import socket
-import sys
 import time
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-REPO_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(REPO_PATH, 'savegame'))
-from svcutils.service import Config
-import savegame
-import user_settings
-assert savegame.WORK_PATH == user_settings.WORK_PATH
 
+TEST_DIR = '_test_savegame'
+WORK_PATH = os.path.join(os.path.expanduser('~'), TEST_DIR)
+import savegame as module
+from savegame import load, save
+module.WORK_PATH = WORK_PATH
+
+from svcutils.service import Config
+
+
+GOOGLE_CLOUD_SECRETS_FILE = os.path.join(os.path.expanduser('~'), 'gcs.json')
 
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 SRC_DIR = 'src_root'
 DST_DIR = 'dst_root'
 
-savegame.logger.setLevel(logging.DEBUG)
+module.logger.setLevel(logging.DEBUG)
 
 
 def makedirs(path):
@@ -83,7 +85,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win(self):
-        obj = savegame.LocalLoader(self.dst_path)
+        obj = module.load.LocalLoader(self.dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -97,7 +99,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_linux(self):
-        obj = savegame.LocalLoader(self.dst_path)
+        obj = module.load.LocalLoader(self.dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -110,7 +112,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win_other_username(self):
-        obj = savegame.LocalLoader(self.dst_path,
+        obj = module.load.LocalLoader(self.dst_path,
             username=self.username2)
 
         path = 'C:\\Program Files\\name'
@@ -127,7 +129,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_linux_other_username(self):
-        obj = savegame.LocalLoader(self.dst_path,
+        obj = module.load.LocalLoader(self.dst_path,
             username=self.username2)
 
         path = '/var/name'
@@ -143,19 +145,53 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
             f'/home/{self.own_username}/name')
 
 
+class PatternTestCase(unittest.TestCase):
+    def setUp(self):
+        self.file = os.path.join(os.path.expanduser('~'),
+            'first_dir', 'second_dir', 'savegame.py')
+
+    def test_ko(self):
+        self.assertFalse(module.lib.check_patterns(self.file,
+            inclusions=['*third_dir*'],
+        ))
+        self.assertFalse(module.lib.check_patterns(self.file,
+            inclusions=['*.bin'],
+        ))
+        self.assertFalse(module.lib.check_patterns(self.file,
+            exclusions=['*dir*'],
+        ))
+        self.assertFalse(module.lib.check_patterns(self.file,
+            exclusions=['*.py'],
+        ))
+
+    def test_ok(self):
+        self.assertTrue(module.lib.check_patterns(self.file,
+            inclusions=['*game*'],
+        ))
+        self.assertTrue(module.lib.check_patterns(self.file,
+            inclusions=['*.py'],
+        ))
+        self.assertTrue(module.lib.check_patterns(self.file,
+            exclusions=['*third*'],
+        ))
+        self.assertTrue(module.lib.check_patterns(self.file,
+            exclusions=['*.bin'],
+        ))
+
+
 class BaseTestCase(unittest.TestCase):
     def setUp(self):
-        for path in glob(os.path.join(savegame.WORK_PATH, '*')):
+        for path in glob(os.path.join(module.WORK_PATH, '*')):
             if os.path.splitext(path)[1] == '.log':
                 continue
             remove_path(path)
-        makedirs(user_settings.WORK_PATH)
+        makedirs(WORK_PATH)
 
-        self.src_root = os.path.join(savegame.WORK_PATH, SRC_DIR)
-        self.dst_root = os.path.join(savegame.WORK_PATH, DST_DIR)
+        self.src_root = os.path.join(module.WORK_PATH, SRC_DIR)
+        self.dst_root = os.path.join(module.WORK_PATH, DST_DIR)
         makedirs(self.dst_root)
 
-        self.meta = savegame.Metadata()
+        self.meta = module.lib.Metadata()
         self.meta.data = {}
 
         self.config = self._get_config(SAVES=[])
@@ -206,7 +242,7 @@ class BaseTestCase(unittest.TestCase):
     def _switch_dst_data_username(self, from_username, to_username):
 
         def switch_ref_path(file):
-            ref = savegame.Reference(os.path.dirname(file))
+            ref = module.lib.Reference(os.path.dirname(file))
             username_str = f'{os.sep}{from_username}{os.sep}'
             if username_str not in ref.src:
                 return
@@ -215,59 +251,25 @@ class BaseTestCase(unittest.TestCase):
             ref.save()
 
         for path in walk_paths(self.dst_root):
-            if os.path.basename(path) == savegame.REF_FILENAME:
+            if os.path.basename(path) == module.lib.REF_FILENAME:
                 switch_ref_path(path)
 
     def _get_config(self, **kwargs):
-        return Config(user_settings.__file__, **kwargs)
+        return Config(__file__, **kwargs)
 
     def _savegame(self, saves, **kwargs):
         self.config = self._get_config(SAVES=saves)
-        with patch.object(savegame.Notifier, 'send') as mock_send:
-            savegame.savegame(self._get_config(SAVES=saves), **kwargs)
+        with patch.object(module.save.Notifier, 'send') as mock_send:
+            module.save.savegame(self._get_config(SAVES=saves), **kwargs)
 
     def _loadgame(self, **kwargs):
-        with patch.object(savegame.Notifier, 'send') as mock_send:
-            savegame.loadgame(self.config, **kwargs)
-
-
-class PatternTestCase(unittest.TestCase):
-    def setUp(self):
-        self.file = os.path.join(os.path.expanduser('~'),
-            'first_dir', 'second_dir', 'savegame.py')
-
-    def test_ko(self):
-        self.assertFalse(savegame.check_patterns(self.file,
-            inclusions=['*third_dir*'],
-        ))
-        self.assertFalse(savegame.check_patterns(self.file,
-            inclusions=['*.bin'],
-        ))
-        self.assertFalse(savegame.check_patterns(self.file,
-            exclusions=['*dir*'],
-        ))
-        self.assertFalse(savegame.check_patterns(self.file,
-            exclusions=['*.py'],
-        ))
-
-    def test_ok(self):
-        self.assertTrue(savegame.check_patterns(self.file,
-            inclusions=['*game*'],
-        ))
-        self.assertTrue(savegame.check_patterns(self.file,
-            inclusions=['*.py'],
-        ))
-        self.assertTrue(savegame.check_patterns(self.file,
-            exclusions=['*third*'],
-        ))
-        self.assertTrue(savegame.check_patterns(self.file,
-            exclusions=['*.bin'],
-        ))
+        with patch.object(module.save.Notifier, 'send') as mock_send:
+            module.load.loadgame(self.config, **kwargs)
 
 
 class ReferenceTestCase(BaseTestCase):
     def test_1(self):
-        ref1 = savegame.Reference(self.dst_root)
+        ref1 = module.lib.Reference(self.dst_root)
         ref1.src = self.src_root
         ref1.files = {
             'file1': 'hash1',
@@ -276,7 +278,7 @@ class ReferenceTestCase(BaseTestCase):
         ref1.save()
         ts1 = ref1.ts
 
-        ref2 = savegame.Reference(self.dst_root)
+        ref2 = module.lib.Reference(self.dst_root)
         self.assertEqual(ref2.data, ref1.data)
         self.assertEqual(ref2.src, ref1.src)
         self.assertEqual(ref2.files, ref1.files)
@@ -294,7 +296,7 @@ class SaveItemTestCase(BaseTestCase):
         dst_path = os.path.expanduser('~')
         src_paths = glob(os.path.join(dst_path, '*'))[:3]
         self.assertTrue(src_paths)
-        si = savegame.SaveItem(self.config, src_paths=src_paths,
+        si = module.save.SaveItem(self.config, src_paths=src_paths,
             dst_path=dst_path)
         self.assertTrue(list(si.generate_savers()))
 
@@ -302,8 +304,8 @@ class SaveItemTestCase(BaseTestCase):
             dst_path = '/home/jererc/data'
         else:
             dst_path = r'C:\Users\jerer\data'
-        self.assertRaises(savegame.UnhandledPath,
-            savegame.SaveItem, self.config,
+        self.assertRaises(module.lib.UnhandledPath,
+            module.save.SaveItem, self.config,
             src_paths=src_paths, dst_path=dst_path)
 
 
@@ -339,8 +341,8 @@ class SavegameTestCase(BaseTestCase):
     def test_no_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        with patch.object(savegame.Notifier, 'send') as mock_send:
-            savegame.savegame(self.config)
+        with patch.object(module.save.Notifier, 'send') as mock_send:
+            module.save.savegame(self.config)
         self.assertTrue(mock_send.call_args_list)
 
     def test_save(self):
@@ -386,7 +388,7 @@ class SavegameTestCase(BaseTestCase):
             pprint(set(walk_paths(data['dst'])))
 
     def _get_ref(self):
-        return {s: savegame.Reference(d['dst'])
+        return {s: module.lib.Reference(d['dst'])
             for s, d in self.meta.data.items()}
 
     def test_ref(self):
@@ -417,7 +419,7 @@ class SavegameTestCase(BaseTestCase):
         def side_copyfile(*args, **kwargs):
             raise Exception('copyfile failed')
 
-        with patch.object(savegame.shutil, 'copyfile') as mock_copyfile:
+        with patch.object(module.savers.shutil, 'copyfile') as mock_copyfile:
             mock_copyfile.side_effect = side_copyfile
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
@@ -501,9 +503,9 @@ class SavegameTestCase(BaseTestCase):
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
 
-        with patch.object(savegame.BaseSaver,
+        with patch.object(module.savers.BaseSaver,
                     'notify_error') as mock_notify_error, \
-                patch.object(savegame.LocalSaver,
+                patch.object(module.savers.LocalSaver,
                     'do_run') as mock_do_run:
             mock_do_run.side_effect = side_do_run
             self._savegame(saves=saves)
@@ -546,18 +548,18 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         self._savegame(saves=saves)
-        self.assertFalse(savegame.SaveMonitor(self.config)._must_run())
+        self.assertFalse(module.save.SaveMonitor(self.config)._must_run())
 
         refs = self._get_ref()
         for src_path, ref in refs.items():
             if src_path.endswith('src1'):
-                ref.data['ts'] = time.time() - savegame.STALE_DELTA - 1
+                ref.data['ts'] = time.time() - module.save.STALE_DELTA - 1
                 write_ref_data(ref)
 
-        with patch.object(savegame.SaveMonitor, '_must_run') as mock__must_run, \
-                patch.object(savegame.Notifier, 'send') as mock_send:
+        with patch.object(module.save.SaveMonitor, '_must_run') as mock__must_run, \
+                patch.object(module.save.Notifier, 'send') as mock_send:
             mock__must_run.return_value = True
-            sc = savegame.SaveMonitor(self.config)
+            sc = module.save.SaveMonitor(self.config)
             sc.run()
         self.assertTrue(mock_send.call_args_list)
 
@@ -762,8 +764,8 @@ class SavegameTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
         src_path = {
-            'posix': f'~\\{user_settings.TEST_DIR}\\*',
-            'nt': f'~/{user_settings.TEST_DIR}/*',
+            'posix': f'~\\{TEST_DIR}\\*',
+            'nt': f'~/{TEST_DIR}/*',
         }[os.name]
         saves = [
             {
@@ -782,9 +784,9 @@ class SavegameTestCase(BaseTestCase):
         saves = [
             {
                 'src_paths': [
-                    os.path.join('~', user_settings.TEST_DIR, SRC_DIR),
+                    os.path.join('~', TEST_DIR, SRC_DIR),
                 ],
-                'dst_path': os.path.join('~', user_settings.TEST_DIR, DST_DIR),
+                'dst_path': os.path.join('~', TEST_DIR, DST_DIR),
             },
         ]
         self._savegame(saves=saves)
@@ -803,7 +805,7 @@ class LoadgameTestCase(BaseTestCase):
                 'run_delta': run_delta,
             },
         ]
-        with patch.object(savegame.SaveHandler, '_check_dsts'
+        with patch.object(module.save.SaveHandler, '_check_dsts'
                 ) as mock__clean_dsts:
             self._savegame(saves=saves)
 
