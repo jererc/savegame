@@ -4,7 +4,6 @@ from glob import glob
 import gzip
 import json
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from pprint import pprint
 import shutil
@@ -20,9 +19,7 @@ WORK_PATH = os.path.join(os.path.expanduser('~'), TEST_DIR)
 import savegame as module
 module.WORK_PATH = WORK_PATH
 module.logger.setLevel(logging.DEBUG)
-for handler in module.logger.handlers[:]:
-    if isinstance(handler, RotatingFileHandler):
-        module.logger.removeHandler(handler)
+module.logger.handlers.clear()
 from savegame import load, save
 
 
@@ -263,7 +260,6 @@ class BaseTestCase(unittest.TestCase):
         return Config(__file__, **kwargs)
 
     def _savegame(self, saves, **kwargs):
-        # self.config = self._get_config(SAVES=saves)
         self.config.SAVES = saves
         with patch.object(module.save.Notifier, 'send') as mock_send:
             module.save.savegame(self._get_config(SAVES=saves), **kwargs)
