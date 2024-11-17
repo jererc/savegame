@@ -5,13 +5,15 @@ import shutil
 
 from svcutils.service import get_file_mtime
 
-from savegame import NAME, HOME_PATH, HOSTNAME, USERNAME, logger
-from savegame.lib import (Reference, Report, UnhandledPath,
-    makedirs, validate_path, check_patterns, get_file_hash, to_json)
+from savegame import NAME, logger
+from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath,
+    check_patterns, get_file_hash, makedirs, to_json, validate_path)
 from savegame.save import iterate_save_items
 from savegame.savers import LocalSaver
 
 
+HOME_PATH = os.path.expanduser('~')
+USERNAME = os.getlogin()
 SHARED_USERNAMES = {
     'nt': {'Public'},
     'posix': {'shared'},

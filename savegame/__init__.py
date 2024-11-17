@@ -1,14 +1,10 @@
 import os
-import socket
 
 from svcutils.service import get_logger
 
 
 NAME = 'savegame'
-HOME_PATH = os.path.expanduser('~')
-WORK_PATH = os.path.join(HOME_PATH, f'.{NAME}')
-HOSTNAME = socket.gethostname()
-USERNAME = os.getlogin()
+WORK_PATH = os.path.join(os.path.expanduser('~'), f'.{NAME}')
 
 if not os.path.exists(WORK_PATH):
     os.makedirs(WORK_PATH)

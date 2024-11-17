@@ -11,9 +11,10 @@ from svcutils.service import Notifier, get_file_mtime
 from webutils.bookmarks import BookmarksHandler
 from webutils.google.cloud import GoogleCloud
 
-from savegame import NAME, HOSTNAME, logger
-from savegame.lib import (REF_FILENAME, Metadata, Reference, Report, makedirs,
-    remove_path, check_patterns, get_file_hash, get_hash, to_json)
+from savegame import NAME, logger
+from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference,
+    Report, check_patterns, get_file_hash, get_hash, makedirs, remove_path,
+    to_json)
 
 
 RETRY_DELTA = 2 * 3600

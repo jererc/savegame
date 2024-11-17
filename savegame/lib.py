@@ -6,11 +6,13 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import time
 
 from savegame import NAME, WORK_PATH, logger
 
 
+HOSTNAME = socket.gethostname()
 REF_FILENAME = f'.{NAME}'
 
 
