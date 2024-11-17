@@ -1,25 +1,15 @@
 import os
 import urllib.request
 
-def get(url):
-    return urllib.request.urlopen(url).read().decode('utf-8')
-
-bootstrap_url = 'https://raw.githubusercontent.com/jererc/svcutils/refs/heads/main/svcutils/bootstrap.py'
-target_url = 'https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/scripts/run.py'
-
-exec(get(bootstrap_url))
-target_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-    os.path.basename(target_url))
-content = get(target_url)
-with open(target_path, 'w') as fd:
-    fd.write(content)
-
+url = 'https://raw.githubusercontent.com/jererc/svcutils/refs/heads/main/svcutils/bootstrap.py'
+exec(urllib.request.urlopen(url).read().decode('utf-8'))
 Bootstrapper(
     name='savegame',
-    target_path=target_path,
+    target_url='https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/scripts/run.py',
+    target_dir=os.path.dirname(os.path.realpath(__file__)),
+    target_args=['save', '--task'],
     force_reinstall=True,
     requires=[
         'git+https://github.com/jererc/savegame.git',
     ],
-    args=['save', '--task'],
 ).run()
