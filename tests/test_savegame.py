@@ -4,6 +4,7 @@ from glob import glob
 import gzip
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from pprint import pprint
 import shutil
@@ -17,18 +18,19 @@ from svcutils.service import Config
 TEST_DIR = '_test_savegame'
 WORK_PATH = os.path.join(os.path.expanduser('~'), TEST_DIR)
 import savegame as module
-from savegame import load, save
 module.WORK_PATH = WORK_PATH
+module.logger.setLevel(logging.DEBUG)
+for handler in module.logger.handlers[:]:
+    if isinstance(handler, RotatingFileHandler):
+        module.logger.removeHandler(handler)
+from savegame import load, save
 
 
 GOOGLE_CLOUD_SECRETS_FILE = os.path.join(os.path.expanduser('~'), 'gcs.json')
-
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 SRC_DIR = 'src_root'
 DST_DIR = 'dst_root'
-
-module.logger.setLevel(logging.DEBUG)
 
 
 def makedirs(path):
@@ -194,7 +196,10 @@ class BaseTestCase(unittest.TestCase):
         self.meta = module.lib.Metadata()
         self.meta.data = {}
 
-        self.config = self._get_config(SAVES=[])
+        self.config = self._get_config(
+            SAVES=[],
+            GOOGLE_CLOUD_SECRETS_FILE=GOOGLE_CLOUD_SECRETS_FILE,
+        )
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
             file_count=2, file_version=1):
@@ -258,7 +263,8 @@ class BaseTestCase(unittest.TestCase):
         return Config(__file__, **kwargs)
 
     def _savegame(self, saves, **kwargs):
-        self.config = self._get_config(SAVES=saves)
+        # self.config = self._get_config(SAVES=saves)
+        self.config.SAVES = saves
         with patch.object(module.save.Notifier, 'send') as mock_send:
             module.save.savegame(self._get_config(SAVES=saves), **kwargs)
 
