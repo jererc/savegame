@@ -43,7 +43,7 @@ def main():
             work_path=WORK_PATH,
             run_delta=30 * 60,
             force_run_delta=90 * 60,
-            min_runtime=300,
+            min_uptime=300,
             requires_online=False,
             max_cpu_percent=10,
         )
