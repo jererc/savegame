@@ -17,5 +17,10 @@ setup(
     extras_require={
         'dev': ['flake8', 'pytest'],
     },
+    entry_points={
+        'console_scripts': [
+            'savegame=savegame.main:main',
+        ],
+    },
     include_package_data=True,
 )
