@@ -10,6 +10,7 @@ Bootstrapper(
     target_args=['save', '--task'],
     force_reinstall=True,
     requires=[
-        'git+https://github.com/jererc/savegame.git',
+        # 'git+https://github.com/jererc/savegame.git',
+        'savegame @ https://github.com/jererc/savegame/archive/refs/heads/main.zip',
     ],
 ).run()
