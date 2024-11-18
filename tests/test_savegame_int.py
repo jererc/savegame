@@ -15,14 +15,14 @@ LINUX_SAVE = {
         ],
         '/home/jererc/.config/sublime-text',
     ],
-    'dst_path': '/home/jererc/OneDrive/data',
+    'dst_path': '/home/jererc/tmp',
 }
 WIN_SAVE = {
     'src_paths': [
         r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Games',
         r'C:\Users\jerer\AppData\Roaming\Sublime Text 3',
     ],
-    'dst_path': r'C:\Users\jerer\OneDrive\data',
+    'dst_path': r'C:\Users\jerer\tmp',
 }
 
 
@@ -55,6 +55,7 @@ class SavegameIntegrationTestCase(BaseTestCase):
 class LoadgameIntegrationTestCase(BaseTestCase):
     def test_1(self):
         saves = [LINUX_SAVE, WIN_SAVE]
+        self._savegame(saves, force=True)
         self._loadgame(dry_run=True)
         pprint(self._list_src_root_paths())
 

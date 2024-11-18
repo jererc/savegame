@@ -84,7 +84,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win(self):
-        obj = module.load.LocalLoader(self.dst_path)
+        obj = load.LocalLoader(self.dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -98,7 +98,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_linux(self):
-        obj = module.load.LocalLoader(self.dst_path)
+        obj = load.LocalLoader(self.dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -111,7 +111,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_win_other_username(self):
-        obj = module.load.LocalLoader(self.dst_path,
+        obj = load.LocalLoader(self.dst_path,
             username=self.username2)
 
         path = 'C:\\Program Files\\name'
@@ -128,7 +128,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(os.name != 'posix', 'not linux')
     def test_linux_other_username(self):
-        obj = module.load.LocalLoader(self.dst_path,
+        obj = load.LocalLoader(self.dst_path,
             username=self.username2)
 
         path = '/var/name'
@@ -261,12 +261,12 @@ class BaseTestCase(unittest.TestCase):
 
     def _savegame(self, saves, **kwargs):
         self.config.SAVES = saves
-        with patch.object(module.save.Notifier, 'send') as mock_send:
-            module.save.savegame(self._get_config(SAVES=saves), **kwargs)
+        with patch.object(save.Notifier, 'send') as mock_send:
+            save.savegame(self._get_config(SAVES=saves), **kwargs)
 
     def _loadgame(self, **kwargs):
-        with patch.object(module.save.Notifier, 'send') as mock_send:
-            module.load.loadgame(self.config, **kwargs)
+        with patch.object(save.Notifier, 'send') as mock_send:
+            load.loadgame(self.config, **kwargs)
 
 
 class ReferenceTestCase(BaseTestCase):
@@ -298,7 +298,7 @@ class SaveItemTestCase(BaseTestCase):
         dst_path = os.path.expanduser('~')
         src_paths = glob(os.path.join(dst_path, '*'))[:3]
         self.assertTrue(src_paths)
-        si = module.save.SaveItem(self.config, src_paths=src_paths,
+        si = save.SaveItem(self.config, src_paths=src_paths,
             dst_path=dst_path)
         self.assertTrue(list(si.generate_savers()))
 
@@ -307,7 +307,7 @@ class SaveItemTestCase(BaseTestCase):
         else:
             dst_path = r'C:\Users\jerer\data'
         self.assertRaises(module.lib.UnhandledPath,
-            module.save.SaveItem, self.config,
+            save.SaveItem, self.config,
             src_paths=src_paths, dst_path=dst_path)
 
 
@@ -343,8 +343,8 @@ class SavegameTestCase(BaseTestCase):
     def test_no_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        with patch.object(module.save.Notifier, 'send') as mock_send:
-            module.save.savegame(self.config)
+        with patch.object(save.Notifier, 'send') as mock_send:
+            save.savegame(self.config)
         self.assertTrue(mock_send.call_args_list)
 
     def test_save(self):
@@ -550,18 +550,18 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         self._savegame(saves=saves)
-        self.assertFalse(module.save.SaveMonitor(self.config)._must_run())
+        self.assertFalse(save.SaveMonitor(self.config)._must_run())
 
         refs = self._get_ref()
         for src_path, ref in refs.items():
             if src_path.endswith('src1'):
-                ref.data['ts'] = time.time() - module.save.STALE_DELTA - 1
+                ref.data['ts'] = time.time() - save.STALE_DELTA - 1
                 write_ref_data(ref)
 
-        with patch.object(module.save.SaveMonitor, '_must_run') as mock__must_run, \
-                patch.object(module.save.Notifier, 'send') as mock_send:
+        with patch.object(save.SaveMonitor, '_must_run') as mock__must_run, \
+                patch.object(save.Notifier, 'send') as mock_send:
             mock__must_run.return_value = True
-            sc = module.save.SaveMonitor(self.config)
+            sc = save.SaveMonitor(self.config)
             sc.run()
         self.assertTrue(mock_send.call_args_list)
 
@@ -807,7 +807,7 @@ class LoadgameTestCase(BaseTestCase):
                 'run_delta': run_delta,
             },
         ]
-        with patch.object(module.save.SaveHandler, '_check_dsts'
+        with patch.object(save.SaveHandler, '_check_dsts'
                 ) as mock__clean_dsts:
             self._savegame(saves=saves)
 
