@@ -7,11 +7,9 @@ from svcutils.service import Config, Service
 from savegame import WORK_PATH, load, save
 
 
-CWD = os.path.dirname(os.path.realpath(__file__))
-
-
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--path', '-p')
     subparsers = parser.add_subparsers(dest='cmd')
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
@@ -35,7 +33,8 @@ def parse_args():
 
 def main():
     args = parse_args()
-    config = Config(os.path.join(CWD, 'user_settings.py'))
+    path = os.path.expanduser(args.path)
+    config = Config(os.path.join(path, 'user_settings.py'))
     if args.cmd == 'save':
         service = Service(
             target=save.savegame,
@@ -59,7 +58,7 @@ def main():
             'load': load.loadgame,
             'google_oauth': save.google_oauth,
         }[args.cmd](config, **{k: v for k, v in vars(args).items()
-            if k != 'cmd'})
+            if k not in ('cmd', 'path')})
 
 
 if __name__ == '__main__':
