@@ -9,7 +9,7 @@ from savegame import WORK_PATH, load, save
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', '-p')
+    parser.add_argument('--path', '-p', default=os.getcwd())
     subparsers = parser.add_subparsers(dest='cmd')
     save_parser = subparsers.add_parser('save')
     save_parser.add_argument('--daemon', action='store_true')
