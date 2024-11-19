@@ -33,7 +33,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    path = os.path.expanduser(os.path.realpath(args.path))
+    path = os.path.realpath(os.path.expanduser(args.path))
     config = Config(os.path.join(path, 'user_settings.py'))
     if args.cmd == 'save':
         service = Service(
