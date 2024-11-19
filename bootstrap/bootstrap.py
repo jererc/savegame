@@ -13,4 +13,4 @@ Bootstrapper(
         'savegame @ https://github.com/jererc/savegame/archive/refs/heads/main.zip',
     ],
     force_reinstall=True,
-).run()
+).setup_task()
