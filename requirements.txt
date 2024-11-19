@@ -1,4 +1,0 @@
-git+https://github.com/jererc/svcutils.git
-git+https://github.com/jererc/webutils.git
-flake8
-pytest
