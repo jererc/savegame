@@ -213,10 +213,8 @@ class SaveMonitor:
             'invalid': [r for r in saves if r['invalid']],
             'stale': [r for r in saves if r['is_stale']],
         }
-        msg_stats = [(k, len(report[k]))
-            for k in ('saves', 'invalid', 'stale')]
-        report['message'] = ', '.join([f'{k}: {v}'
-            for k, v in msg_stats if v])
+        report['message'] = ', '.join([f'{k}: {len(report[k])}'
+            for k in ('saves', 'invalid', 'stale')])
         return report
 
     def run(self):
