@@ -209,12 +209,12 @@ class SaveMonitor:
                 'is_stale': ref.ts < stale_ts,
             })
         report = {
-            'total': saves,
+            'saves': saves,
             'invalid': [r for r in saves if r['invalid']],
             'stale': [r for r in saves if r['is_stale']],
         }
         msg_stats = [(k, len(report[k]))
-            for k in ('total', 'invalid', 'stale')]
+            for k in ('saves', 'invalid', 'stale')]
         report['message'] = ', '.join([f'{k}: {v}'
             for k, v in msg_stats if v])
         return report
