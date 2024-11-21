@@ -563,6 +563,7 @@ class SavegameTestCase(BaseTestCase):
             mock__must_run.return_value = True
             sc = save.SaveMonitor(self.config)
             sc.run()
+        print(mock_send.call_args_list)
         self.assertTrue(mock_send.call_args_list)
 
     def test_retention(self):

@@ -184,26 +184,20 @@ class SaveMonitor:
 
     def _monitor(self):
         saves = []
-        invalid_files = []
-        stale_saves = []
         stale_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
             src = self._get_src(ref)
             mtimes = []
-            ref_invalid_files = []
+            invalid_files = []
             for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
                 dst_exists = os.path.exists(dst_file)
                 if dst_exists:
                     mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != ref_hash:
-                    ref_invalid_files.append(dst_file)
+                    invalid_files.append(dst_file)
                     logger.error(f'{"invalid" if dst_exists else "missing"} '
                         f'file: {dst_file}')
-            invalid_files += ref_invalid_files
-            is_stale = ref.ts < stale_ts
-            if is_stale:
-                stale_saves.append(src)
             saves.append({
                 'hostname': hostname,
                 'src': src,
@@ -211,16 +205,18 @@ class SaveMonitor:
                 'last_modified': sorted(mtimes)[-1] if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
-                'invalid': len(ref_invalid_files),
-                'is_stale': is_stale,
+                'invalid': len(invalid_files),
+                'is_stale': ref.ts < stale_ts,
             })
         report = {
-            'saves': saves,
-            'invalid_files': invalid_files,
-            'stale_saves': stale_saves,
+            'total': saves,
+            'invalid': [r for r in saves if r['invalid']],
+            'stale': [r for r in saves if r['is_stale']],
         }
-        report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'invalid_files', 'stale_saves')])
+        msg_stats = [(k, len(report[k]))
+            for k in ('total', 'invalid', 'stale')]
+        report['message'] = ', '.join([f'{k}: {v}'
+            for k, v in msg_stats if v])
         return report
 
     def run(self):
