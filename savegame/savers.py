@@ -2,10 +2,11 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import inspect
 import os
+import re
 import shutil
 import sys
 import time
-import urllib.parse
+# import urllib.parse
 
 from svcutils.service import Notifier, get_file_mtime
 from webutils.bookmarks import BookmarksHandler
@@ -22,8 +23,14 @@ RETENTION_DELTA = 7 * 24 * 3600
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
 
+# def path_to_filename(x):
+#     return urllib.parse.quote(x, safe='')
+
+
 def path_to_filename(x):
-    return urllib.parse.quote(x, safe='')
+    x = re.sub(r'[<>:"|?*\s]', '_', x)
+    x = re.sub(r'[/\\]', '-', x)
+    return x
 
 
 def get_file_mtime_dt(x):

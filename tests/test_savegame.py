@@ -20,7 +20,7 @@ import savegame as module
 module.WORK_PATH = WORK_PATH
 module.logger.setLevel(logging.DEBUG)
 module.logger.handlers.clear()
-from savegame import load, save
+from savegame import load, save, savers
 
 
 GOOGLE_CLOUD_SECRETS_FILE = os.path.join(os.path.expanduser('~'), 'gcs.json')
@@ -309,6 +309,17 @@ class SaveItemTestCase(BaseTestCase):
         self.assertRaises(module.lib.UnhandledPath,
             save.SaveItem, self.config,
             src_paths=src_paths, dst_path=dst_path)
+
+
+class DstDirTestCase(unittest.TestCase):
+    def test_1(self):
+        paths = [
+            r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Games',
+            r'C:\Users\jerer\AppData\Roaming\Sublime Text 3',
+        ]
+        for path in paths:
+            print(path)
+            print(savers.path_to_filename(path))
 
 
 class SavegameTestCase(BaseTestCase):
