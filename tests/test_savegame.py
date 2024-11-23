@@ -314,8 +314,8 @@ class SaveItemTestCase(BaseTestCase):
 class DstDirTestCase(unittest.TestCase):
     def test_1(self):
         paths = [
-            r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Games',
             r'C:\Users\jerer\AppData\Roaming\Sublime Text 3',
+            '/home/jererc/MEGA/data/savegame',
         ]
         for path in paths:
             print(path)
