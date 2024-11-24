@@ -62,7 +62,8 @@ class SaveItem:
             if not os.path.exists(dst_path):
                 raise InvalidPath(f'invalid dst_path {dst_path}: '
                     'does not exist')
-            return os.path.join(dst_path, NAME, self.saver_id)
+            return os.path.join(dst_path, self.config.DST_ROOT_DIR or NAME,
+                self.saver_id)
         return dst_path
 
     def _generate_src_and_patterns(self):
