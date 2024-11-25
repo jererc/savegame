@@ -5,7 +5,9 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import time
+
 
 from svcutils.service import Notifier, get_file_mtime
 from webutils.bookmarks import BookmarksHandler
@@ -168,6 +170,18 @@ class LocalSaver(BaseSaver):
             return src, {f for f in files if is_valid(f)}
         return self.src, set()
 
+    def _copy_file(self, src_file, dst_file):
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_path = temp_file.name
+            try:
+                with open(src_file, 'rb') as fd:
+                    shutil.copyfileobj(fd, temp_file)
+                os.replace(temp_path, dst_file)
+            except Exception as e:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise e
+
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
@@ -182,7 +196,7 @@ class LocalSaver(BaseSaver):
             try:
                 if src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
-                    shutil.copyfile(src_file, dst_file)
+                    self._copy_file(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash
             except Exception:

@@ -20,7 +20,7 @@ import savegame as module
 module.WORK_PATH = WORK_PATH
 module.logger.setLevel(logging.DEBUG)
 module.logger.handlers.clear()
-from savegame import load, save, savers
+from savegame import lib, load, save, savers
 
 
 GOOGLE_CLOUD_SECRETS_FILE = os.path.join(os.path.expanduser('~'), 'gcs.json')
@@ -302,6 +302,23 @@ class ReferenceTestCase(BaseTestCase):
         self.assertEqual(os.stat(ref2.file).st_mtime, mtime2)
 
 
+class CopyFileTestCase(BaseTestCase):
+    def test_1(self):
+        makedirs(self.src_root)
+        filename = 'file.txt'
+        src_file = os.path.join(self.src_root, filename)
+        dst_file = os.path.join(self.dst_root, filename)
+        with open(src_file, 'w') as fd:
+            fd.write('*' * 100000)
+        obj = module.savers.LocalSaver(self.config,
+            src='src', inclusions=[], exclusions=[], dst_path='dst_path',
+            run_delta=0, retention_delta=0)
+        for i in range(2):
+            obj._copy_file(src_file, dst_file)
+            self.assertEqual(lib.get_file_hash(src_file),
+                lib.get_file_hash(dst_file))
+
+
 class SaveItemTestCase(BaseTestCase):
     def test_dst_path(self):
         dst_path = os.path.expanduser('~')
@@ -438,11 +455,12 @@ class SavegameTestCase(BaseTestCase):
                 with open(file, 'w') as fd:
                     fd.write(f'new content for {file}')
 
-        def side_copyfile(*args, **kwargs):
+        def side__copy_file(*args, **kwargs):
             raise Exception('copyfile failed')
 
-        with patch.object(module.savers.shutil, 'copyfile') as mock_copyfile:
-            mock_copyfile.side_effect = side_copyfile
+        with patch.object(module.savers.LocalSaver, '_copy_file'
+                ) as mock__copy_file:
+            mock__copy_file.side_effect = side__copy_file
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
