@@ -308,11 +308,21 @@ class CopyFileTestCase(BaseTestCase):
         filename = 'file.txt'
         src_file = os.path.join(self.src_root, filename)
         dst_file = os.path.join(self.dst_root, filename)
+
         with open(src_file, 'w') as fd:
-            fd.write('*' * 100000)
+            fd.write('a' * 10000)
         obj = module.savers.LocalSaver(self.config,
             src='src', inclusions=[], exclusions=[], dst_path='dst_path',
             run_delta=0, retention_delta=0)
+        for i in range(2):
+            obj._copy_file(src_file, dst_file)
+            self.assertEqual(lib.get_file_hash(src_file),
+                lib.get_file_hash(dst_file))
+
+        with open(dst_file, 'w') as fd:
+            fd.write('b' * 10000)
+        self.assertNotEqual(lib.get_file_hash(src_file),
+            lib.get_file_hash(dst_file))
         for i in range(2):
             obj._copy_file(src_file, dst_file)
             self.assertEqual(lib.get_file_hash(src_file),

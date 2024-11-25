@@ -173,8 +173,9 @@ class LocalSaver(BaseSaver):
     def _copy_file(self, src_file, dst_file):
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
-            with open(src_file, 'rb') as fd:
-                shutil.copyfileobj(fd, temp_file)
+            # with open(src_file, 'rb') as fd:
+            #     shutil.copyfileobj(fd, temp_file)
+            shutil.copy2(src_file, temp_path)
         try:
             os.replace(temp_path, dst_file)
         except Exception as exc:
