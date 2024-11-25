@@ -2,6 +2,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import inspect
 import os
+from pathlib import Path
 import re
 import shutil
 import sys
@@ -44,6 +45,26 @@ def walk_files(path):
     for root, dirs, files in os.walk(path):
         for file in files:
             yield os.path.join(root, file)
+
+
+def find_mount_point(path):
+    current_path = path
+    while not os.path.ismount(current_path):
+        current_path = current_path.parent
+    return current_path
+
+
+def get_drive_temp_dir(path):
+    abs_path = Path(path).resolve()
+    if os.name == 'nt':
+        drive_root = abs_path.anchor
+        temp_dir_on_drive = Path(drive_root) / 'Temp'
+    else:
+        mount_point = find_mount_point(abs_path)
+        temp_dir_on_drive = Path(mount_point) / 'tmp'
+        if not temp_dir_on_drive.exists():
+            temp_dir_on_drive = Path('/tmp')
+    return str(temp_dir_on_drive)
 
 
 def get_google_cloud(config, headless=True):
@@ -171,10 +192,11 @@ class LocalSaver(BaseSaver):
         return self.src, set()
 
     def _copy_file(self, src_file, dst_file):
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_dir = get_drive_temp_dir(dst_file)
+        makedirs(temp_dir)
+        with tempfile.NamedTemporaryFile(dir=temp_dir,
+                delete=False) as temp_file:
             temp_path = temp_file.name
-            # with open(src_file, 'rb') as fd:
-            #     shutil.copyfileobj(fd, temp_file)
             shutil.copy2(src_file, temp_path)
         try:
             os.replace(temp_path, dst_file)
