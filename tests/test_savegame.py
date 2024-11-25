@@ -271,6 +271,10 @@ class BaseTestCase(unittest.TestCase):
 
 
 class ReferenceTestCase(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.always_update = True
+
     def test_1(self):
         ref1 = module.lib.Reference(self.dst_root)
         ref1.src = self.src_root
@@ -278,7 +282,7 @@ class ReferenceTestCase(BaseTestCase):
         ref1.files['file1'] = 'hash1'
         ref1.files['file2'] = 'hash2'
         self.assertFalse(ref1.data)
-        ref1.save()
+        ref1.save(self.always_update)
         ts1 = ref1.ts
 
         ref2 = module.lib.Reference(self.dst_root)
@@ -291,15 +295,19 @@ class ReferenceTestCase(BaseTestCase):
         self.assertTrue('file3' not in ref2.data)
         ts2 = ref2.ts
         time.sleep(.1)
-        ref2.save()
+        ref2.save(self.always_update)
         mtime2 = os.stat(ref2.file).st_mtime
         self.assertTrue(ref2.ts > ts2)
 
         ts3 = ref2.ts
         time.sleep(.1)
-        ref2.save()
-        self.assertEqual(ref2.ts, ts3)
-        self.assertEqual(os.stat(ref2.file).st_mtime, mtime2)
+        ref2.save(self.always_update)
+        if self.always_update:
+            self.assertTrue(ref2.ts > ts3)
+            self.assertTrue(os.stat(ref2.file).st_mtime > mtime2)
+        else:
+            self.assertEqual(ref2.ts, ts3)
+            self.assertEqual(os.stat(ref2.file).st_mtime, mtime2)
 
 
 class AtomicWriteTestCase(BaseTestCase):

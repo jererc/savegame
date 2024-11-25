@@ -174,7 +174,7 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def save(self, always_update=False):
+    def save(self, always_update=True):
         data = {
             'src': self.src,
             'files': self.files,
