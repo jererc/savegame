@@ -1,12 +1,15 @@
 from collections import defaultdict
+from contextlib import contextmanager
 from copy import deepcopy
 from fnmatch import fnmatch
 import gzip
 import hashlib
 import json
 import os
+from pathlib import Path
 import shutil
 import socket
+import tempfile
 import time
 
 from savegame import NAME, WORK_PATH, logger
@@ -44,6 +47,49 @@ def remove_path(path):
             shutil.rmtree(path)
         else:
             os.remove(path)
+
+
+def find_mount_point(path):
+    current_path = path
+    while not os.path.ismount(current_path):
+        current_path = current_path.parent
+    return current_path
+
+
+def get_drive_temp_dir(path):
+    abs_path = Path(path).resolve()
+    if os.name == 'nt':
+        drive_root = abs_path.anchor
+        temp_dir_on_drive = Path(drive_root) / 'Temp'
+    else:
+        mount_point = find_mount_point(abs_path)
+        temp_dir_on_drive = Path(mount_point) / 'tmp'
+        if not temp_dir_on_drive.exists():
+            temp_dir_on_drive = Path('/tmp')
+    return str(temp_dir_on_drive)
+
+
+@contextmanager
+def atomic_write(dst_file):
+    temp_dir = get_drive_temp_dir(dst_file)
+    makedirs(temp_dir)
+    try:
+        with tempfile.NamedTemporaryFile(dir=temp_dir,
+                delete=False) as temp_file:
+            temp_path = temp_file.name
+            yield temp_path
+        try:
+            os.replace(temp_path, dst_file)
+        except Exception as exc:
+            raise exc
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def copy_file(src_file, dst_file):
+    with atomic_write(dst_file) as temp_path:
+        shutil.copy2(src_file, temp_path)
 
 
 def get_file_hash(file, chunk_size=8192):
@@ -137,9 +183,10 @@ class Reference:
                 data != {k: self.data.get(k) for k in data.keys()}):
             return
         data['ts'] = time.time()
-        with open(self.file, 'wb') as fd:
-            fd.write(gzip.compress(
-                json.dumps(data, sort_keys=True).encode('utf-8')))
+        with atomic_write(self.file) as temp_path:
+            with open(temp_path, 'wb') as fd:
+                fd.write(gzip.compress(
+                    json.dumps(data, sort_keys=True).encode('utf-8')))
         self._load(data)
 
     @property

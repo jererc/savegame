@@ -20,7 +20,7 @@ import savegame as module
 module.WORK_PATH = WORK_PATH
 module.logger.setLevel(logging.DEBUG)
 module.logger.handlers.clear()
-from savegame import lib, load, save, savers
+from savegame import load, save, savers
 
 
 GOOGLE_CLOUD_SECRETS_FILE = os.path.join(os.path.expanduser('~'), 'gcs.json')
@@ -302,31 +302,49 @@ class ReferenceTestCase(BaseTestCase):
         self.assertEqual(os.stat(ref2.file).st_mtime, mtime2)
 
 
-class CopyFileTestCase(BaseTestCase):
-    def test_1(self):
+class AtomicWriteTestCase(BaseTestCase):
+    def setUp(self):
+        super().setUp()
         makedirs(self.src_root)
         filename = 'file.txt'
-        src_file = os.path.join(self.src_root, filename)
-        dst_file = os.path.join(self.dst_root, filename)
+        self.src_file = os.path.join(self.src_root, filename)
+        self.dst_file = os.path.join(self.dst_root, filename)
 
-        with open(src_file, 'w') as fd:
+    def _compare(self, a, b):
+        return module.lib.get_file_hash(a) == module.lib.get_file_hash(b)
+
+    def test_write(self):
+        data = 'a' * 1000
+        with module.lib.atomic_write(self.dst_file) as temp_path:
+            self.assertTrue(os.path.exists(temp_path))
+            with open(temp_path, 'w') as fd:
+                fd.write(data)
+        with open(self.dst_file) as fd:
+            self.assertEqual(fd.read(), data)
+        self.assertFalse(os.path.exists(temp_path))
+
+    def test_copy(self):
+        with open(self.src_file, 'w') as fd:
             fd.write('a' * 10000)
-        obj = module.savers.LocalSaver(self.config,
-            src='src', inclusions=[], exclusions=[], dst_path='dst_path',
-            run_delta=0, retention_delta=0)
-        for i in range(2):
-            obj._copy_file(src_file, dst_file)
-            self.assertEqual(lib.get_file_hash(src_file),
-                lib.get_file_hash(dst_file))
+        with module.lib.atomic_write(self.dst_file) as temp_path:
+            self.assertTrue(os.path.exists(temp_path))
+            shutil.copy2(self.src_file, temp_path)
+        self.assertTrue(self._compare(self.src_file, self.dst_file))
+        self.assertFalse(os.path.exists(temp_path))
 
-        with open(dst_file, 'w') as fd:
-            fd.write('b' * 10000)
-        self.assertNotEqual(lib.get_file_hash(src_file),
-            lib.get_file_hash(dst_file))
+    def test_copy_file(self):
+        with open(self.src_file, 'w') as fd:
+            fd.write('a' * 10000)
         for i in range(2):
-            obj._copy_file(src_file, dst_file)
-            self.assertEqual(lib.get_file_hash(src_file),
-                lib.get_file_hash(dst_file))
+            module.lib.copy_file(self.src_file, self.dst_file)
+            self.assertTrue(self._compare(self.src_file, self.dst_file))
+
+        with open(self.dst_file, 'w') as fd:
+            fd.write('b' * 10000)
+        self.assertFalse(self._compare(self.src_file, self.dst_file))
+        for i in range(2):
+            module.lib.copy_file(self.src_file, self.dst_file)
+            self.assertTrue(self._compare(self.src_file, self.dst_file))
 
 
 class SaveItemTestCase(BaseTestCase):
@@ -465,12 +483,11 @@ class SavegameTestCase(BaseTestCase):
                 with open(file, 'w') as fd:
                     fd.write(f'new content for {file}')
 
-        def side__copy_file(*args, **kwargs):
-            raise Exception('copyfile failed')
+        def side_copy_file(*args, **kwargs):
+            raise Exception('copy_file failed')
 
-        with patch.object(module.savers.LocalSaver, '_copy_file'
-                ) as mock__copy_file:
-            mock__copy_file.side_effect = side__copy_file
+        with patch.object(module.savers, 'copy_file') as mock_copy_file:
+            mock_copy_file.side_effect = side_copy_file
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)

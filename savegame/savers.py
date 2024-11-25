@@ -2,11 +2,8 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import inspect
 import os
-from pathlib import Path
 import re
-import shutil
 import sys
-import tempfile
 import time
 
 
@@ -16,8 +13,8 @@ from webutils.google.cloud import GoogleCloud
 
 from savegame import NAME, logger
 from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference,
-    Report, check_patterns, get_file_hash, get_hash, makedirs, remove_path,
-    to_json)
+    Report, check_patterns, copy_file, get_file_hash, get_hash, makedirs,
+    remove_path, to_json)
 
 
 RETRY_DELTA = 2 * 3600
@@ -45,26 +42,6 @@ def walk_files(path):
     for root, dirs, files in os.walk(path):
         for file in files:
             yield os.path.join(root, file)
-
-
-def find_mount_point(path):
-    current_path = path
-    while not os.path.ismount(current_path):
-        current_path = current_path.parent
-    return current_path
-
-
-def get_drive_temp_dir(path):
-    abs_path = Path(path).resolve()
-    if os.name == 'nt':
-        drive_root = abs_path.anchor
-        temp_dir_on_drive = Path(drive_root) / 'Temp'
-    else:
-        mount_point = find_mount_point(abs_path)
-        temp_dir_on_drive = Path(mount_point) / 'tmp'
-        if not temp_dir_on_drive.exists():
-            temp_dir_on_drive = Path('/tmp')
-    return str(temp_dir_on_drive)
 
 
 def get_google_cloud(config, headless=True):
@@ -191,20 +168,6 @@ class LocalSaver(BaseSaver):
             return src, {f for f in files if is_valid(f)}
         return self.src, set()
 
-    def _copy_file(self, src_file, dst_file):
-        temp_dir = get_drive_temp_dir(dst_file)
-        makedirs(temp_dir)
-        with tempfile.NamedTemporaryFile(dir=temp_dir,
-                delete=False) as temp_file:
-            temp_path = temp_file.name
-            shutil.copy2(src_file, temp_path)
-        try:
-            os.replace(temp_path, dst_file)
-        except Exception as exc:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            raise exc
-
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
@@ -219,7 +182,7 @@ class LocalSaver(BaseSaver):
             try:
                 if src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
-                    self._copy_file(src_file, dst_file)
+                    copy_file(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash
             except Exception:
