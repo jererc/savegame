@@ -193,7 +193,7 @@ class SaveMonitor:
 
     def _monitor(self):
         saves = []
-        stale_ts = time.time() - STALE_DELTA
+        # stale_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
             src = self._get_src(ref)
             mtimes = []
@@ -215,15 +215,15 @@ class SaveMonitor:
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
                 'invalid': len(invalid_files),
-                'is_stale': ref.ts < stale_ts,
+                # 'is_stale': ref.ts < stale_ts,
             })
         report = {
             'saves': saves,
             'invalid': [r for r in saves if r['invalid']],
-            'stale': [r for r in saves if r['is_stale']],
+            # 'stale': [r for r in saves if r['is_stale']],
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'invalid', 'stale')])
+            for k in ('saves', 'invalid')])
         return report
 
     def run(self):
