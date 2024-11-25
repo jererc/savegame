@@ -14,6 +14,7 @@ from savegame.savers import (RETENTION_DELTA, LocalSaver, get_google_cloud,
 
 MONITOR_DELTA = 12 * 3600
 STALE_DELTA = 3 * 24 * 3600
+DST_ROOT_DIR = 'saves'
 
 
 def ts_to_str(x):
@@ -62,7 +63,7 @@ class SaveItem:
             if not os.path.exists(dst_path):
                 raise InvalidPath(f'invalid dst_path {dst_path}: '
                     'does not exist')
-            return os.path.join(dst_path, self.config.DST_ROOT_DIR or NAME,
+            return os.path.join(dst_path, self.config.DST_ROOT_DIR or DST_ROOT_DIR,
                 self.saver_id)
         return dst_path
 
