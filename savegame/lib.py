@@ -78,10 +78,7 @@ def atomic_write(dst_file):
                 delete=False) as temp_file:
             temp_path = temp_file.name
             yield temp_path
-        try:
-            os.replace(temp_path, dst_file)
-        except Exception as exc:
-            raise exc
+        os.replace(temp_path, dst_file)
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
