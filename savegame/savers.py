@@ -173,14 +173,14 @@ class LocalSaver(BaseSaver):
     def _copy_file(self, src_file, dst_file):
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
-            try:
-                with open(src_file, 'rb') as fd:
-                    shutil.copyfileobj(fd, temp_file)
-                os.replace(temp_path, dst_file)
-            except Exception as e:
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                raise e
+            with open(src_file, 'rb') as fd:
+                shutil.copyfileobj(fd, temp_file)
+        try:
+            os.replace(temp_path, dst_file)
+        except Exception as exc:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise exc
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
