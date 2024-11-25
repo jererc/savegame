@@ -18,7 +18,6 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference,
 
 
 RETRY_DELTA = 2 * 3600
-RETENTION_DELTA = 7 * 24 * 3600
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
 
@@ -62,7 +61,7 @@ class BaseSaver:
     dst_type = 'local'
 
     def __init__(self, config, src, inclusions, exclusions, dst_path,
-                 run_delta=3600, retention_delta=RETENTION_DELTA):
+                 run_delta, retention_delta):
         self.config = config
         self.src = src
         self.inclusions = inclusions

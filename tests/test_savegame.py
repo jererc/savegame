@@ -262,7 +262,8 @@ class BaseTestCase(unittest.TestCase):
     def _savegame(self, saves, **kwargs):
         self.config.SAVES = saves
         with patch.object(save.Notifier, 'send'):
-            save.savegame(self._get_config(SAVES=saves), **kwargs)
+            config = self._get_config(SAVES=saves, RUN_DELTA=0)
+            save.savegame(config, **kwargs)
 
     def _loadgame(self, **kwargs):
         with patch.object(save.Notifier, 'send'):

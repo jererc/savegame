@@ -8,13 +8,14 @@ from svcutils.service import Notifier, RunFile, get_file_mtime
 from savegame import NAME, WORK_PATH, logger
 from savegame.lib import (Metadata, Reference, Report, UnhandledPath,
     InvalidPath, validate_path, to_json, get_file_hash)
-from savegame.savers import (RETENTION_DELTA, LocalSaver, get_google_cloud,
-    get_saver_class)
+from savegame.savers import LocalSaver, get_google_cloud, get_saver_class
 
 
+DST_ROOT_DIR = 'saves'
+RUN_DELTA = 3600
+RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
 STALE_DELTA = 3 * 24 * 3600
-DST_ROOT_DIR = 'saves'
 
 
 def ts_to_str(x):
@@ -36,17 +37,23 @@ def get_path_separator(path):
     return os.path.sep
 
 
+def get_else(x, default):
+    return default if x is None else x
+
+
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
-                 dst_path=None, run_delta=0,
-                 retention_delta=RETENTION_DELTA, loadable=True, os_name=None):
+                 dst_path=None, run_delta=None, retention_delta=None,
+                 loadable=True, os_name=None):
         self.config = config
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
         self.saver_cls = get_saver_class(self.saver_id)
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
-        self.run_delta = run_delta
-        self.retention_delta = retention_delta
+        self.run_delta = get_else(run_delta,
+            get_else(self.config.RUN_DELTA, RUN_DELTA))
+        self.retention_delta = get_else(retention_delta,
+            get_else(self.config.RETENTION_DELTA, RETENTION_DELTA))
         self.loadable = loadable
         self.os_name = os_name
 
@@ -61,10 +68,10 @@ class SaveItem:
             validate_path(dst_path)
             dst_path = os.path.expanduser(dst_path)
             if not os.path.exists(dst_path):
-                raise InvalidPath(f'invalid dst_path {dst_path}: '
-                    'does not exist')
-            return os.path.join(dst_path, self.config.DST_ROOT_DIR or DST_ROOT_DIR,
-                self.saver_id)
+                raise InvalidPath(
+                    f'invalid dst_path {dst_path}: does not exist')
+            return os.path.join(dst_path, self.config.DST_ROOT_DIR
+                or DST_ROOT_DIR, self.saver_id)
         return dst_path
 
     def _generate_src_and_patterns(self):
