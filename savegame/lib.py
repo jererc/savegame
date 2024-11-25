@@ -128,12 +128,15 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def save(self):
+    def save(self, always_update=False):
         data = {
             'src': self.src,
             'files': self.files,
-            'ts': time.time(),
         }
+        if not (always_update or
+                data != {k: self.data.get(k) for k in data.keys()}):
+            return
+        data['ts'] = time.time()
         with open(self.file, 'wb') as fd:
             fd.write(gzip.compress(
                 json.dumps(data, sort_keys=True).encode('utf-8')))
