@@ -2,7 +2,6 @@ from collections import defaultdict
 from contextlib import contextmanager
 from copy import deepcopy
 from fnmatch import fnmatch
-import gzip
 import hashlib
 import json
 import os
@@ -91,8 +90,8 @@ def atomic_write(dst_file):
             os.remove(temp_path)
 
 
-def copy_file(src_file, dst_file, use_temp_file=False):
-    if use_temp_file:
+def copy_file(src_file, dst_file, atomic=True):
+    if atomic:
         with atomic_write(dst_file) as temp_path:
             shutil.copy2(src_file, temp_path)
     else:
@@ -139,7 +138,7 @@ class Metadata:
 
     def load(self):
         if os.path.exists(self.file):
-            with open(self.file) as fd:
+            with open(self.file, 'r', encoding='utf-8') as fd:
                 self.data = json.load(fd)
 
     def get(self, key):
@@ -150,7 +149,7 @@ class Metadata:
 
     def save(self, keys):
         self.data = {k: v for k, v in self.data.items() if k in keys}
-        with open(self.file, 'w') as fd:
+        with open(self.file, 'w', encoding='utf-8') as fd:
             fd.write(to_json(self.data))
 
 
@@ -170,9 +169,8 @@ class Reference:
             self.data = {}
         else:
             try:
-                with open(self.file, 'rb') as fd:
-                    self.data = json.loads(
-                        gzip.decompress(fd.read()).decode('utf-8'))
+                with open(self.file, 'r', encoding='utf-8') as fd:
+                    self.data = json.load(fd)
             except Exception as exc:
                 os.remove(self.file)
                 logger.exception('removed invalid ref file '
@@ -181,19 +179,17 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def save(self, always_update=True):
+    def save(self, force=True):
         data = {
             'src': self.src,
             'files': self.files,
         }
-        if not (always_update or
-                data != {k: self.data.get(k) for k in data.keys()}):
+        if not (force or data != {k: self.data.get(k) for k in data.keys()}):
             return
         data['ts'] = time.time()
-        content = gzip.compress(json.dumps(data,
-            sort_keys=True).encode('utf-8'))
-        with open(self.file, 'wb') as fd:
-            fd.write(content)
+        with atomic_write(self.file) as temp_path:
+            with open(temp_path, 'w', encoding='utf-8') as fd:
+                fd.write(to_json(data))
         self._load(data)
 
     @property

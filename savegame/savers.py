@@ -17,8 +17,8 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference,
     get_hash, makedirs, remove_path, to_json)
 
 
-ALWAYS_UPDATE_REF = False
-COPY_WITH_TEMP_FILE = True
+ALWAYS_UPDATE_REF = True
+ATOMIC_COPY = True
 RETRY_DELTA = 2 * 3600
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
@@ -140,7 +140,7 @@ class BaseSaver:
             self.do_run()
             self._purge_dst()
             if os.path.exists(self.ref.dst):
-                self.ref.save(always_update=get_else(
+                self.ref.save(force=get_else(
                     self.config.ALWAYS_UPDATE_REF, ALWAYS_UPDATE_REF))
             self.success = True
         except Exception as exc:
@@ -185,8 +185,8 @@ class LocalSaver(BaseSaver):
             try:
                 if src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
-                    copy_file(src_file, dst_file, use_temp_file=get_else(
-                    self.config.COPY_WITH_TEMP_FILE, COPY_WITH_TEMP_FILE))
+                    copy_file(src_file, dst_file, atomic=get_else(
+                        self.config.ATOMIC_COPY, ATOMIC_COPY))
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash
             except Exception:
