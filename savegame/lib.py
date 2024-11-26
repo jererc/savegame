@@ -37,7 +37,7 @@ def validate_path(x):
 
 
 def to_json(x):
-    return json.dumps(x, indent=4, sort_keys=True)
+    return json.dumps(x, sort_keys=True, indent=4)
 
 
 def get_else(x, default):
@@ -147,7 +147,7 @@ class Metadata:
     def save(self, keys):
         self.data = {k: v for k, v in self.data.items() if k in keys}
         with open(self.file, 'w', encoding='utf-8') as fd:
-            fd.write(to_json(self.data))
+            json.dump(self.data, fd, sort_keys=True, indent=4)
 
 
 class Reference:
@@ -186,9 +186,9 @@ class Reference:
         data['ts'] = time.time()
         # with atomic_write(self.file) as temp_path:
         #     with open(temp_path, 'w', encoding='utf-8') as fd:
-        #         fd.write(to_json(data))
+        #         json.dump(data, fd, sort_keys=True, indent=4)
         with open(self.file, 'w', encoding='utf-8') as fd:
-            fd.write(to_json(data))
+            json.dump(data, fd, sort_keys=True, indent=4)
         self._load(data)
 
     @property

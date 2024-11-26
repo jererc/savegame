@@ -1,7 +1,6 @@
 from copy import deepcopy
 from fnmatch import fnmatch
 from glob import glob
-import gzip
 import json
 import logging
 import os
@@ -70,9 +69,8 @@ def count_matches(strings, pattern):
 
 
 def write_ref_data(ref):
-    with open(ref.file, 'wb') as fd:
-        fd.write(gzip.compress(
-            json.dumps(ref.data, sort_keys=True).encode('utf-8')))
+    with open(ref.file, 'w', encoding='utf-8') as fd:
+        json.dump(ref.data, fd, sort_keys=True)
 
 
 class LoadgamePathUsernameTestCase(unittest.TestCase):
@@ -213,7 +211,7 @@ class BaseTestCase(unittest.TestCase):
                             'dir': d_name,
                             'version': file_version,
                         }
-                        fd.write(json.dumps(content, indent=4, sort_keys=True))
+                        fd.write(json.dumps(content, sort_keys=True, indent=4))
 
     def _get_src_paths(self, index_start=1, src_count=2, **kwargs):
         return [os.path.join(self.src_root, f'src{i}')
