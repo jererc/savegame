@@ -6,8 +6,8 @@ import time
 from svcutils.service import Notifier, RunFile
 
 from savegame import NAME, WORK_PATH, logger
-from savegame.lib import (Metadata, Reference, Report, UnhandledPath,
-    InvalidPath, get_else, get_file_hash, get_file_mtime, to_json,
+from savegame.lib import (Metadata, Reference, Report, InvalidPath,
+    UnhandledPath, get_else, get_file_hash, get_file_mtime, to_json,
     validate_path)
 from savegame.savers.base import get_saver_class
 from savegame.savers.google_cloud import get_google_cloud
