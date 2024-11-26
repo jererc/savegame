@@ -81,9 +81,6 @@ def atomic_write(dst_file):
                 delete=False) as temp_file:
             temp_path = temp_file.name
             yield temp_path
-        # if os.path.isfile(dst_file):
-        #     os.remove(dst_file)
-        # os.rename(temp_path, dst_file)
         os.replace(temp_path, dst_file)
     finally:
         if os.path.exists(temp_path):
