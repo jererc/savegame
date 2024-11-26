@@ -187,9 +187,11 @@ class Reference:
         if not (force or data != {k: self.data.get(k) for k in data.keys()}):
             return
         data['ts'] = time.time()
-        with atomic_write(self.file) as temp_path:
-            with open(temp_path, 'w', encoding='utf-8') as fd:
-                fd.write(to_json(data))
+        # with atomic_write(self.file) as temp_path:
+        #     with open(temp_path, 'w', encoding='utf-8') as fd:
+        #         fd.write(to_json(data))
+        with open(self.file, 'w', encoding='utf-8') as fd:
+            fd.write(to_json(data))
         self._load(data)
 
     @property
