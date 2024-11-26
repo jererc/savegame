@@ -190,13 +190,10 @@ class Reference:
                 data != {k: self.data.get(k) for k in data.keys()}):
             return
         data['ts'] = time.time()
+        content = gzip.compress(json.dumps(data,
+            sort_keys=True).encode('utf-8'))
         with open(self.file, 'wb') as fd:
-            fd.write(gzip.compress(
-                json.dumps(data, sort_keys=True).encode('utf-8')))
-        # with atomic_write(self.file) as temp_path:
-        #     with open(temp_path, 'wb') as fd:
-        #         fd.write(gzip.compress(
-        #             json.dumps(data, sort_keys=True).encode('utf-8')))
+            fd.write(content)
         self._load(data)
 
     @property
