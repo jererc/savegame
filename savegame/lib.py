@@ -31,6 +31,10 @@ def makedirs(x):
         os.makedirs(x)
 
 
+def get_file_mtime(x):
+    return os.stat(x).st_mtime
+
+
 def validate_path(x):
     if os.path.sep not in x:
         raise UnhandledPath(f'unhandled path {x}: not {os.name}')

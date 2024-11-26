@@ -26,7 +26,7 @@ WIN_SAVE = {
 }
 
 
-class SavegameIntegrationTestCase(BaseTestCase):
+class SavegameTestCase(BaseTestCase):
     @unittest.skipIf(os.name != 'nt', 'not windows')
     def test_glob_and_empty_dirs_win(self):
         saves = [
@@ -52,7 +52,7 @@ class SavegameIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class LoadgameIntegrationTestCase(BaseTestCase):
+class LoadgameTestCase(BaseTestCase):
     def test_1(self):
         saves = [LINUX_SAVE, WIN_SAVE]
         self._savegame(saves, force=True)
@@ -60,7 +60,7 @@ class LoadgameIntegrationTestCase(BaseTestCase):
         pprint(self._list_src_root_paths())
 
 
-class GoogleDriveExportIntegrationTestCase(BaseTestCase):
+class GoogleDriveExportTestCase(BaseTestCase):
     def test_1(self):
         module.save.google_oauth(self.config)
         saves = [
@@ -74,7 +74,7 @@ class GoogleDriveExportIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class GoogleContactsExportIntegrationTestCase(BaseTestCase):
+class GoogleContactsExportTestCase(BaseTestCase):
     def test_1(self):
         module.save.google_oauth(self.config)
         saves = [
@@ -88,7 +88,7 @@ class GoogleContactsExportIntegrationTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class BookmarksExportIntegrationTestCase(BaseTestCase):
+class BookmarksExportTestCase(BaseTestCase):
     def test_1(self):
         saves = [
             {

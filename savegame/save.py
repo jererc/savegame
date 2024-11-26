@@ -3,12 +3,15 @@ from glob import glob
 import os
 import time
 
-from svcutils.service import Notifier, RunFile, get_file_mtime
+from svcutils.service import Notifier, RunFile
 
 from savegame import NAME, WORK_PATH, logger
 from savegame.lib import (Metadata, Reference, Report, UnhandledPath,
-    InvalidPath, get_else, get_file_hash, to_json, validate_path)
-from savegame.savers import LocalSaver, get_google_cloud, get_saver_class
+    InvalidPath, get_else, get_file_hash, get_file_mtime, to_json,
+    validate_path)
+from savegame.savers.base import get_saver_class
+from savegame.savers.google_cloud import get_google_cloud
+from savegame.savers.local import LocalSaver
 
 
 DST_ROOT_DIR = 'saves'

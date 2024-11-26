@@ -373,12 +373,12 @@ class SaveItemTestCase(BaseTestCase):
 
 class DstDirTestCase(unittest.TestCase):
     def test_1(self):
-        res = savers.path_to_filename(
+        res = savers.base.path_to_filename(
             r'C:\Users\jerer\AppData\Roaming\Sublime Text 3')
         self.assertEqual(res, 'C_-Users-jerer-AppData-Roaming-Sublime_Text_3')
 
     def test_2(self):
-        res = savers.path_to_filename('/home/jererc/MEGA/data/savegame')
+        res = savers.base.path_to_filename('/home/jererc/MEGA/data/savegame')
         self.assertEqual(res, 'home-jererc-MEGA-data-savegame')
 
 
@@ -492,7 +492,7 @@ class SavegameTestCase(BaseTestCase):
         def side_copy_file(*args, **kwargs):
             raise Exception('copy_file failed')
 
-        with patch.object(module.savers, 'copy_file') as mock_copy_file:
+        with patch.object(module.savers.local, 'copy_file') as mock_copy_file:
             mock_copy_file.side_effect = side_copy_file
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
@@ -576,8 +576,8 @@ class SavegameTestCase(BaseTestCase):
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
 
-        with patch.object(module.savers.BaseSaver, 'notify_error'), \
-                patch.object(module.savers.LocalSaver,
+        with patch.object(module.savers.base.BaseSaver, 'notify_error'), \
+                patch.object(module.savers.local.LocalSaver,
                     'do_run') as mock_do_run:
             mock_do_run.side_effect = side_do_run
             self._savegame(saves=saves)
