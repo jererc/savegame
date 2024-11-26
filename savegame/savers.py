@@ -135,13 +135,12 @@ class BaseSaver:
             return
         self.start_ts = time.time()
         self.ref.src = self.src
-        always_update_ref = get_else(self.config.ALWAYS_UPDATE_REF,
-            ALWAYS_UPDATE_REF)
         try:
             self.do_run()
             self._purge_dst()
             if os.path.exists(self.ref.dst):
-                self.ref.save(always_update=always_update_ref)
+                self.ref.save(always_update=get_else(
+                    self.config.ALWAYS_UPDATE_REF, ALWAYS_UPDATE_REF))
             self.success = True
         except Exception as exc:
             self.success = False
