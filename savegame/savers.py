@@ -13,10 +13,11 @@ from webutils.google.cloud import GoogleCloud
 
 from savegame import NAME, logger
 from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference,
-    Report, atomic_write, check_patterns, copy_file, get_file_hash, get_hash,
-    makedirs, remove_path, to_json)
+    Report, atomic_write, check_patterns, copy_file, get_file_hash, get_else,
+    get_hash, makedirs, remove_path, to_json)
 
 
+ALWAYS_UPDATE_REF = False
 RETRY_DELTA = 2 * 3600
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
@@ -134,11 +135,13 @@ class BaseSaver:
             return
         self.start_ts = time.time()
         self.ref.src = self.src
+        always_update_ref = get_else(self.config.ALWAYS_UPDATE_REF,
+            ALWAYS_UPDATE_REF)
         try:
             self.do_run()
             self._purge_dst()
             if os.path.exists(self.ref.dst):
-                self.ref.save()
+                self.ref.save(always_update=always_update_ref)
             self.success = True
         except Exception as exc:
             self.success = False

@@ -7,7 +7,7 @@ from svcutils.service import Notifier, RunFile, get_file_mtime
 
 from savegame import NAME, WORK_PATH, logger
 from savegame.lib import (Metadata, Reference, Report, UnhandledPath,
-    InvalidPath, validate_path, to_json, get_file_hash)
+    InvalidPath, get_else, get_file_hash, to_json, validate_path)
 from savegame.savers import LocalSaver, get_google_cloud, get_saver_class
 
 
@@ -35,10 +35,6 @@ def get_path_separator(path):
         if sep in path:
             return sep
     return os.path.sep
-
-
-def get_else(x, default):
-    return default if x is None else x
 
 
 class SaveItem:
