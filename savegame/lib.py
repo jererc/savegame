@@ -82,17 +82,21 @@ def atomic_write(dst_file):
                 delete=False) as temp_file:
             temp_path = temp_file.name
             yield temp_path
-        if os.path.isfile(dst_file):
-            os.remove(dst_file)
-        os.rename(temp_path, dst_file)
+        # if os.path.isfile(dst_file):
+        #     os.remove(dst_file)
+        # os.rename(temp_path, dst_file)
+        os.replace(temp_path, dst_file)
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
 
-def copy_file(src_file, dst_file):
-    with atomic_write(dst_file) as temp_path:
-        shutil.copy2(src_file, temp_path)
+def copy_file(src_file, dst_file, use_temp_file=False):
+    if use_temp_file:
+        with atomic_write(dst_file) as temp_path:
+            shutil.copy2(src_file, temp_path)
+    else:
+        shutil.copy2(src_file, dst_file)
 
 
 def get_file_hash(file, chunk_size=8192):

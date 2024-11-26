@@ -18,6 +18,7 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference,
 
 
 ALWAYS_UPDATE_REF = False
+COPY_WITH_TEMP_FILE = True
 RETRY_DELTA = 2 * 3600
 GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
 
@@ -184,7 +185,8 @@ class LocalSaver(BaseSaver):
             try:
                 if src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
-                    copy_file(src_file, dst_file)
+                    copy_file(src_file, dst_file, use_temp_file=get_else(
+                    self.config.COPY_WITH_TEMP_FILE, COPY_WITH_TEMP_FILE))
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash
             except Exception:
