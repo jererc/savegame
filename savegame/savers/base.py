@@ -11,7 +11,7 @@ from savegame.lib import (REF_FILENAME, Metadata, Reference, Report,
     get_else, get_file_mtime, remove_path)
 
 
-ATOMIC_REF_UPDATE = True
+ATOMIC_REF_UPDATE = False
 FORCED_REF_UPDATE = False
 RETRY_DELTA = 2 * 3600
 
