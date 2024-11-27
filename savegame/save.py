@@ -194,35 +194,35 @@ class SaveMonitor:
         for hostname, ref in self._iterate_hostname_refs():
             src = self._get_src(ref)
             mtimes = []
-            conflicts = []
+            desynced = []
             for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
                 dst_exists = os.path.exists(dst_file)
                 if dst_exists:
                     mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != ref_hash:
-                    conflicts.append(dst_file)
+                    desynced.append(dst_file)
                     logger.error(f'{"invalid" if dst_exists else "missing"} '
                         f'file: {dst_file}')
                 if hostname == HOSTNAME:
                     src_file = os.path.join(ref.src, get_local_path(rel_path))
                     if os.path.exists(src_file) and \
                             get_file_hash(src_file) != get_file_hash(dst_file):
-                        conflicts.append(dst_file)
+                        desynced.append(dst_file)
             saves.append({
                 'hostname': hostname,
                 'src': src,
                 'modified': sorted(mtimes)[-1] if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
-                'conflicts': len(conflicts),
+                'desynced': len(desynced),
             })
         report = {
             'saves': saves,
-            'conflicts': [r for r in saves if r['conflicts']],
+            'desynced': [r for r in saves if r['desynced']],
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'conflicts')])
+            for k in ('saves', 'desynced')])
         return report
 
     def run(self):
@@ -247,7 +247,7 @@ class SaveMonitor:
                 f'{r["hostname"]:20}  '
                 f'{r["size_MB"]:10}  '
                 f'{r["files"]:8}  '
-                f'{r["conflicts"] or "":10}  '
+                f'{r["desynced"] or "":10}  '
                 f'{r["src"]}'
             )
 
