@@ -1,5 +1,4 @@
 from copy import deepcopy
-import filecmp
 from fnmatch import fnmatch
 from glob import glob
 import json
@@ -313,14 +312,15 @@ class AtomicWriteTestCase(BaseTestCase):
         self.dst_file = os.path.join(self.dst_root, filename)
 
     def _compare(self, a, b):
-        return filecmp.cmp(a, b, shallow=False)
+        return module.lib.get_file_hash(a) == module.lib.get_file_hash(b)
 
     def test_write(self):
         data = 'a' * 1000
-        with module.lib.atomic_write(self.dst_file) as temp_path:
+        with module.lib.atomic_write_fd(self.dst_file,
+                mode='w', encoding='utf-8') as fd:
+            temp_path = fd.name
             self.assertTrue(os.path.exists(temp_path))
-            with open(temp_path, 'w') as fd:
-                fd.write(data)
+            fd.write(data)
         with open(self.dst_file) as fd:
             self.assertEqual(fd.read(), data)
         self.assertFalse(os.path.exists(temp_path))
@@ -328,7 +328,7 @@ class AtomicWriteTestCase(BaseTestCase):
     def test_copy(self):
         with open(self.src_file, 'w') as fd:
             fd.write('a' * 10000)
-        with module.lib.atomic_write(self.dst_file) as temp_path:
+        with module.lib.atomic_write_file(self.dst_file) as temp_path:
             self.assertTrue(os.path.exists(temp_path))
             shutil.copy2(self.src_file, temp_path)
         self.assertTrue(self._compare(self.src_file, self.dst_file))

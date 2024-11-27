@@ -77,14 +77,29 @@ def get_drive_temp_dir(path):
 
 
 @contextmanager
-def atomic_write(dst_file):
+def atomic_write_fd(dst_file, **kwargs):
+    temp_dir = get_drive_temp_dir(dst_file)
+    makedirs(temp_dir)
+    try:
+        with tempfile.NamedTemporaryFile(dir=temp_dir,
+                delete=False, **kwargs) as temp_file:
+            temp_path = temp_file.name
+            yield temp_file
+        os.replace(temp_path, dst_file)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+@contextmanager
+def atomic_write_file(dst_file):
     temp_dir = get_drive_temp_dir(dst_file)
     makedirs(temp_dir)
     try:
         with tempfile.NamedTemporaryFile(dir=temp_dir,
                 delete=False) as temp_file:
             temp_path = temp_file.name
-            yield temp_path
+        yield temp_path
         os.replace(temp_path, dst_file)
     finally:
         if os.path.exists(temp_path):
@@ -93,7 +108,7 @@ def atomic_write(dst_file):
 
 def copy_file(src_file, dst_file, atomic=True):
     if atomic:
-        with atomic_write(dst_file) as temp_path:
+        with atomic_write_file(dst_file) as temp_path:
             shutil.copy2(src_file, temp_path)
     else:
         shutil.copy2(src_file, dst_file)
@@ -189,9 +204,9 @@ class Reference:
             return
         data['ts'] = time.time()
         if atomic:
-            with atomic_write(self.file) as temp_path:
-                with open(temp_path, 'w', encoding='utf-8') as fd:
-                    json.dump(data, fd, sort_keys=True, indent=4)
+            with atomic_write_fd(self.file,
+                    mode='w', encoding='utf-8') as fd:
+                json.dump(data, fd, sort_keys=True, indent=4)
         else:
             with open(self.file, 'w', encoding='utf-8') as fd:
                 json.dump(data, fd, sort_keys=True, indent=4)
