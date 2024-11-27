@@ -6,9 +6,9 @@ import time
 from svcutils.service import Notifier, RunFile
 
 from savegame import NAME, WORK_PATH, logger
-from savegame.lib import (Metadata, Reference, Report, InvalidPath,
-    UnhandledPath, get_else, get_file_hash, get_file_mtime, to_json,
-    validate_path)
+from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
+    InvalidPath, UnhandledPath, get_else, get_file_hash, get_file_mtime,
+    to_json, validate_path)
 from savegame.savers.base import get_saver_class
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
@@ -18,7 +18,6 @@ DST_ROOT_DIR = 'saves'
 RUN_DELTA = 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
-STALE_DELTA = 3 * 24 * 3600
 
 
 def ts_to_str(x):
@@ -192,37 +191,38 @@ class SaveMonitor:
 
     def _monitor(self):
         saves = []
-        stale_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
             src = self._get_src(ref)
             mtimes = []
-            invalid_files = []
+            conflicts = []
             for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
                 dst_exists = os.path.exists(dst_file)
                 if dst_exists:
                     mtimes.append(get_file_mtime(dst_file))
                 if get_file_hash(dst_file) != ref_hash:
-                    invalid_files.append(dst_file)
+                    conflicts.append(dst_file)
                     logger.error(f'{"invalid" if dst_exists else "missing"} '
                         f'file: {dst_file}')
+                if hostname == HOSTNAME:
+                    src_file = os.path.join(ref.src, get_local_path(rel_path))
+                    if os.path.exists(src_file) and \
+                            get_file_hash(src_file) != get_file_hash(dst_file):
+                        conflicts.append(dst_file)
             saves.append({
                 'hostname': hostname,
                 'src': src,
-                'last_run': ref.ts,
-                'last_modified': sorted(mtimes)[-1] if mtimes else 0,
+                'modified': sorted(mtimes)[-1] if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
-                'invalid': len(invalid_files),
-                'is_stale': ref.ts < stale_ts,
+                'conflicts': len(conflicts),
             })
         report = {
             'saves': saves,
-            'invalid': [r for r in saves if r['invalid']],
-            'stale': [r for r in saves if r['is_stale']],
+            'conflicts': [r for r in saves if r['conflicts']],
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'invalid', 'stale')])
+            for k in ('saves', 'conflicts')])
         return report
 
     def run(self):
@@ -236,19 +236,22 @@ class SaveMonitor:
         if not saves:
             return
         headers = {k: k for k in saves[0].keys()}
+        order_by_cols = order_by.split(',') + ['src']
         rows = [headers] + sorted(saves,
-            key=lambda x: (x[order_by], x['src']), reverse=True)
+            key=lambda x: [x[k] for k in order_by_cols],
+            reverse=True)
         for i, r in enumerate(rows):
-            h_last_run = ts_to_str(r['last_run']) \
-                if i > 0 else r['last_run']
-            h_last_modified = ts_to_str(r['last_modified']) \
-                if i > 0 else r['last_modified']
-            print(f'{h_last_run:19}  {h_last_modified:19}  '
-                f'{r["hostname"]:20}  {r["size_MB"]:10}  {r["files"]:8}  '
-                f'{r["invalid"] or "":8}  {str(r["is_stale"] or ""):8}  '
-                f'{r["src"]}')
+            modified_str = ts_to_str(r['modified']) if i > 0 else r['modified']
+            print(
+                f'{modified_str:19}  '
+                f'{r["hostname"]:20}  '
+                f'{r["size_MB"]:10}  '
+                f'{r["files"]:8}  '
+                f'{r["conflicts"] or "":10}  '
+                f'{r["src"]}'
+            )
 
-    def get_status(self, order_by='last_run'):
+    def get_status(self, order_by='modified'):
         report = self._monitor()
         self._print_saves(report['saves'], order_by=order_by)
         print(report['message'])

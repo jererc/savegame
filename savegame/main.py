@@ -15,7 +15,7 @@ def parse_args():
     save_parser.add_argument('--daemon', action='store_true')
     save_parser.add_argument('--task', action='store_true')
     status_parser = subparsers.add_parser('status')
-    status_parser.add_argument('--order-by', default='last_run')
+    status_parser.add_argument('--order-by', default='modified')
     load_parser = subparsers.add_parser('load')
     load_parser.add_argument('--hostname')
     load_parser.add_argument('--username')
