@@ -212,7 +212,6 @@ class SaveMonitor:
             saves.append({
                 'hostname': hostname,
                 'src': src,
-                'updated': ref.ts,
                 'modified': max(mtimes) if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
@@ -242,10 +241,8 @@ class SaveMonitor:
             key=lambda x: [x[k] for k in order_by_cols],
             reverse=True)
         for i, r in enumerate(rows):
-            updated_str = ts_to_str(r['updated']) if i > 0 else r['updated']
             modified_str = ts_to_str(r['modified']) if i > 0 else r['modified']
             print(
-                f'{updated_str:19}  '
                 f'{modified_str:19}  '
                 f'{r["size_MB"]:10}  '
                 f'{r["files"]:8}  '
