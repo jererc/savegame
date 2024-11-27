@@ -12,7 +12,7 @@ from savegame.lib import (REF_FILENAME, Metadata, Reference, Report,
 
 
 ATOMIC_REF_UPDATE = True
-FORCE_REF_UPDATE = False
+FORCED_REF_UPDATE = False
 RETRY_DELTA = 2 * 3600
 
 
@@ -115,8 +115,8 @@ class BaseSaver:
                 self.ref.save(
                     atomic=get_else(self.config.ATOMIC_REF_UPDATE,
                         ATOMIC_REF_UPDATE),
-                    force=get_else(self.config.FORCE_REF_UPDATE,
-                        FORCE_REF_UPDATE),
+                    force=get_else(self.config.FORCED_REF_UPDATE,
+                        FORCED_REF_UPDATE),
                 )
             self.success = True
         except Exception as exc:
