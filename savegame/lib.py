@@ -94,9 +94,9 @@ def atomic_write(dst_file):
 def copy_file(src_file, dst_file, atomic=True):
     if atomic:
         with atomic_write(dst_file) as temp_path:
-            shutil.copy(src_file, temp_path)
+            shutil.copy2(src_file, temp_path)
     else:
-        shutil.copy(src_file, dst_file)
+        shutil.copy2(src_file, dst_file)
 
 
 def get_file_hash(file, chunk_size=8192):
