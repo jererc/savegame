@@ -244,10 +244,10 @@ class SaveMonitor:
             modified_str = ts_to_str(r['modified']) if i > 0 else r['modified']
             print(
                 f'{modified_str:19}  '
-                f'{r["hostname"]:20}  '
                 f'{r["size_MB"]:10}  '
                 f'{r["files"]:8}  '
                 f'{r["desynced"] or "":10}  '
+                f'{r["hostname"]:20}  '
                 f'{r["src"]}'
             )
 
