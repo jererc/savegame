@@ -1,4 +1,5 @@
 from copy import deepcopy
+import filecmp
 from fnmatch import fnmatch
 from glob import glob
 import json
@@ -66,11 +67,6 @@ def count_matches(strings, pattern):
         if fnmatch(s, pattern):
             res += 1
     return res
-
-
-def write_ref_data(ref):
-    with open(ref.file, 'w', encoding='utf-8') as fd:
-        json.dump(ref.data, fd, sort_keys=True)
 
 
 class LoadgamePathUsernameTestCase(unittest.TestCase):
@@ -317,7 +313,7 @@ class AtomicWriteTestCase(BaseTestCase):
         self.dst_file = os.path.join(self.dst_root, filename)
 
     def _compare(self, a, b):
-        return module.lib.get_file_hash(a) == module.lib.get_file_hash(b)
+        return filecmp.cmp(a, b, shallow=False)
 
     def test_write(self):
         data = 'a' * 1000
@@ -621,12 +617,6 @@ class SavegameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         self.assertFalse(save.SaveMonitor(self.config)._must_run())
-
-        refs = self._get_ref()
-        for src_path, ref in refs.items():
-            if src_path.endswith('src1'):
-                ref.data['ts'] = time.time() - save.STALE_DELTA - 1
-                write_ref_data(ref)
 
         with patch.object(save.SaveMonitor, '_must_run') as mock__must_run, \
                 patch.object(save.Notifier, 'send') as mock_send:
