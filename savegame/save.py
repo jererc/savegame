@@ -18,6 +18,7 @@ DST_ROOT_DIR = 'saves'
 RUN_DELTA = 3600
 RETENTION_DELTA = 7 * 24 * 3600
 MONITOR_DELTA = 12 * 3600
+STALE_DELTA = 3 * 24 * 3600
 
 
 def ts_to_str(x):
@@ -191,6 +192,7 @@ class SaveMonitor:
 
     def _monitor(self):
         saves = []
+        stale_ts = time.time() - STALE_DELTA
         for hostname, ref in self._iterate_hostname_refs():
             src = self._get_src(ref)
             mtimes = []
@@ -212,13 +214,15 @@ class SaveMonitor:
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
                 'invalid': len(invalid_files),
+                'is_stale': ref.ts < stale_ts,
             })
         report = {
             'saves': saves,
             'invalid': [r for r in saves if r['invalid']],
+            'stale': [r for r in saves if r['is_stale']],
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'invalid')])
+            for k in ('saves', 'invalid', 'stale')])
         return report
 
     def run(self):
@@ -241,7 +245,8 @@ class SaveMonitor:
                 if i > 0 else r['last_modified']
             print(f'{h_last_run:19}  {h_last_modified:19}  '
                 f'{r["hostname"]:20}  {r["size_MB"]:10}  {r["files"]:8}  '
-                f'{r["invalid"] or "":8}  {r["src"]}')
+                f'{r["invalid"] or "":8}  {str(r["is_stale"] or ""):8}  '
+                f'{r["src"]}')
 
     def get_status(self, order_by='last_run'):
         report = self._monitor()
