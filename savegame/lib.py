@@ -180,7 +180,7 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def save(self, force=True):
+    def save(self, force=False, atomic=True):
         data = {
             'src': self.src,
             'files': self.files,
@@ -188,11 +188,13 @@ class Reference:
         if not (force or data != {k: self.data.get(k) for k in data.keys()}):
             return
         data['ts'] = time.time()
-        # with atomic_write(self.file) as temp_path:
-        #     with open(temp_path, 'w', encoding='utf-8') as fd:
-        #         json.dump(data, fd, sort_keys=True, indent=4)
-        with open(self.file, 'w', encoding='utf-8') as fd:
-            json.dump(data, fd, sort_keys=True, indent=4)
+        if atomic:
+            with atomic_write(self.file) as temp_path:
+                with open(temp_path, 'w', encoding='utf-8') as fd:
+                    json.dump(data, fd, sort_keys=True, indent=4)
+        else:
+            with open(self.file, 'w', encoding='utf-8') as fd:
+                json.dump(data, fd, sort_keys=True, indent=4)
         self._load(data)
 
     @property
