@@ -212,7 +212,7 @@ class SaveMonitor:
             saves.append({
                 'hostname': hostname,
                 'src': src,
-                'modified': sorted(mtimes)[-1] if mtimes else 0,
+                'modified': max(mtimes) if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
                 'desynced': len(desynced),
