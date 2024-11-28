@@ -201,12 +201,8 @@ class SaveMonitor:
             src_file = os.path.join(ref.src, rel_path)
             if not os.path.exists(src_file):
                 return f'missing src file {src_file}'
-            if get_file_mtime(src_file) > get_file_mtime(dst_file):
-                return f'more recent src file {src_file}'
-            if os.path.getsize(src_file) != os.path.getsize(dst_file):
+            if get_file_hash(src_file) != ref_hash:
                 return f'conflicting src file {src_file}'
-            # if get_file_hash(src_file) != ref_hash:
-            #     return f'conflicting src file {src_file}'
         return None
 
     def _monitor(self):
