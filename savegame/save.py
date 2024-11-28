@@ -189,29 +189,42 @@ class SaveMonitor:
             return f'{ref.src}{sep}{list(ref.files.keys())[0]}'
         return ref.src
 
+    def _check_file(self, hostname, ref, rel_path, ref_hash):
+        rel_path = get_local_path(rel_path)
+        dst_file = os.path.join(ref.dst, rel_path)
+        if not os.path.exists(dst_file):
+            return f'missing dst file {dst_file}'
+        dst_hash = get_file_hash(dst_file)
+        if dst_hash != ref_hash:
+            return f'conflicting dst file {dst_file}'
+        if hostname == HOSTNAME and os.path.exists(ref.src):
+            src_file = os.path.join(ref.src, rel_path)
+            if not os.path.exists(src_file):
+                return f'missing src file {src_file}'
+            if get_file_mtime(src_file) > get_file_mtime(dst_file):
+                return f'more recent src file {src_file}'
+            if os.path.getsize(src_file) != os.path.getsize(dst_file):
+                return f'conflicting src file {src_file}'
+            # if get_file_hash(src_file) != ref_hash:
+            #     return f'conflicting src file {src_file}'
+        return None
+
     def _monitor(self):
         saves = []
         for hostname, ref in self._iterate_hostname_refs():
-            src = self._get_src(ref)
             mtimes = []
             desynced = []
             for rel_path, ref_hash in ref.files.items():
                 dst_file = os.path.join(ref.dst, get_local_path(rel_path))
-                dst_exists = os.path.exists(dst_file)
-                if dst_exists:
+                if os.path.exists(dst_file):
                     mtimes.append(get_file_mtime(dst_file))
-                if get_file_hash(dst_file) != ref_hash:
-                    desynced.append(dst_file)
-                    logger.error(f'{"invalid" if dst_exists else "missing"} '
-                        f'file: {dst_file}')
-                if hostname == HOSTNAME:
-                    src_file = os.path.join(ref.src, get_local_path(rel_path))
-                    if os.path.exists(src_file) and \
-                            get_file_hash(src_file) != get_file_hash(dst_file):
-                        desynced.append(dst_file)
+                error = self._check_file(hostname, ref, rel_path, ref_hash)
+                if error:
+                    desynced.append(rel_path)
+                    logger.error(f'inconsistency detected: {error}')
             saves.append({
                 'hostname': hostname,
-                'src': src,
+                'src': self._get_src(ref),
                 'modified': max(mtimes) if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
