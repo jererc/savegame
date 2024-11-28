@@ -9,9 +9,6 @@ from savegame.lib import (atomic_write_fd, atomic_write_file, get_file_hash,
 from savegame.savers.base import BaseSaver
 
 
-GOOGLE_AUTOAUTH_BROWSER_ID = 'chrome'
-
-
 def get_file_mtime_dt(x):
     if os.path.exists(x):
         return datetime.fromtimestamp(get_file_mtime(x), tz=timezone.utc)
@@ -21,8 +18,6 @@ def get_google_cloud(config, headless=True):
     return GoogleCloud(
         oauth_secrets_file=os.path.expanduser(
             config.GOOGLE_CLOUD_SECRETS_FILE),
-        browser_id=config.GOOGLE_AUTOAUTH_BROWSER_ID
-            or GOOGLE_AUTOAUTH_BROWSER_ID,
         headless=headless,
     )
 
