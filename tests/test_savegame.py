@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 from svcutils.service import Config
 
-TEST_DIR = '_test_savegame'
-WORK_PATH = os.path.join(os.path.expanduser('~'), TEST_DIR)
+TEST_DIR = 'savegame'
+WORK_PATH = os.path.join(os.path.expanduser('~'), '_tests', TEST_DIR)
 import savegame as module
 module.WORK_PATH = WORK_PATH
 module.logger.setLevel(logging.DEBUG)
@@ -827,8 +827,8 @@ class SavegameTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
         src_path = {
-            'posix': f'~\\{TEST_DIR}\\*',
-            'nt': f'~/{TEST_DIR}/*',
+            'posix': f'~\\_tests\\{TEST_DIR}\\*',
+            'nt': f'~/_tests/{TEST_DIR}/*',
         }[os.name]
         saves = [
             {
@@ -847,9 +847,9 @@ class SavegameTestCase(BaseTestCase):
         saves = [
             {
                 'src_paths': [
-                    os.path.join('~', TEST_DIR, SRC_DIR),
+                    os.path.join('~', '_tests', TEST_DIR, SRC_DIR),
                 ],
-                'dst_path': os.path.join('~', TEST_DIR, DST_DIR),
+                'dst_path': os.path.join('~', '_tests', TEST_DIR, DST_DIR),
             },
         ]
         self._savegame(saves=saves)
