@@ -16,8 +16,7 @@ def get_file_mtime_dt(x):
 
 def get_google_cloud(config, headless=True):
     return GoogleCloud(
-        oauth_secrets_file=os.path.expanduser(
-            config.GOOGLE_CLOUD_SECRETS_FILE),
+        oauth_secrets_file=os.path.expanduser(config.GOOGLE_CREDS),
         headless=headless,
     )
 

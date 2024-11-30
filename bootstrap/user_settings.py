@@ -1,7 +1,7 @@
 import os.path
 
 DST_PATH = os.path.join('~', 'MEGA', 'data')
-GOOGLE_CLOUD_SECRETS_FILE = r'C:\Users\jerer\google_cloud_secrets.json'
+GOOGLE_CREDS = r'C:\Users\jerer\secrets.json'
 SAVES = [
     {
         'src_paths': [

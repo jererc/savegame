@@ -22,7 +22,7 @@ module.logger.handlers.clear()
 from savegame import load, save, savers
 
 
-GOOGLE_CLOUD_SECRETS_FILE = os.path.join(os.path.expanduser('~'), 'gcs.json')
+GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 SRC_DIR = 'src_root'
@@ -188,7 +188,7 @@ class BaseTestCase(unittest.TestCase):
 
         self.config = self._get_config(
             SAVES=[],
-            GOOGLE_CLOUD_SECRETS_FILE=GOOGLE_CLOUD_SECRETS_FILE,
+            GOOGLE_CREDS=GOOGLE_CREDS,
         )
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
