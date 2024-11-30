@@ -94,7 +94,7 @@ class LocalLoader:
             else:
                 self.report.add('loaded', src, src_file)
             makedirs(os.path.dirname(src_file))
-            shutil.copyfile(dst_file, src_file)
+            shutil.copy2(dst_file, src_file)
             logger.info(f'loaded {src_file} from {dst_file}')
         except Exception as exc:
             self.report.add('failed', src, src_file)

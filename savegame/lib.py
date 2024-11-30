@@ -5,7 +5,6 @@ from fnmatch import fnmatch
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import socket
 import tempfile
@@ -56,33 +55,12 @@ def remove_path(path):
             os.remove(path)
 
 
-def find_mount_point(path):
-    current_path = path
-    while not os.path.ismount(current_path):
-        current_path = current_path.parent
-    return current_path
-
-
-def get_drive_temp_dir(path):
-    abs_path = Path(path).resolve()
-    if os.name == 'nt':
-        drive_root = abs_path.anchor
-        temp_dir_on_drive = Path(drive_root) / 'Temp'
-    else:
-        mount_point = find_mount_point(abs_path)
-        temp_dir_on_drive = Path(mount_point) / 'tmp'
-        if not temp_dir_on_drive.exists():
-            temp_dir_on_drive = Path('/tmp')
-    return str(temp_dir_on_drive)
-
-
 @contextmanager
 def atomic_write_fd(dst_file, **kwargs):
-    temp_dir = get_drive_temp_dir(dst_file)
-    makedirs(temp_dir)
+    temp_dir = os.path.dirname(dst_file)
     try:
         with tempfile.NamedTemporaryFile(dir=temp_dir,
-                delete=False, **kwargs) as temp_file:
+                prefix='~tmp', delete=False, **kwargs) as temp_file:
             temp_path = temp_file.name
             yield temp_file
         os.replace(temp_path, dst_file)
@@ -93,25 +71,16 @@ def atomic_write_fd(dst_file, **kwargs):
 
 @contextmanager
 def atomic_write_file(dst_file):
-    temp_dir = get_drive_temp_dir(dst_file)
-    makedirs(temp_dir)
+    temp_dir = os.path.dirname(dst_file)
     try:
         with tempfile.NamedTemporaryFile(dir=temp_dir,
-                delete=False) as temp_file:
+                prefix='~tmp', delete=False) as temp_file:
             temp_path = temp_file.name
         yield temp_path
         os.replace(temp_path, dst_file)
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-
-
-def copy_file(src_file, dst_file, atomic=True):
-    if atomic:
-        with atomic_write_file(dst_file) as temp_path:
-            shutil.copy2(src_file, temp_path)
-    else:
-        shutil.copy2(src_file, dst_file)
 
 
 def get_file_hash(file, chunk_size=8192):
@@ -195,7 +164,7 @@ class Reference:
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
-    def save(self, atomic=False, force=False):
+    def save(self, force=False):
         data = {
             'src': self.src,
             'files': self.files,
@@ -203,13 +172,8 @@ class Reference:
         if not (force or data != {k: self.data.get(k) for k in data.keys()}):
             return
         data['ts'] = time.time()
-        if atomic:
-            with atomic_write_fd(self.file,
-                    mode='w', encoding='utf-8') as fd:
-                json.dump(data, fd, sort_keys=True, indent=4)
-        else:
-            with open(self.file, 'w', encoding='utf-8') as fd:
-                json.dump(data, fd, sort_keys=True, indent=4)
+        with open(self.file, 'w', encoding='utf-8') as fd:
+            json.dump(data, fd, sort_keys=True, indent=4)
         self._load(data)
 
     @property

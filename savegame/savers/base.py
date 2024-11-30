@@ -11,8 +11,6 @@ from savegame.lib import (REF_FILENAME, Metadata, Reference, Report,
     get_else, get_file_mtime, remove_path)
 
 
-ATOMIC_REF_UPDATE = False
-FORCED_REF_UPDATE = False
 RETRY_DELTA = 2 * 3600
 
 
@@ -43,6 +41,8 @@ class BaseSaver:
         self.dst_path = dst_path
         self.run_delta = run_delta
         self.retention_delta = retention_delta
+        self.always_update_ref = get_else(
+            self.config.ALWAYS_UPDATE_REF, False)
         self.dst = self.get_dst()
         self.dst_paths = set()
         self.ref = Reference(self.dst)
@@ -112,12 +112,7 @@ class BaseSaver:
             self.do_run()
             self._purge_dst()
             if os.path.exists(self.ref.dst):
-                self.ref.save(
-                    atomic=get_else(self.config.ATOMIC_REF_UPDATE,
-                        ATOMIC_REF_UPDATE),
-                    force=get_else(self.config.FORCED_REF_UPDATE,
-                        FORCED_REF_UPDATE),
-                )
+                self.ref.save(force=self.always_update_ref)
             self.success = True
         except Exception as exc:
             self.success = False

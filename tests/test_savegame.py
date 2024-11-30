@@ -328,25 +328,23 @@ class AtomicWriteTestCase(BaseTestCase):
     def test_copy(self):
         with open(self.src_file, 'w') as fd:
             fd.write('a' * 10000)
-        with module.lib.atomic_write_file(self.dst_file) as temp_path:
-            self.assertTrue(os.path.exists(temp_path))
-            shutil.copy2(self.src_file, temp_path)
-        self.assertTrue(self._compare(self.src_file, self.dst_file))
-        self.assertFalse(os.path.exists(temp_path))
-
-    def test_copy_file(self):
-        with open(self.src_file, 'w') as fd:
-            fd.write('a' * 10000)
         for i in range(2):
-            module.lib.copy_file(self.src_file, self.dst_file)
+            with module.lib.atomic_write_file(self.dst_file) as temp_path:
+                self.assertTrue(os.path.exists(temp_path))
+                shutil.copy2(self.src_file, temp_path)
             self.assertTrue(self._compare(self.src_file, self.dst_file))
+            self.assertFalse(os.path.exists(temp_path))
 
         with open(self.dst_file, 'w') as fd:
             fd.write('b' * 10000)
         self.assertFalse(self._compare(self.src_file, self.dst_file))
+
         for i in range(2):
-            module.lib.copy_file(self.src_file, self.dst_file)
+            with module.lib.atomic_write_file(self.dst_file) as temp_path:
+                self.assertTrue(os.path.exists(temp_path))
+                shutil.copy2(self.src_file, temp_path)
             self.assertTrue(self._compare(self.src_file, self.dst_file))
+            self.assertFalse(os.path.exists(temp_path))
 
 
 class SaveItemTestCase(BaseTestCase):
@@ -485,11 +483,11 @@ class SavegameTestCase(BaseTestCase):
                 with open(file, 'w') as fd:
                     fd.write(f'new content for {file}')
 
-        def side_copy_file(*args, **kwargs):
-            raise Exception('copy_file failed')
+        def side_copy(*args, **kwargs):
+            raise Exception('copy failed')
 
-        with patch.object(module.savers.local, 'copy_file') as mock_copy_file:
-            mock_copy_file.side_effect = side_copy_file
+        with patch.object(module.savers.local.shutil, 'copy2') as mock_copy:
+            mock_copy.side_effect = side_copy
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)

@@ -1,12 +1,10 @@
 import os
+import shutil
 
 from savegame import logger
-from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns, copy_file,
-    get_file_hash, get_else, makedirs)
+from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
+    get_file_hash, makedirs)
 from savegame.savers.base import BaseSaver
-
-
-ATOMIC_COPY = True
 
 
 def walk_files(path):
@@ -49,8 +47,7 @@ class LocalSaver(BaseSaver):
             try:
                 if src_hash != dst_hash:
                     makedirs(os.path.dirname(dst_file))
-                    copy_file(src_file, dst_file, atomic=get_else(
-                        self.config.ATOMIC_COPY, ATOMIC_COPY))
+                    shutil.copy2(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash
             except Exception:

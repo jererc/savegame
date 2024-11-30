@@ -2,7 +2,7 @@ from copy import deepcopy
 import json
 import os
 
-from savegame.lib import HOSTNAME, atomic_write_fd, get_hash, makedirs
+from savegame.lib import HOSTNAME, get_hash, makedirs
 from savegame.savers.base import BaseSaver
 
 
@@ -134,8 +134,7 @@ class BookmarksExportSaver(BaseSaver):
                 self.report.add('skipped', self.src, dst_file)
             else:
                 makedirs(os.path.dirname(dst_file))
-                with atomic_write_fd(dst_file, mode='w', encoding='utf-8',
-                        newline='\n') as fd:
+                with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                     fd.write(file_meta['content'])
                 self.report.add('saved', self.src, dst_file)
             self.ref.files[rel_path] = dst_hash

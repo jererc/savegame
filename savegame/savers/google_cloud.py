@@ -4,8 +4,8 @@ import os
 from webutils.google.cloud import GoogleCloud
 
 from savegame import logger
-from savegame.lib import (atomic_write_fd, atomic_write_file, get_file_hash,
-    get_file_mtime, get_hash, makedirs, to_json)
+from savegame.lib import (get_file_hash, get_file_mtime, get_hash,
+    makedirs, to_json)
 from savegame.savers.base import BaseSaver
 
 
@@ -40,9 +40,8 @@ class GoogleDriveExportSaver(BaseSaver):
                 continue
             makedirs(os.path.dirname(dst_file))
             try:
-                with atomic_write_file(dst_file) as temp_path:
-                    gc.export_file(file_id=file_meta['id'],
-                        path=temp_path, mime_type=file_meta['mime_type'])
+                gc.export_file(file_id=file_meta['id'],
+                    path=dst_file, mime_type=file_meta['mime_type'])
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
@@ -70,8 +69,7 @@ class GoogleContactsExportSaver(BaseSaver):
             self.report.add('skipped', self.src, dst_file)
         else:
             makedirs(os.path.dirname(dst_file))
-            with atomic_write_fd(dst_file, mode='w',
-                    encoding='utf-8', newline='\n') as fd:
+            with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
             self.report.add('saved', self.src, dst_file)
             logger.info(f'saved {len(contacts)} google contacts')
