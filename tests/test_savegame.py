@@ -303,50 +303,6 @@ class ReferenceTestCase(BaseTestCase):
             self.assertEqual(os.stat(ref2.file).st_mtime, mtime2)
 
 
-class AtomicWriteTestCase(BaseTestCase):
-    def setUp(self):
-        super().setUp()
-        makedirs(self.src_root)
-        filename = 'file.txt'
-        self.src_file = os.path.join(self.src_root, filename)
-        self.dst_file = os.path.join(self.dst_root, filename)
-
-    def _compare(self, a, b):
-        return module.lib.get_file_hash(a) == module.lib.get_file_hash(b)
-
-    def test_write(self):
-        data = 'a' * 1000
-        with module.lib.atomic_write_fd(self.dst_file,
-                mode='w', encoding='utf-8') as fd:
-            temp_path = fd.name
-            self.assertTrue(os.path.exists(temp_path))
-            fd.write(data)
-        with open(self.dst_file) as fd:
-            self.assertEqual(fd.read(), data)
-        self.assertFalse(os.path.exists(temp_path))
-
-    def test_copy(self):
-        with open(self.src_file, 'w') as fd:
-            fd.write('a' * 10000)
-        for i in range(2):
-            with module.lib.atomic_write_file(self.dst_file) as temp_path:
-                self.assertTrue(os.path.exists(temp_path))
-                shutil.copy2(self.src_file, temp_path)
-            self.assertTrue(self._compare(self.src_file, self.dst_file))
-            self.assertFalse(os.path.exists(temp_path))
-
-        with open(self.dst_file, 'w') as fd:
-            fd.write('b' * 10000)
-        self.assertFalse(self._compare(self.src_file, self.dst_file))
-
-        for i in range(2):
-            with module.lib.atomic_write_file(self.dst_file) as temp_path:
-                self.assertTrue(os.path.exists(temp_path))
-                shutil.copy2(self.src_file, temp_path)
-            self.assertTrue(self._compare(self.src_file, self.dst_file))
-            self.assertFalse(os.path.exists(temp_path))
-
-
 class SaveItemTestCase(BaseTestCase):
     def test_dst_path(self):
         dst_path = os.path.expanduser('~')

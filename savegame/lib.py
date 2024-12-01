@@ -1,5 +1,4 @@
 from collections import defaultdict
-from contextlib import contextmanager
 from copy import deepcopy
 from fnmatch import fnmatch
 import hashlib
@@ -7,7 +6,6 @@ import json
 import os
 import shutil
 import socket
-import tempfile
 import time
 
 from savegame import NAME, WORK_PATH, logger
@@ -53,34 +51,6 @@ def remove_path(path):
             shutil.rmtree(path)
         else:
             os.remove(path)
-
-
-@contextmanager
-def atomic_write_fd(dst_file, **kwargs):
-    temp_dir = os.path.dirname(dst_file)
-    try:
-        with tempfile.NamedTemporaryFile(dir=temp_dir,
-                prefix='~tmp', delete=False, **kwargs) as temp_file:
-            temp_path = temp_file.name
-            yield temp_file
-        os.replace(temp_path, dst_file)
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
-
-@contextmanager
-def atomic_write_file(dst_file):
-    temp_dir = os.path.dirname(dst_file)
-    try:
-        with tempfile.NamedTemporaryFile(dir=temp_dir,
-                prefix='~tmp', delete=False) as temp_file:
-            temp_path = temp_file.name
-        yield temp_path
-        os.replace(temp_path, dst_file)
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
 
 
 def get_file_hash(file, chunk_size=8192):
