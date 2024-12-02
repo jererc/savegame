@@ -1,7 +1,7 @@
-import os.path
+import os
 
 DST_PATH = os.path.join('~', 'MEGA', 'data')
-GOOGLE_CREDS = r'C:\Users\jerer\secrets.json'
+GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'creds.json')
 SAVES = [
     {
         'src_paths': [
