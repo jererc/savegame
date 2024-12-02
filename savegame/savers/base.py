@@ -8,7 +8,7 @@ from svcutils.service import Notifier
 
 from savegame import NAME, logger
 from savegame.lib import (REF_FILENAME, Metadata, Reference, Report,
-    get_else, get_file_mtime, remove_path)
+    get_file_mtime, remove_path)
 
 
 RETRY_DELTA = 2 * 3600
@@ -41,8 +41,6 @@ class BaseSaver:
         self.dst_path = dst_path
         self.run_delta = run_delta
         self.retention_delta = retention_delta
-        self.always_update_ref = get_else(
-            self.config.ALWAYS_UPDATE_REF, False)
         self.dst = self.get_dst()
         self.dst_paths = set()
         self.ref = Reference(self.dst)
@@ -112,7 +110,7 @@ class BaseSaver:
             self.do_run()
             self._purge_dst()
             if os.path.exists(self.ref.dst):
-                self.ref.save(force=self.always_update_ref)
+                self.ref.save(force=self.config.ALWAYS_UPDATE_REF)
             self.success = True
         except Exception as exc:
             self.success = False

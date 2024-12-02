@@ -7,17 +7,14 @@ from svcutils.service import Notifier, RunFile
 
 from savegame import NAME, WORK_PATH, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
-    InvalidPath, UnhandledPath, get_else, get_file_hash, get_file_mtime,
+    InvalidPath, UnhandledPath, get_file_hash, get_file_mtime,
     to_json, validate_path)
 from savegame.savers.base import get_saver_class
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
 
 
-DST_ROOT_DIR = 'saves'
-RUN_DELTA = 3600
-RETENTION_DELTA = 7 * 24 * 3600
-MONITOR_DELTA = 12 * 3600
+MONITOR_DELTA = 16 * 3600
 
 
 def ts_to_str(x):
@@ -48,10 +45,10 @@ class SaveItem:
         self.saver_id = saver_id
         self.saver_cls = get_saver_class(self.saver_id)
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
-        self.run_delta = get_else(run_delta,
-            get_else(self.config.RUN_DELTA, RUN_DELTA))
-        self.retention_delta = get_else(retention_delta,
-            get_else(self.config.RETENTION_DELTA, RETENTION_DELTA))
+        self.run_delta = (self.config.SAVE_RUN_DELTA
+            if run_delta is None else run_delta)
+        self.retention_delta = (self.config.RETENTION_DELTA
+            if retention_delta is None else retention_delta)
         self.loadable = loadable
         self.os_name = os_name
 
@@ -68,8 +65,8 @@ class SaveItem:
             if not os.path.exists(dst_path):
                 raise InvalidPath(
                     f'invalid dst_path {dst_path}: does not exist')
-            return os.path.join(dst_path, self.config.DST_ROOT_DIR
-                or DST_ROOT_DIR, self.saver_id)
+            return os.path.join(dst_path, self.config.DST_ROOT_DIR,
+                self.saver_id)
         return dst_path
 
     def _generate_src_and_patterns(self):

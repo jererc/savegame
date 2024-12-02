@@ -34,14 +34,21 @@ def parse_args():
 def main():
     args = parse_args()
     path = os.path.realpath(os.path.expanduser(args.path))
-    config = Config(os.path.join(path, 'user_settings.py'))
+    config = Config(
+        os.path.join(path, 'user_settings.py'),
+        DST_ROOT_DIR='saves',
+        SAVE_RUN_DELTA=3600,
+        RETENTION_DELTA=7 * 24 * 3600,
+        ALWAYS_UPDATE_REF=False,
+        RUN_DELTA=30 * 60,
+    )
     if args.cmd == 'save':
         service = Service(
             target=save.savegame,
             args=(config,),
             work_path=WORK_PATH,
-            run_delta=30 * 60,
-            force_run_delta=90 * 60,
+            run_delta=config.RUN_DELTA,
+            force_run_delta=3 * config.RUN_DELTA,
             max_cpu_percent=10,
             min_uptime=300,
             requires_online=False,

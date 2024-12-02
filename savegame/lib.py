@@ -41,10 +41,6 @@ def to_json(x):
     return json.dumps(x, sort_keys=True, indent=4)
 
 
-def get_else(x, default):
-    return default if x is None else x
-
-
 def remove_path(path):
     if os.path.exists(path):
         if os.path.isdir(path):

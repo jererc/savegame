@@ -250,12 +250,19 @@ class BaseTestCase(unittest.TestCase):
                 switch_ref_path(path)
 
     def _get_config(self, **kwargs):
-        return Config(__file__, **kwargs)
+        args = {
+            'DST_ROOT_DIR': 'saves',
+            'SAVE_RUN_DELTA': 0,
+            'RETENTION_DELTA': 7 * 24 * 3600,
+            'ALWAYS_UPDATE_REF': False,
+        }
+        args.update(kwargs)
+        return Config(__file__, **args)
 
     def _savegame(self, saves, **kwargs):
         self.config.SAVES = saves
         with patch.object(save.Notifier, 'send'):
-            config = self._get_config(SAVES=saves, RUN_DELTA=0)
+            config = self._get_config(SAVES=saves)
             save.savegame(config, **kwargs)
 
     def _loadgame(self, **kwargs):
