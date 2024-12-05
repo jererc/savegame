@@ -11,7 +11,7 @@ from savegame.save import iterate_save_items
 from savegame.savers.local import LocalSaver
 
 
-HOME_PATH = os.path.expanduser('~')
+HOME_DIR = os.path.expanduser('~')
 USERNAME = os.getlogin()
 SHARED_USERNAMES = {
     'nt': {'Public'},
@@ -34,7 +34,7 @@ class LocalLoader:
 
     def _get_src_file_for_user(self, path):
         pp = PurePath(path)
-        home_root = os.path.dirname(HOME_PATH)
+        home_root = os.path.dirname(HOME_DIR)
         if not pp.is_relative_to(home_root):
             return path
         try:
@@ -45,7 +45,7 @@ class LocalLoader:
             return path
         if username == self.username:
             return path.replace(os.path.join(home_root, username),
-                HOME_PATH, 1)
+                HOME_DIR, 1)
         return None
 
     def _iterate_refs(self):
