@@ -39,7 +39,7 @@ def get_path_separator(path):
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
                  dst_path=None, run_delta=None, retention_delta=None,
-                 loadable=True, os_name=None):
+                 loadable=True, os_name=None, hostname=None):
         self.config = config
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
@@ -51,6 +51,7 @@ class SaveItem:
             if retention_delta is None else retention_delta)
         self.loadable = loadable
         self.os_name = os_name
+        self.hostname = hostname
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple))
@@ -83,6 +84,8 @@ class SaveItem:
 
     def generate_savers(self):
         if self.os_name and os.name != self.os_name:
+            return
+        if self.hostname and HOSTNAME != self.hostname:
             return
         for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(
