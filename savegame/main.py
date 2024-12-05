@@ -4,7 +4,7 @@ import sys
 
 from svcutils.service import Config, Service
 
-from savegame import WORK_PATH, load, save
+from savegame import WORK_DIR, load, save
 
 
 def parse_args():
@@ -46,7 +46,7 @@ def main():
         service = Service(
             target=save.savegame,
             args=(config,),
-            work_path=WORK_PATH,
+            work_dir=WORK_DIR,
             run_delta=config.RUN_DELTA,
             force_run_delta=3 * config.RUN_DELTA,
             max_cpu_percent=10,

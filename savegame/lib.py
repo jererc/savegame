@@ -8,7 +8,7 @@ import shutil
 import socket
 import time
 
-from savegame import NAME, WORK_PATH, logger
+from savegame import NAME, WORK_DIR, logger
 
 
 HOSTNAME = socket.gethostname()
@@ -78,7 +78,7 @@ def check_patterns(path, inclusions=None, exclusions=None):
 
 
 class Metadata:
-    file = os.path.join(WORK_PATH, 'meta.json')
+    file = os.path.join(WORK_DIR, 'meta.json')
     data = {}
 
     def __new__(cls):

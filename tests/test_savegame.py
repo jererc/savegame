@@ -13,10 +13,10 @@ from unittest.mock import patch
 
 from svcutils.service import Config
 
-TEST_DIR = 'savegame'
-WORK_PATH = os.path.join(os.path.expanduser('~'), '_tests', TEST_DIR)
+TEST_DIRNAME = 'savegame'
+WORK_DIR = os.path.join(os.path.expanduser('~'), '_tests', TEST_DIRNAME)
 import savegame as module
-module.WORK_PATH = WORK_PATH
+module.WORK_DIR = WORK_DIR
 module.logger.setLevel(logging.DEBUG)
 module.logger.handlers.clear()
 from savegame import load, save, savers
@@ -173,14 +173,14 @@ class PatternTestCase(unittest.TestCase):
 
 class BaseTestCase(unittest.TestCase):
     def setUp(self):
-        for path in glob(os.path.join(module.WORK_PATH, '*')):
+        for path in glob(os.path.join(module.WORK_DIR, '*')):
             if os.path.splitext(path)[1] == '.log':
                 continue
             remove_path(path)
-        makedirs(WORK_PATH)
+        makedirs(WORK_DIR)
 
-        self.src_root = os.path.join(module.WORK_PATH, SRC_DIR)
-        self.dst_root = os.path.join(module.WORK_PATH, DST_DIR)
+        self.src_root = os.path.join(module.WORK_DIR, SRC_DIR)
+        self.dst_root = os.path.join(module.WORK_DIR, DST_DIR)
         makedirs(self.dst_root)
 
         self.meta = module.lib.Metadata()
@@ -788,8 +788,8 @@ class SavegameTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
         src_path = {
-            'posix': f'~\\_tests\\{TEST_DIR}\\*',
-            'nt': f'~/_tests/{TEST_DIR}/*',
+            'posix': f'~\\_tests\\{TEST_DIRNAME}\\*',
+            'nt': f'~/_tests/{TEST_DIRNAME}/*',
         }[os.name]
         saves = [
             {
@@ -808,9 +808,9 @@ class SavegameTestCase(BaseTestCase):
         saves = [
             {
                 'src_paths': [
-                    os.path.join('~', '_tests', TEST_DIR, SRC_DIR),
+                    os.path.join('~', '_tests', TEST_DIRNAME, SRC_DIR),
                 ],
-                'dst_path': os.path.join('~', '_tests', TEST_DIR, DST_DIR),
+                'dst_path': os.path.join('~', '_tests', TEST_DIRNAME, DST_DIR),
             },
         ]
         self._savegame(saves=saves)

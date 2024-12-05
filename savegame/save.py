@@ -5,7 +5,7 @@ import time
 
 from svcutils.service import Notifier, RunFile
 
-from savegame import NAME, WORK_PATH, logger
+from savegame import NAME, WORK_DIR, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
     InvalidPath, UnhandledPath, get_file_hash, get_file_mtime,
     to_json, validate_path)
@@ -151,7 +151,7 @@ class SaveHandler:
 class SaveMonitor:
     def __init__(self, config):
         self.config = config
-        self.run_file = RunFile(os.path.join(WORK_PATH, 'monitor.run'))
+        self.run_file = RunFile(os.path.join(WORK_DIR, '.monitor.run'))
 
     def _must_run(self):
         return time.time() > self.run_file.get_ts() + MONITOR_DELTA
