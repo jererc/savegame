@@ -57,7 +57,7 @@ class BaseSaver:
         return self.dst_path
 
     def notify_error(self, message, exc=None):
-        Notifier().send(title=f'{NAME} error', body=message)
+        Notifier().send(title='error', body=message, app_name=NAME)
 
     def _must_run(self):
         return time.time() > self.meta.get(self.src).get('next_ts', 0)

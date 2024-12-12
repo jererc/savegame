@@ -139,8 +139,9 @@ class SaveHandler:
                 saver.run(force=self.force)
             except Exception as exc:
                 logger.exception(f'failed to save {saver.src}')
-                Notifier().send(title=f'{NAME} exception',
-                    body=f'failed to save {saver.src}: {exc}')
+                Notifier().send(title='exception',
+                    body=f'failed to save {saver.src}: {exc}',
+                    app_name=NAME)
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
         report_dict = report.clean(keys={'saved', 'removed'})
@@ -238,7 +239,7 @@ class SaveMonitor:
         if not self._must_run():
             return
         report = self._monitor()
-        Notifier().send(title=f'{NAME} status', body=report['message'])
+        Notifier().send(title='status', body=report['message'], app_name=NAME)
         self.run_file.touch()
 
     def _print_saves(self, saves, order_by):
@@ -271,12 +272,12 @@ def savegame(config, force=False):
         SaveHandler(config, force=force).run()
     except Exception as exc:
         logger.exception('failed to save')
-        Notifier().send(title=f'{NAME} error', body=str(exc))
+        Notifier().send(title='error', body=str(exc), app_name=NAME)
     try:
         SaveMonitor(config).run()
     except Exception as exc:
         logger.exception('failed to monitor')
-        Notifier().send(title=f'{NAME} error', body=str(exc))
+        Notifier().send(title='error', body=str(exc), app_name=NAME)
 
 
 def status(config, **kwargs):
