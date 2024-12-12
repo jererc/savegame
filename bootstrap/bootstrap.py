@@ -11,6 +11,10 @@ Bootstrapper(
         'savegame @ https://github.com/jererc/savegame/archive/refs/heads/main.zip',
     ],
     force_reinstall=True,
+    extra_cmds=[
+        ['playwright', 'install-deps'],
+        ['playwright', 'install', 'chromium'],
+    ],
     download_assets=[
         ('user_settings.py', 'https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/bootstrap/user_settings.py'),
     ],
