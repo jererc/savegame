@@ -1,12 +1,11 @@
 from datetime import datetime, timezone
 import os
 
-from webutils.google.cloud import GoogleCloud
-
 from savegame import logger
 from savegame.lib import (get_file_hash, get_file_mtime, get_hash,
     makedirs, to_json)
 from savegame.savers.base import BaseSaver
+from savegame.savers.google_api import GoogleCloud
 
 
 def get_file_mtime_dt(x):

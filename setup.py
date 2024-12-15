@@ -2,17 +2,21 @@ from setuptools import setup, find_packages
 
 setup(
     name='savegame',
-    version='2024.12.13.070600',
+    version='2024.12.15.064307',
     author='jererc',
     author_email='jererc@gmail.com',
     url='https://github.com/jererc/savegame',
     packages=find_packages(exclude=['tests*']),
     python_requires='>=3.10',
     install_requires=[
+        'dateutils',
+        'google-api-python-client',
+        'google-auth-httplib2',
+        'google-auth-oauthlib',
         # 'svcutils @ git+https://github.com/jererc/svcutils.git@main#egg=svcutils',
-        # 'webutils @ git+https://github.com/jererc/webutils.git@main#egg=webutils',
         'svcutils @ https://github.com/jererc/svcutils/archive/refs/heads/main.zip',
-        'webutils @ https://github.com/jererc/webutils/archive/refs/heads/main.zip',
+        # 'goth @ git+https://github.com/jererc/goth.git@main#egg=goth',
+        'goth @ https://github.com/jererc/goth/archive/refs/heads/main.zip',
     ],
     extras_require={
         'dev': ['flake8', 'pytest'],
