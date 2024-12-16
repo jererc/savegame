@@ -6,30 +6,14 @@ from savegame.lib import HOSTNAME, get_hash, makedirs
 from savegame.savers.base import BaseSaver
 
 
-CONFIGS = {
+DATA_DIRS = {
     'nt': {
-        'brave': {
-            'binary': r'C:\Program Files\BraveSoftware'
-                r'\Brave-Browser\Application\brave.exe',
-            'data_dir': os.path.expanduser(
-                r'~\AppData\Local\BraveSoftware\Brave-Browser\User Data'),
-        },
-        'chrome': {
-            'binary': r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-            'data_dir': os.path.expanduser(
-                r'~\AppData\Local\Google\Chrome\User Data'),
-        },
+        'brave': r'~\AppData\Local\BraveSoftware\Brave-Browser\User Data',
+        'chrome': r'~\AppData\Local\Google\Chrome\User Data',
     },
     'posix': {
-        'brave': {
-            'binary': '/opt/brave.com/brave/brave',
-            'data_dir': os.path.expanduser(
-                '~/.config/BraveSoftware/Brave-Browser'),
-        },
-        'chrome': {
-            'binary': '/opt/google/chrome/chrome',
-            'data_dir': os.path.expanduser('~/.config/google-chrome'),
-        },
+        'brave': '~/.config/BraveSoftware/Brave-Browser',
+        'chrome': '~/.config/google-chrome',
     },
 }[os.name]
 
@@ -92,12 +76,12 @@ class BookmarksHandler:
         return '\n'.join(lines)
 
     def export(self):
-        for browser_id, config in CONFIGS.items():
-            if not os.path.exists(config['binary']):
+        for browser_id, data_dir in DATA_DIRS.items():
+            data_dir = os.path.expanduser(data_dir)
+            if not os.path.exists(data_dir):
                 continue
-            data_dir = os.path.expanduser(config['data_dir'])
-            for profile_name, profile_path in self._get_profile_paths(
-                    os.path.expanduser(data_dir)).items():
+            for profile_name, profile_path in self._get_profile_paths(data_dir
+                    ).items():
                 file = os.path.join(profile_path, self.filename)
                 if not os.path.exists(file):
                     continue
@@ -106,8 +90,7 @@ class BookmarksHandler:
                 self._set_date_last_used_to_zero(data)
                 dirname = os.path.basename(profile_path)
                 yield {
-                    'path': os.path.join(browser_id, dirname,
-                        self.filename),
+                    'path': os.path.join(browser_id, dirname, self.filename),
                     'content': json.dumps(data, sort_keys=True, indent=4),
                 }
                 yield {
