@@ -162,7 +162,7 @@ class SaveMonitor:
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
-            if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
+            if s.saver_cls.id == 'local' and os.path.exists(s.dst_path)}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
