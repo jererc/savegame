@@ -71,12 +71,13 @@ class BookmarksHandler:
             with open(file, encoding='utf-8') as fd:
                 data = json.load(fd)
             self._set_date_last_used_to_zero(data)
+            dirname = os.path.basename(profile_path)
             yield {
-                'path': os.path.join(profile_path, self.filename),
+                'path': os.path.join(dirname, self.filename),
                 'content': json.dumps(data, sort_keys=True, indent=4),
             }
             yield {
-                'path': os.path.join(profile_path, f'{self.filename}.html'),
+                'path': os.path.join(dirname, f'{self.filename}.html'),
                 'content': self._to_html(data),
             }
 
