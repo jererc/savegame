@@ -86,22 +86,3 @@ class GoogleContactsExportTestCase(BaseTestCase):
         for i in range(2):
             self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
-
-
-class BookmarksExportTestCase(BaseTestCase):
-    def test_1(self):
-        saves = [
-            {
-                'saver_id': 'bookmarks_export',
-                'src_paths': [
-                    '~/.config/BraveSoftware/Brave-Browser',
-                    '~/.config/google-chrome',
-                    r'~\AppData\Local\BraveSoftware\Brave-Browser\User Data',
-                    r'~\AppData\Local\Google\Chrome\User Data',
-                ],
-                'dst_path': self.dst_root,
-            },
-        ]
-        for i in range(2):
-            self._savegame(saves, force=True)
-            pprint(self._list_dst_root_paths())

@@ -47,8 +47,4 @@ DST_PATH = os.path.join('~', 'MEGA', 'data')
 #         'saver_id': 'google_contacts_export',
 #         'run_delta': 12 * 3600,
 #     },
-#     {
-#         'saver_id': 'bookmarks_export',
-#         'run_delta': 12 * 3600,
-#     },
 # ]
