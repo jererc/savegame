@@ -18,7 +18,6 @@ class LocalSaver(BaseSaver):
     hostname = HOSTNAME
 
     def _get_src_and_files(self):
-
         def is_valid(file):
             return (os.path.basename(file) != REF_FILENAME
                 and check_patterns(file, self.inclusions, self.exclusions))

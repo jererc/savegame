@@ -71,7 +71,7 @@ class SaveItem:
         return dst_path
 
     def _generate_src_and_patterns(self):
-        if self.saver_cls.src_type == 'local' and self.src_paths:
+        if self.src_paths:
             for src_path, inclusions, exclusions in self.src_paths:
                 try:
                     validate_path(src_path)

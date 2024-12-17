@@ -6,18 +6,6 @@ from savegame.lib import HOSTNAME, get_hash, makedirs
 from savegame.savers.base import BaseSaver
 
 
-DATA_DIRS = {
-    'nt': {
-        'brave': r'~\AppData\Local\BraveSoftware\Brave-Browser\User Data',
-        'chrome': r'~\AppData\Local\Google\Chrome\User Data',
-    },
-    'posix': {
-        'brave': '~/.config/BraveSoftware/Brave-Browser',
-        'chrome': '~/.config/google-chrome',
-    },
-}[os.name]
-
-
 class BookmarksHandler:
     filename = 'Bookmarks'
 
@@ -75,29 +63,23 @@ class BookmarksHandler:
         lines.append('</DL><p>')
         return '\n'.join(lines)
 
-    def export(self):
-        for browser_id, data_dir in DATA_DIRS.items():
-            data_dir = os.path.expanduser(data_dir)
-            if not os.path.exists(data_dir):
+    def export(self, data_dir):
+        for profile_name, profile_path in self._get_profile_paths(data_dir
+                ).items():
+            file = os.path.join(profile_path, self.filename)
+            if not os.path.exists(file):
                 continue
-            for profile_name, profile_path in self._get_profile_paths(data_dir
-                    ).items():
-                file = os.path.join(profile_path, self.filename)
-                if not os.path.exists(file):
-                    continue
-                with open(file, encoding='utf-8') as fd:
-                    data = json.load(fd)
-                self._set_date_last_used_to_zero(data)
-                dirname = os.path.basename(profile_path)
-                yield {
-                    'path': os.path.join(browser_id, dirname, self.filename),
-                    'content': json.dumps(data, sort_keys=True, indent=4),
-                }
-                yield {
-                    'path': os.path.join(browser_id, dirname,
-                        f'{self.filename}.html'),
-                    'content': self._to_html(data),
-                }
+            with open(file, encoding='utf-8') as fd:
+                data = json.load(fd)
+            self._set_date_last_used_to_zero(data)
+            yield {
+                'path': self.filename,
+                'content': json.dumps(data, sort_keys=True, indent=4),
+            }
+            yield {
+                'path': f'{self.filename}.html',
+                'content': self._to_html(data),
+            }
 
 
 class BookmarksExportSaver(BaseSaver):
@@ -107,7 +89,7 @@ class BookmarksExportSaver(BaseSaver):
     def do_run(self):
         ref_files = deepcopy(self.ref.files)
         self.ref.files = {}
-        for file_meta in BookmarksHandler().export():
+        for file_meta in BookmarksHandler().export(self.src):
             rel_path = file_meta['path']
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
