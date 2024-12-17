@@ -64,8 +64,7 @@ class BookmarksHandler:
         return '\n'.join(lines)
 
     def export(self, data_dir):
-        for profile_name, profile_path in self._get_profile_paths(data_dir
-                ).items():
+        for _, profile_path in self._get_profile_paths(data_dir).items():
             file = os.path.join(profile_path, self.filename)
             if not os.path.exists(file):
                 continue
