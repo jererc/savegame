@@ -72,11 +72,11 @@ class BookmarksHandler:
                 data = json.load(fd)
             self._set_date_last_used_to_zero(data)
             yield {
-                'path': self.filename,
+                'path': os.path.join(profile_path, self.filename),
                 'content': json.dumps(data, sort_keys=True, indent=4),
             }
             yield {
-                'path': f'{self.filename}.html',
+                'path': os.path.join(profile_path, f'{self.filename}.html'),
                 'content': self._to_html(data),
             }
 
