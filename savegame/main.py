@@ -41,6 +41,7 @@ def main():
         RETENTION_DELTA=7 * 24 * 3600,
         ALWAYS_UPDATE_REF=False,
         RUN_DELTA=30 * 60,
+        MONITOR_DELTA=16 * 3600,
         GOOGLE_CREDS=os.path.join(WORK_DIR, 'google_creds.json'),
     )
     if args.cmd == 'save':

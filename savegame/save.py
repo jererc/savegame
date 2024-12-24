@@ -14,9 +14,6 @@ from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
 
 
-MONITOR_DELTA = 16 * 3600
-
-
 def ts_to_str(x):
     return datetime.fromtimestamp(int(x)).isoformat(' ')
 
@@ -158,7 +155,7 @@ class SaveMonitor:
         self.run_file = RunFile(os.path.join(WORK_DIR, '.monitor.run'))
 
     def _must_run(self):
-        return time.time() > self.run_file.get_ts() + MONITOR_DELTA
+        return time.time() > self.run_file.get_ts() + self.config.MONITOR_DELTA
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
