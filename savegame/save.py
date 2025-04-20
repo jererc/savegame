@@ -203,6 +203,17 @@ class SaveMonitor:
                 return f'conflicting src file {src_file}'
         return None
 
+    def _generate_savers(self):
+        for si in iterate_save_items(self.config):
+            yield from si.generate_savers()
+
+    def get_orphans(self):
+        dsts = {s.dst for s in self._generate_savers()}
+        res = set()
+        for dirname in {os.path.dirname(r) for r in dsts}:
+            res.update(set(glob(os.path.join(dirname, '*'))) - dsts)
+        return res
+
     def _monitor(self):
         saves = []
         for hostname, ref in self._iterate_hostname_refs():
@@ -227,9 +238,10 @@ class SaveMonitor:
         report = {
             'saves': saves,
             'desynced': [r for r in saves if r['desynced']],
+            'orphans': list(self.get_orphans()),
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'desynced')])
+            for k in ('saves', 'desynced', 'orphans')])
         return report
 
     def run(self):
