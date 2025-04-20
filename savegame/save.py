@@ -117,14 +117,6 @@ class SaveHandler:
         for si in iterate_save_items(self.config):
             yield from si.generate_savers()
 
-    def _check_dsts(self, savers):
-        dsts = {s.dst for s in savers}
-        orphans = set()
-        for dirname in {os.path.dirname(r) for r in dsts}:
-            orphans.update(set(glob(os.path.join(dirname, '*'))) - dsts)
-        for orphan in orphans:
-            logger.warning(f'orphan path: {orphan}')
-
     def run(self):
         start_ts = time.time()
         savers = list(self._generate_savers())
@@ -144,7 +136,6 @@ class SaveHandler:
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        self._check_dsts(savers)
         logger.info(f'processed {len(savers)} saves in '
             f'{time.time() - start_ts:.02f} seconds')
 
@@ -207,7 +198,7 @@ class SaveMonitor:
         for si in iterate_save_items(self.config):
             yield from si.generate_savers()
 
-    def get_orphans(self):
+    def _get_orphans(self):
         dsts = {s.dst for s in self._generate_savers()}
         res = set()
         for dirname in {os.path.dirname(r) for r in dsts}:
@@ -238,7 +229,7 @@ class SaveMonitor:
         report = {
             'saves': saves,
             'desynced': [r for r in saves if r['desynced']],
-            'orphans': list(self.get_orphans()),
+            'orphans': list(self._get_orphans()),
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
             for k in ('saves', 'desynced', 'orphans')])
