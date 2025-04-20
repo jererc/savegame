@@ -830,8 +830,7 @@ class LoadgameTestCase(BaseTestCase):
                 'run_delta': run_delta,
             },
         ]
-        with patch.object(save.SaveHandler, '_check_dsts'):
-            self._savegame(saves=saves)
+        self._savegame(saves=saves)
 
     def test_load_skipped_identical(self):
         self._savegame_with_data(index_start=1, file_count=2)

@@ -226,10 +226,13 @@ class SaveMonitor:
                 'files': len(ref.files),
                 'desynced': len(desynced),
             })
+        orphans = sorted(self._get_orphans())
+        for orphan in orphans:
+            logger.warning(f'the dst {orphan} does not match any config item')
         report = {
             'saves': saves,
             'desynced': [r for r in saves if r['desynced']],
-            'orphans': list(self._get_orphans()),
+            'orphans': orphans,
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
             for k in ('saves', 'desynced', 'orphans')])
