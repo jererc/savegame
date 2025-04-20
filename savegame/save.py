@@ -198,7 +198,7 @@ class SaveMonitor:
         for si in iterate_save_items(self.config):
             yield from si.generate_savers()
 
-    def _get_orphans(self):
+    def _get_orphan_dsts(self):
         dsts = {s.dst for s in self._generate_savers()}
         res = set()
         for dirname in {os.path.dirname(r) for r in dsts}:
@@ -226,13 +226,13 @@ class SaveMonitor:
                 'files': len(ref.files),
                 'desynced': len(desynced),
             })
-        orphans = sorted(self._get_orphans())
-        for orphan in orphans:
-            logger.warning(f'the dst {orphan} does not match any config item')
+        orphan_dsts = sorted(self._get_orphan_dsts())
+        for orphan_dst in orphan_dsts:
+            logger.warning(f'no matching save: {orphan_dst}')
         report = {
             'saves': saves,
             'desynced': [r for r in saves if r['desynced']],
-            'orphans': orphans,
+            'orphans': orphan_dsts,
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
             for k in ('saves', 'desynced', 'orphans')])
