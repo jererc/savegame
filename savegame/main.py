@@ -50,8 +50,7 @@ def main():
             args=(config,),
             work_dir=WORK_DIR,
             run_delta=config.RUN_DELTA,
-            # force_run_delta=3 * config.RUN_DELTA,
-            max_cpu_percent=10,
+            max_cpu_percent=20,
             min_uptime=180,
             requires_online=False,
         )
