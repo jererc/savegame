@@ -4,8 +4,6 @@ import sys
 
 from svcutils.service import Config, Service
 
-from savegame import WORK_DIR, load, save
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -31,7 +29,14 @@ def parse_args():
     return args
 
 
+def wrap_savegame(*args, **kwargs):
+    from savegame import save
+    return save.savegame(*args, **kwargs)
+
+
 def main():
+    from savegame import WORK_DIR
+
     args = parse_args()
     path = os.path.realpath(os.path.expanduser(args.path))
     config = Config(
@@ -46,7 +51,7 @@ def main():
     )
     if args.cmd == 'save':
         service = Service(
-            target=save.savegame,
+            target=wrap_savegame,
             args=(config,),
             work_dir=WORK_DIR,
             run_delta=config.RUN_DELTA,
@@ -58,14 +63,15 @@ def main():
         elif args.task:
             service.run_once()
         else:
-            save.savegame(config, force=True)
+            wrap_savegame(config, force=True)
     else:
+        from savegame import load, save
         {
             'status': save.status,
             'load': load.loadgame,
             'google_oauth': save.google_oauth,
         }[args.cmd](config, **{k: v for k, v in vars(args).items()
-            if k not in ('cmd', 'path')})
+                               if k not in ('cmd', 'path')})
 
 
 if __name__ == '__main__':
