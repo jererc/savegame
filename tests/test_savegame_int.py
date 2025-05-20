@@ -1,5 +1,5 @@
-import os
 from pprint import pprint
+import sys
 import unittest
 
 from tests.test_savegame import BaseTestCase, module
@@ -27,7 +27,7 @@ WIN_SAVE = {
 
 
 class SavegameTestCase(BaseTestCase):
-    @unittest.skipIf(os.name != 'nt', 'not windows')
+    @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_glob_and_empty_dirs_win(self):
         saves = [
             {

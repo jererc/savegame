@@ -1,6 +1,7 @@
 from datetime import datetime
 from glob import glob
 import os
+import sys
 import time
 
 from svcutils.service import Notifier, RunFile
@@ -36,7 +37,7 @@ def get_path_separator(path):
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
                  dst_path=None, run_delta=None, retention_delta=None,
-                 loadable=True, os_name=None, hostname=None):
+                 loadable=True, platform=None, hostname=None):
         self.config = config
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
@@ -47,7 +48,7 @@ class SaveItem:
         self.retention_delta = (self.config.RETENTION_DELTA
             if retention_delta is None else retention_delta)
         self.loadable = loadable
-        self.os_name = os_name
+        self.platform = platform
         self.hostname = hostname
 
     def _get_src_paths(self, src_paths):
@@ -80,7 +81,7 @@ class SaveItem:
             yield self.saver_id, None, None
 
     def generate_savers(self):
-        if self.os_name and os.name != self.os_name:
+        if self.platform and sys.platform != self.platform:
             return
         if self.hostname and HOSTNAME != self.hostname:
             return

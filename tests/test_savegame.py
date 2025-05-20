@@ -7,6 +7,7 @@ import os
 from pprint import pprint
 import shutil
 import socket
+import sys
 import time
 import unittest
 from unittest.mock import patch
@@ -75,7 +76,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         self.username3 = f'not{self.own_username}3'
         self.dst_path = os.path.dirname(__file__)
 
-    @unittest.skipIf(os.name != 'nt', 'not windows')
+    @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
         obj = load.LocalLoader(self.dst_path)
 
@@ -89,7 +90,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         self.assertEqual(obj._get_src_file_for_user(path),
             f'C:\\Users\\{self.own_username}\\name')
 
-    @unittest.skipIf(os.name != 'posix', 'not linux')
+    @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
         obj = load.LocalLoader(self.dst_path)
 
@@ -102,7 +103,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         path = f'/home/{self.own_username}/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
 
-    @unittest.skipIf(os.name != 'nt', 'not windows')
+    @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
         obj = load.LocalLoader(self.dst_path,
             username=self.username2)
@@ -119,7 +120,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         self.assertEqual(obj._get_src_file_for_user(path),
             f'C:\\Users\\{self.own_username}\\name')
 
-    @unittest.skipIf(os.name != 'posix', 'not linux')
+    @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
         obj = load.LocalLoader(self.dst_path,
             username=self.username2)
@@ -320,7 +321,7 @@ class SaveItemTestCase(BaseTestCase):
             dst_path=dst_path)
         self.assertTrue(list(si.generate_savers()))
 
-        if os.name == 'nt':
+        if sys.platform == 'win32':
             dst_path = '/home/jererc/data'
         else:
             dst_path = r'C:\Users\jerer\data'
@@ -788,10 +789,8 @@ class SavegameTestCase(BaseTestCase):
     def test_home_path_other_os(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3,
             file_count=3)
-        src_path = {
-            'posix': f'~\\_tests\\{TEST_DIRNAME}\\*',
-            'nt': f'~/_tests/{TEST_DIRNAME}/*',
-        }[os.name]
+        src_path = {'win32': f'~/_tests/{TEST_DIRNAME}/*',
+                    'linux': f'~\\_tests\\{TEST_DIRNAME}\\*'}[sys.platform]
         saves = [
             {
                 'src_paths': [src_path],

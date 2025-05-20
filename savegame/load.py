@@ -2,6 +2,7 @@ from glob import glob
 import os
 from pathlib import PurePath
 import shutil
+import sys
 
 from savegame import NAME, logger
 from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath,
@@ -13,10 +14,8 @@ from savegame.savers.local import LocalSaver
 
 HOME_DIR = os.path.expanduser('~')
 USERNAME = os.getlogin()
-SHARED_USERNAMES = {
-    'nt': {'Public'},
-    'posix': {'shared'},
-}.get(os.name, set())
+SHARED_USERNAMES = {'win32': {'Public'},
+                    'linux': {'shared'}}.get(sys.platform, set())
 
 
 class LocalLoader:

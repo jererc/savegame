@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import socket
+import sys
 import time
 
 from savegame import NAME, WORK_DIR, logger
@@ -34,7 +35,7 @@ def get_file_mtime(x):
 
 def validate_path(x):
     if os.path.sep not in x:
-        raise UnhandledPath(f'unhandled path {x}: not {os.name}')
+        raise UnhandledPath(f'unhandled path {x}: {sys.platform=}')
 
 
 def to_json(x):
