@@ -36,7 +36,6 @@ def wrap_savegame(*args, **kwargs):
 
 def main():
     from savegame import WORK_DIR
-
     args = parse_args()
     path = os.path.realpath(os.path.expanduser(args.path))
     config = Config(
