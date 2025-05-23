@@ -6,7 +6,7 @@ import sys
 
 from savegame import NAME, logger
 from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath,
-    check_patterns, get_file_hash, get_file_mtime, makedirs, to_json,
+    check_patterns, get_file_hash, get_file_mtime, to_json,
     validate_path)
 from savegame.save import iterate_save_items
 from savegame.savers.local import LocalSaver
@@ -92,7 +92,7 @@ class LocalLoader:
                 self.report.add('loaded_overwritten', src, src_file)
             else:
                 self.report.add('loaded', src, src_file)
-            makedirs(os.path.dirname(src_file))
+            os.makedirs(os.path.dirname(src_file), exist_ok=True)
             shutil.copy2(dst_file, src_file)
             logger.info(f'loaded {src_file} from {dst_file}')
         except Exception as exc:

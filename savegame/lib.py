@@ -24,11 +24,6 @@ class InvalidPath(Exception):
     pass
 
 
-def makedirs(x):
-    if not os.path.exists(x):
-        os.makedirs(x)
-
-
 def get_file_mtime(x):
     return os.stat(x).st_mtime
 

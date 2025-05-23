@@ -30,11 +30,6 @@ SRC_DIR = 'src_root'
 DST_DIR = 'dst_root'
 
 
-def makedirs(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-
 def remove_path(path):
     if os.path.isdir(path):
         shutil.rmtree(path)
@@ -178,11 +173,11 @@ class BaseTestCase(unittest.TestCase):
             if os.path.splitext(path)[1] == '.log':
                 continue
             remove_path(path)
-        makedirs(WORK_DIR)
+        os.makedirs(WORK_DIR, exist_ok=True)
 
         self.src_root = os.path.join(module.WORK_DIR, SRC_DIR)
         self.dst_root = os.path.join(module.WORK_DIR, DST_DIR)
-        makedirs(self.dst_root)
+        os.makedirs(self.dst_root, exist_ok=True)
 
         self.meta = module.lib.Metadata()
         self.meta.data = {}
@@ -199,7 +194,7 @@ class BaseTestCase(unittest.TestCase):
             for d in range(index_start, index_start + dir_count):
                 d_name = f'dir{d}'
                 src_d = os.path.join(self.src_root, s_name, d_name)
-                makedirs(src_d)
+                os.makedirs(src_d, exist_ok=True)
                 for f in range(index_start, index_start + file_count):
                     with open(os.path.join(src_d, f'file{f}'), 'w') as fd:
                         content = {

@@ -17,15 +17,10 @@ def remove_path(path):
         os.remove(path)
 
 
-def makedirs(x):
-    if not os.path.exists(x):
-        os.makedirs(x)
-
-
 class FileTestCase(unittest.TestCase):
     def setUp(self):
         remove_path(WORK_DIR)
-        makedirs(WORK_DIR)
+        os.makedirs(WORK_DIR, exist_ok=True)
 
     def test_1(self):
         secrets_file = os.path.join(WORK_DIR, 'secrets.json')

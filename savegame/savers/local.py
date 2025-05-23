@@ -2,8 +2,7 @@ import os
 import shutil
 
 from savegame import logger
-from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
-    get_file_hash, makedirs)
+from savegame.lib import HOSTNAME, REF_FILENAME, check_patterns, get_file_hash
 from savegame.savers.base import BaseSaver
 
 
@@ -45,7 +44,7 @@ class LocalSaver(BaseSaver):
             dst_hash = get_file_hash(dst_file)
             try:
                 if src_hash != dst_hash:
-                    makedirs(os.path.dirname(dst_file))
+                    os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash

@@ -2,8 +2,7 @@ from datetime import datetime, timezone
 import os
 
 from savegame import logger
-from savegame.lib import (get_file_hash, get_file_mtime, get_hash,
-    makedirs, to_json)
+from savegame.lib import get_file_hash, get_file_mtime, get_hash, to_json
 from savegame.savers.base import BaseSaver
 from savegame.savers.google_api import GoogleCloud
 
@@ -37,7 +36,7 @@ class GoogleDriveExportSaver(BaseSaver):
             if dt and dt > file_meta['modified_time']:
                 self.report.add('skipped', self.src, dst_file)
                 continue
-            makedirs(os.path.dirname(dst_file))
+            os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             try:
                 gc.export_file(file_id=file_meta['id'],
                     path=dst_file, mime_type=file_meta['mime_type'])
@@ -67,7 +66,7 @@ class GoogleContactsExportSaver(BaseSaver):
                 dst_hash == self.ref.files.get(rel_path):
             self.report.add('skipped', self.src, dst_file)
         else:
-            makedirs(os.path.dirname(dst_file))
+            os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
             self.report.add('saved', self.src, dst_file)
