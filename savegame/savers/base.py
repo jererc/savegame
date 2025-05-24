@@ -43,7 +43,7 @@ class BaseSaver:
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
         self.dst_paths = set()
-        self.ref = Reference(self.dst)
+        self.ref = Reference(self.dst, save_src=src)
         self.meta = Metadata()
         self.report = Report()
         self.start_ts = None

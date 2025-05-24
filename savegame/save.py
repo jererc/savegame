@@ -27,13 +27,6 @@ def get_local_path(x):
     return x.replace('\\' if os.path.sep == '/' else '/', os.path.sep)
 
 
-def get_path_separator(path):
-    for sep in ('/', '\\'):
-        if sep in path:
-            return sep
-    return os.path.sep
-
-
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
                  dst_path=None, run_delta=None, retention_delta=None,
@@ -173,12 +166,6 @@ class SaveMonitor:
             logger.exception(f'failed to get {ref.dst} size')
             return -1
 
-    def _get_src(self, ref):
-        if len(ref.files) == 1:
-            sep = get_path_separator(ref.src)
-            return f'{ref.src}{sep}{list(ref.files.keys())[0]}'
-        return ref.src
-
     def _check_file(self, hostname, ref, rel_path, ref_hash):
         rel_path = get_local_path(rel_path)
         dst_file = os.path.join(ref.dst, rel_path)
@@ -208,8 +195,7 @@ class SaveMonitor:
 
     def _get_duration(self, hostname, ref):
         if hostname == HOSTNAME:
-            src = self._get_src(ref)
-            meta = Metadata().data.get(src)
+            meta = Metadata().data.get(ref.save_src)
             if meta:
                 return meta['end_ts'] - meta['start_ts']
         return None
@@ -229,7 +215,7 @@ class SaveMonitor:
                     logger.error(f'inconsistency detected: {error}')
             saves.append({
                 'hostname': hostname,
-                'src': self._get_src(ref),
+                'src': ref.save_src,
                 'modified': max(mtimes) if mtimes else 0,
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),

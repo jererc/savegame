@@ -101,10 +101,11 @@ class Metadata:
 
 
 class Reference:
-    def __init__(self, dst):
+    def __init__(self, dst, save_src=None):
         self.dst = dst
         self.file = os.path.join(dst, REF_FILENAME)
         self.data = None
+        self.save_src = save_src
         self.src = None
         self.files = None
         self._load()
@@ -123,12 +124,14 @@ class Reference:
                 logger.exception('removed invalid ref file '
                     f'{self.file}: {exc}')
                 self.data = {}
+        self.save_src = self.data.get('save_src')
         self.src = self.data.get('src')
         self.files = deepcopy(self.data.get('files', {}))
 
     def save(self, force=False):
         data = {
             'src': self.src,
+            'save_src': self.save_src,
             'files': self.files,
         }
         if not (force or data != {k: self.data.get(k) for k in data.keys()}):
