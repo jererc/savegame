@@ -206,6 +206,14 @@ class SaveMonitor:
             res.update(set(glob(os.path.join(dirname, '*'))) - dsts)
         return res
 
+    def _get_duration(self, hostname, ref):
+        if hostname == HOSTNAME:
+            src = self._get_src(ref)
+            meta = Metadata().data.get(src)
+            if meta:
+                return meta['end_ts'] - meta['start_ts']
+        return None
+
     def _monitor(self):
         saves = []
         for hostname, ref in self._iterate_hostname_refs():
@@ -226,6 +234,7 @@ class SaveMonitor:
                 'size_MB': self._get_size(ref),
                 'files': len(ref.files),
                 'desynced': len(desynced),
+                'duration': self._get_duration(hostname, ref),
             })
         orphan_dsts = sorted(self._get_orphan_dsts())
         for orphan_dst in orphan_dsts:
@@ -255,15 +264,13 @@ class SaveMonitor:
             key=lambda x: [x[k] for k in order_by_cols],
             reverse=True)
         for i, r in enumerate(rows):
-            modified_str = ts_to_str(r['modified']) if i > 0 else r['modified']
-            print(
-                f'{modified_str:19}  '
-                f'{r["size_MB"]:10}  '
-                f'{r["files"]:8}  '
-                f'{r["desynced"] or "":10}  '
-                f'{r["hostname"]:20}  '
-                f'{r["src"]}'
-            )
+            if i > 0:
+                r['modified'] = ts_to_str(r['modified'])
+                r['duration'] = f'{r["duration"]:.02f}' if r['duration'] else ''
+                r['desynced'] = r['desynced'] or ''
+            print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  '
+                f'{r["desynced"]:10}  {r["hostname"]:20}  {r["duration"]:10}  '
+                f'{r["src"]}')
 
     def get_status(self, order_by='hostname,modified'):
         report = self._monitor()
