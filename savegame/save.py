@@ -10,7 +10,7 @@ from savegame import NAME, WORK_DIR, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
     InvalidPath, UnhandledPath, get_file_hash, get_file_mtime,
     to_json, validate_path)
-from savegame.savers.base import get_saver_class
+from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
 
@@ -138,6 +138,7 @@ class SaveMonitor:
     def __init__(self, config):
         self.config = config
         self.run_file = RunFile(os.path.join(WORK_DIR, '.monitor.run'))
+        self.saver_hostnames = {r.hostname for r in iterate_saver_classes()}
 
     def _must_run(self):
         return time.time() > self.run_file.get_ts() + self.config.MONITOR_DELTA
@@ -194,7 +195,7 @@ class SaveMonitor:
         return res
 
     def _get_duration(self, hostname, ref):
-        if hostname == HOSTNAME:
+        if hostname in self.saver_hostnames:
             meta = Metadata().data.get(ref.save_src)
             if meta:
                 return meta['end_ts'] - meta['start_ts']

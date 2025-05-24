@@ -121,7 +121,7 @@ class BaseSaver:
         self._update_meta()
 
 
-def get_saver_class(saver_id, package='savegame.savers'):
+def iterate_saver_classes(package='savegame.savers'):
     for filename in os.listdir(os.path.dirname(os.path.realpath(__file__))):
         basename, ext = os.path.splitext(filename)
         if ext == '.py' and not filename.startswith('__'):
@@ -129,8 +129,14 @@ def get_saver_class(saver_id, package='savegame.savers'):
             try:
                 module = importlib.import_module(module_name)
                 for name, obj in inspect.getmembers(module, inspect.isclass):
-                    if issubclass(obj, BaseSaver) and obj.id == saver_id:
-                        return obj
+                    if issubclass(obj, BaseSaver) and obj.id:
+                        yield obj
             except ImportError as exc:
                 logger.error(f'failed to import {module_name}: {exc}')
+
+
+def get_saver_class(saver_id, package='savegame.savers'):
+    for saver_class in iterate_saver_classes(package):
+        if saver_class.id == saver_id:
+            return saver_class
     raise Exception(f'invalid saver_id {saver_id}')
