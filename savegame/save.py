@@ -266,7 +266,8 @@ class SaveMonitor:
         for i, r in enumerate(rows):
             if i > 0:
                 r['modified'] = ts_to_str(r['modified'])
-                r['duration'] = f'{r["duration"]:.02f}' if r['duration'] else ''
+                r['duration'] = (f'{r["duration"]:.02f}'
+                    if r['duration'] is not None else '')
                 r['desynced'] = r['desynced'] or ''
             print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  '
                 f'{r["desynced"]:10}  {r["hostname"]:20}  {r["duration"]:10}  '
