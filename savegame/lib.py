@@ -101,11 +101,11 @@ class Metadata:
 
 
 class Reference:
-    def __init__(self, dst, save_src=None):
+    def __init__(self, dst):
         self.dst = dst
         self.file = os.path.join(dst, REF_FILENAME)
         self.data = None
-        self.save_src = save_src
+        self.save_src = None
         self.src = None
         self.files = None
         self._load()
@@ -130,8 +130,8 @@ class Reference:
 
     def save(self, force=False):
         data = {
-            'src': self.src,
             'save_src': self.save_src,
+            'src': self.src,
             'files': self.files,
         }
         if not (force or data != {k: self.data.get(k) for k in data.keys()}):

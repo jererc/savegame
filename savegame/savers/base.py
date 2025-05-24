@@ -43,7 +43,7 @@ class BaseSaver:
         self.retention_delta = retention_delta
         self.dst = self.get_dst()
         self.dst_paths = set()
-        self.ref = Reference(self.dst, save_src=src)
+        self.ref = Reference(self.dst)
         self.meta = Metadata()
         self.report = Report()
         self.start_ts = None
@@ -105,6 +105,7 @@ class BaseSaver:
         if not (force or self._must_run()):
             return
         self.start_ts = time.time()
+        self.ref.save_src = self.src
         self.ref.src = self.src
         try:
             self.do_run()
