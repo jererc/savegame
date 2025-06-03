@@ -55,10 +55,9 @@ class BaseSaver:
     def get_dst(self):
         if self.in_place:
             return self.dst_path
-        if self.dst_type == 'local':
-            return os.path.join(self.dst_path, self.hostname,
-                path_to_filename(self.src))
-        return self.dst_path
+        if self.dst_type != 'local':
+            return self.dst_path
+        return os.path.join(self.dst_path, self.hostname, path_to_filename(self.src))
 
     def notify_error(self, message, exc=None):
         Notifier().send(title='error', body=message, app_name=NAME)

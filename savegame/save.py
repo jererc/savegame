@@ -59,21 +59,20 @@ class SaveItem:
     def _get_dst_path(self, dst_path):
         if not dst_path:
             raise Exception('missing dst_path')
-        if self.saver_cls.dst_type == 'local':
-            if self.dst_volume_label:
-                volume_path = self._get_volume_path_by_label(self.dst_volume_label)
-                if not volume_path:
-                    return None
-                dst_path = os.path.join(volume_path, dst_path)
-            validate_path(dst_path)
-            dst_path = os.path.expanduser(dst_path)
-            if not os.path.exists(dst_path):
-                raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
-            if self.saver_cls.in_place:
-                return dst_path
-            return os.path.join(dst_path, self.config.DST_ROOT_DIR,
-                self.saver_id)
-        return dst_path
+        if self.saver_cls.dst_type != 'local':
+            return dst_path
+        if self.dst_volume_label:
+            volume_path = self._get_volume_path_by_label(self.dst_volume_label)
+            if not volume_path:
+                return None
+            dst_path = os.path.join(volume_path, dst_path)
+        validate_path(dst_path)
+        dst_path = os.path.expanduser(dst_path)
+        if not os.path.exists(dst_path):
+            raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
+        if self.saver_cls.in_place:
+            return dst_path
+        return os.path.join(dst_path, self.config.DST_ROOT_DIR, self.saver_id)
 
     def _generate_src_and_patterns(self):
         if self.src_paths:
