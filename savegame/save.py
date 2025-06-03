@@ -9,7 +9,7 @@ from svcutils.service import Notifier, RunFile
 from savegame import NAME, WORK_DIR, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
     InvalidPath, UnhandledPath, get_file_hash, get_file_mtime,
-    list_volumes, to_json, validate_path)
+    get_file_size, list_volumes, to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
@@ -177,11 +177,8 @@ class SaveMonitor:
                     yield hostname, ref
 
     def _get_size(self, ref):
-        def get_size(x):
-            return os.path.getsize(x) if os.path.exists(x) else 0
-
         try:
-            sizes = [get_size(os.path.join(ref.dst, get_local_path(r)))
+            sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)))
                 for r in ref.files.keys()]
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
