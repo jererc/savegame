@@ -25,8 +25,8 @@ class InvalidPath(Exception):
     pass
 
 
-def get_file_mtime(x):
-    return os.stat(x).st_mtime
+def get_file_mtime(x, default=None):
+    return os.stat(x).st_mtime if os.path.exists(x) else default
 
 
 def validate_path(x):
@@ -65,8 +65,9 @@ def get_hash(data, encoding='utf-8'):
     return hashlib.md5(data.encode(encoding)).hexdigest()
 
 
-def get_file_size(x, default=0):
+def get_file_size(x, default=None):
     return os.path.getsize(x) if os.path.exists(x) else default
+
 
 def check_patterns(path, inclusions=None, exclusions=None):
     if exclusions:

@@ -178,7 +178,7 @@ class SaveMonitor:
 
     def _get_size(self, ref):
         try:
-            sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)))
+            sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)), default=0)
                 for r in ref.files.keys()]
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
