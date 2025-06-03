@@ -14,7 +14,7 @@ from savegame.lib import (REF_FILENAME, Metadata, Reference, Report,
 RETRY_DELTA = 2 * 3600
 
 
-def path_to_filename(x):
+def path_to_dirname(x):
     x = re.sub(r'[<>:"|?*\s]', '_', x)
     x = re.sub(r'[/\\]', '-', x)
     return x.strip('-')
@@ -57,7 +57,7 @@ class BaseSaver:
             return self.dst_path
         if self.dst_type != 'local':
             return self.dst_path
-        return os.path.join(self.dst_path, self.hostname, path_to_filename(self.src))
+        return os.path.join(self.dst_path, self.hostname, path_to_dirname(self.src))
 
     def notify_error(self, message, exc=None):
         Notifier().send(title='error', body=message, app_name=NAME)

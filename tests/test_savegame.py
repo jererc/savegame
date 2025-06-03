@@ -327,12 +327,12 @@ class SaveItemTestCase(BaseTestCase):
 
 class DstDirTestCase(unittest.TestCase):
     def test_1(self):
-        res = savers.base.path_to_filename(
+        res = savers.base.path_to_dirname(
             r'C:\Users\jerer\AppData\Roaming\Sublime Text 3')
         self.assertEqual(res, 'C_-Users-jerer-AppData-Roaming-Sublime_Text_3')
 
     def test_2(self):
-        res = savers.base.path_to_filename('/home/jererc/MEGA/data/savegame')
+        res = savers.base.path_to_dirname('/home/jererc/MEGA/data/savegame')
         self.assertEqual(res, 'home-jererc-MEGA-data-savegame')
 
 

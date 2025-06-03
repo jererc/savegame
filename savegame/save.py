@@ -36,8 +36,7 @@ class SaveItem:
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label
         self.src_paths = self._get_src_paths(src_paths)
-        self.saver_id = saver_id
-        self.saver_cls = get_saver_class(self.saver_id)
+        self.saver_cls = get_saver_class(saver_id)
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
         self.run_delta = (self.config.SAVE_RUN_DELTA
             if run_delta is None else run_delta)
@@ -47,14 +46,14 @@ class SaveItem:
         self.platform = platform
         self.hostname = hostname
 
+    def _get_src_paths(self, src_paths):
+        return [s if isinstance(s, (list, tuple))
+            else (s, [], []) for s in (src_paths or [])]
+
     def _get_volume_path_by_label(self, label):
         if not hasattr(self, '_volumes_by_label'):
             self._volumes_by_label = list_volumes()
         return self._volumes_by_label.get(label)
-
-    def _get_src_paths(self, src_paths):
-        return [s if isinstance(s, (list, tuple))
-            else (s, [], []) for s in (src_paths or [])]
 
     def _get_dst_path(self, dst_path):
         if not dst_path:
@@ -72,7 +71,7 @@ class SaveItem:
             raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
         if self.saver_cls.in_place:
             return dst_path
-        return os.path.join(dst_path, self.config.DST_ROOT_DIR, self.saver_id)
+        return os.path.join(dst_path, self.config.DST_ROOT_DIR, self.saver_cls.id)
 
     def _generate_src_and_patterns(self):
         if self.src_paths:
@@ -89,7 +88,7 @@ class SaveItem:
                 for src in glob(os.path.expanduser(src_path)):
                     yield src, inclusions, exclusions
         else:
-            yield self.saver_id, None, None
+            yield self.saver_cls.id, None, None
 
     def generate_savers(self):
         if self.platform and sys.platform != self.platform:
