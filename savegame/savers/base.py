@@ -32,6 +32,7 @@ class BaseSaver:
     src_type = 'local'
     dst_type = 'local'
     purge = False
+    in_place = False
 
     def __init__(self, config, src, inclusions, exclusions, dst_path,
                  run_delta, retention_delta):
@@ -52,6 +53,8 @@ class BaseSaver:
         self.success = None
 
     def get_dst(self):
+        if self.in_place:
+            return self.dst_path
         if self.dst_type == 'local':
             return os.path.join(self.dst_path, self.hostname,
                 path_to_filename(self.src))

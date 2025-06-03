@@ -674,13 +674,15 @@ class SavegameTestCase(BaseTestCase):
     def test_volume_label(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3,
             file_count=3)
+        dst_path = os.path.join(self.dst_root, 'src1')
+        os.makedirs(dst_path, exist_ok=True)
         saves = [
             {
                 'src_paths': ['src1'],
-                'dst_path': self.dst_root,
+                'dst_path': dst_path,
                 'src_volume_label': 'volume1',
                 'dst_volume_label': 'volume2',
-                'saver_id': 'local_no_purge',
+                'saver_id': 'local_in_place',
             },
         ]
         with patch.object(save, 'list_volumes',

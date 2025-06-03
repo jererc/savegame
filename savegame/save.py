@@ -69,6 +69,8 @@ class SaveItem:
             dst_path = os.path.expanduser(dst_path)
             if not os.path.exists(dst_path):
                 raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
+            if self.saver_cls.in_place:
+                return dst_path
             return os.path.join(dst_path, self.config.DST_ROOT_DIR,
                 self.saver_id)
         return dst_path

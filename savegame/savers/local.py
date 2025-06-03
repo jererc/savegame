@@ -59,7 +59,8 @@ class LocalSaver(BaseSaver):
                 logger.exception(f'failed to save {src_file}')
 
 
-class LocalNoPurgeSaver(LocalSaver):
-    id = 'local_no_purge'
+class LocalInPlaceSaver(LocalSaver):
+    id = 'local_in_place'
     hostname = HOSTNAME
     purge = False
+    in_place = True
