@@ -36,6 +36,10 @@ class LocalSaver(BaseSaver):
             return src, {f for f in files if is_valid(f)}
         return self.src, set()
 
+    def compare_files_and_get_hash(self, src_file, dst_file):
+        src_hash = get_file_hash(src_file)
+        return src_hash == get_file_hash(dst_file), src_hash
+
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
@@ -45,11 +49,11 @@ class LocalSaver(BaseSaver):
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
-            src_hash = get_file_hash(src_file)
+            equal, src_hash = self.compare_files_and_get_hash(src_file, dst_file)
             try:
-                if src_hash != get_file_hash(dst_file):
+                if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-                    file_size = os.path.getsize(src_file)
+                    file_size = get_file_size(src_file)
                     if file_size > BIG_FILE_SIZE:
                         logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
                     shutil.copy2(src_file, dst_file)
@@ -66,25 +70,7 @@ class LocalInPlaceSaver(LocalSaver):
     purge = False
     in_place = True
 
-    def do_run(self):
-        src, src_files = self._get_src_and_files()
-        self.report.add('files', self.src, src_files)
-        self.ref.src = src
-        self.ref.files = {}
-        for src_file in src_files:
-            rel_path = os.path.relpath(src_file, src)
-            dst_file = os.path.join(self.dst, rel_path)
-            self.dst_paths.add(dst_file)
-            src_file_size = get_file_size(src_file)
-            try:
-                if (get_file_size(dst_file) != src_file_size
-                        or get_file_mtime(dst_file) != get_file_mtime(src_file)):
-                    os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-                    if src_file_size > BIG_FILE_SIZE:
-                        logger.info(f'copying {src_file} to {dst_file} ({src_file_size/1024/1024:.02f} MB)')
-                    shutil.copy2(src_file, dst_file)
-                    self.report.add('saved', self.src, src_file)
-                self.ref.files[rel_path] = None
-            except Exception:
-                self.report.add('failed', self.src, src_file)
-                logger.exception(f'failed to save {src_file}')
+    def compare_files_and_get_hash(self, src_file, dst_file):
+        equal = (get_file_size(src_file) == get_file_size(dst_file)
+                 and get_file_mtime(src_file) == get_file_mtime(dst_file))
+        return equal, None
