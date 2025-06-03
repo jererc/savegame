@@ -62,7 +62,7 @@ def main():
         elif args.task:
             service.run_once()
         else:
-            wrap_savegame(config, force=True)
+            service.run_once(force=True)
     else:
         from savegame import load, save
         {
