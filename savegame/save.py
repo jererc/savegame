@@ -29,7 +29,7 @@ def get_local_path(x):
 
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
-                 dst_path=None, run_delta=None, retention_delta=None,
+                 dst_path=None, run_delta=None, purge_delta=None,
                  loadable=True, platform=None, hostname=None,
                  src_volume_label=None, dst_volume_label=None):
         self.config = config
@@ -41,8 +41,8 @@ class SaveItem:
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
         self.run_delta = (self.config.SAVE_RUN_DELTA
             if run_delta is None else run_delta)
-        self.retention_delta = (self.config.RETENTION_DELTA
-            if retention_delta is None else retention_delta)
+        self.purge_delta = (self.config.PURGE_DELTA
+            if purge_delta is None else purge_delta)
         self.loadable = loadable
         self.platform = platform
         self.hostname = hostname
@@ -104,7 +104,7 @@ class SaveItem:
                 *src_and_patterns,
                 dst_path=self.dst_path,
                 run_delta=self.run_delta,
-                retention_delta=self.retention_delta,
+                purge_delta=self.purge_delta,
             )
 
 

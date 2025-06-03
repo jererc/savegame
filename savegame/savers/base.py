@@ -35,14 +35,14 @@ class BaseSaver:
     in_place = False
 
     def __init__(self, config, src, inclusions, exclusions, dst_path,
-                 run_delta, retention_delta):
+                 run_delta, purge_delta):
         self.config = config
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
         self.dst_path = dst_path
         self.run_delta = run_delta
-        self.retention_delta = retention_delta
+        self.purge_delta = purge_delta
         self.dst = self.get_dst()
         self.dst_paths = set()
         self.ref = Reference(self.dst)
@@ -87,7 +87,7 @@ class BaseSaver:
             if name == REF_FILENAME:
                 return False
             if not name.startswith(REF_FILENAME) and \
-                    get_file_mtime(path) > time.time() - self.retention_delta:
+                    get_file_mtime(path) > time.time() - self.purge_delta:
                 return False
         elif os.listdir(path):
             return False

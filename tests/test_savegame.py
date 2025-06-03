@@ -249,7 +249,7 @@ class BaseTestCase(unittest.TestCase):
         args = {
             'DST_ROOT_DIR': 'saves',
             'SAVE_RUN_DELTA': 0,
-            'RETENTION_DELTA': 7 * 24 * 3600,
+            'PURGE_DELTA': 7 * 24 * 3600,
             'MONITOR_DELTA': 16 * 3600,
             'ALWAYS_UPDATE_REF': False,
         }
@@ -584,14 +584,14 @@ class SavegameTestCase(BaseTestCase):
         print(mock_send.call_args_list)
         self.assertTrue(mock_send.call_args_list)
 
-    def test_retention(self):
+    def test_purge(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4,
             file_count=4)
         saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
-                'retention_delta': 300,
+                'purge_delta': 300,
             },
         ]
         self._savegame(saves=saves)
@@ -611,7 +611,7 @@ class SavegameTestCase(BaseTestCase):
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': self.dst_root,
-                'retention_delta': 0,
+                'purge_delta': 0,
             },
         ]
         self._savegame(saves=saves)
@@ -641,7 +641,7 @@ class SavegameTestCase(BaseTestCase):
                     ],
                 ],
                 'dst_path': self.dst_root,
-                'retention_delta': 0,
+                'purge_delta': 0,
             },
         ]
         self._savegame(saves=saves)
@@ -660,7 +660,7 @@ class SavegameTestCase(BaseTestCase):
                     ],
                 ],
                 'dst_path': self.dst_root,
-                'retention_delta': 0,
+                'purge_delta': 0,
             },
         ]
         self._savegame(saves=saves)
@@ -707,7 +707,7 @@ class SavegameTestCase(BaseTestCase):
                     ],
                 ],
                 'dst_path': self.dst_root,
-                'retention_delta': 0,
+                'purge_delta': 0,
             },
         ]
         self._savegame(saves=saves)
@@ -728,7 +728,7 @@ class SavegameTestCase(BaseTestCase):
                     ],
                 ],
                 'dst_path': self.dst_root,
-                'retention_delta': 0,
+                'purge_delta': 0,
             },
         ]
         self._savegame(saves=saves)
@@ -753,7 +753,7 @@ class SavegameTestCase(BaseTestCase):
                     ],
                 ],
                 'dst_path': self.dst_root,
-                'retention_delta': 0,
+                'purge_delta': 0,
             },
         ]
         self._savegame(saves=saves)
