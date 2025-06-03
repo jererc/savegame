@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import socket
+import string
 import sys
 import time
 
@@ -71,6 +72,41 @@ def check_patterns(path, inclusions=None, exclusions=None):
                 return True
         return False
     return True
+
+
+def _list_windows_volumes():
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    mask = kernel32.GetLogicalDrives()                # bitmask of existing letters
+    result = []
+
+    for i, ch in enumerate(string.ascii_uppercase):     # A … Z
+        if not (mask & (1 << i)):
+            continue                                    # letter not present
+        root = f"{ch}:\\"
+
+        # Buffers for the label and (unused here) filesystem name
+        label_buf = ctypes.create_unicode_buffer(261)
+        fs_buf = ctypes.create_unicode_buffer(261)
+
+        ok = kernel32.GetVolumeInformationW(
+            ctypes.c_wchar_p(root),          # lpRootPathName
+            label_buf,                       # lpVolumeNameBuffer
+            len(label_buf),                  # nVolumeNameSize (chars)
+            None, None, None,                # serial, comp.len, flags – unused
+            fs_buf,                          # lpFileSystemNameBuffer
+            len(fs_buf)                      # nFileSystemNameSize (chars)
+        )
+        result.append((root, label_buf.value if ok else ""))
+
+    return {l: r for r, l in result}
+
+
+def list_volumes():
+    if sys.platform == 'win32':
+        return _list_windows_volumes()
+    logger.debug('list_volumes is not supported on this platform')
+    return {}
 
 
 class Metadata:

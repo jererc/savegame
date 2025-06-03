@@ -671,6 +671,27 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
 
+    def test_volume_label(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3,
+            file_count=3)
+        saves = [
+            {
+                'src_paths': ['src1'],
+                'dst_path': self.dst_root,
+                'src_volume_label': 'volume1',
+                'dst_volume_label': 'volume2',
+                'saver_id': 'local_no_purge',
+            },
+        ]
+        with patch.object(save, 'list_volumes',
+                          return_value={'volume1': self.src_root,
+                                        'volume2': self.dst_root}):
+            self._savegame(saves=saves)
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertTrue(dst_paths)
+
     def test_remove_dst_path_patterns(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3,
             file_count=3)

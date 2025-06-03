@@ -6,6 +6,9 @@ from savegame.lib import HOSTNAME, REF_FILENAME, check_patterns, get_file_hash
 from savegame.savers.base import BaseSaver
 
 
+BIG_FILE_SIZE = 1000000000
+
+
 def walk_files(path):
     for root, dirs, files in os.walk(path):
         for file in files:
@@ -15,6 +18,7 @@ def walk_files(path):
 class LocalSaver(BaseSaver):
     id = 'local'
     hostname = HOSTNAME
+    purge = True
 
     def _get_src_and_files(self):
         def is_valid(file):
@@ -40,6 +44,9 @@ class LocalSaver(BaseSaver):
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
+            file_size = os.path.getsize(src_file)
+            if file_size > BIG_FILE_SIZE:
+                logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
             src_hash = get_file_hash(src_file)
             try:
                 if src_hash != get_file_hash(dst_file):
@@ -50,3 +57,9 @@ class LocalSaver(BaseSaver):
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
+
+
+class LocalNoPurgeSaver(LocalSaver):
+    id = 'local_no_purge'
+    hostname = HOSTNAME
+    purge = False

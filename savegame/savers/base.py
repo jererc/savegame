@@ -31,6 +31,7 @@ class BaseSaver:
     hostname = None
     src_type = 'local'
     dst_type = 'local'
+    purge = False
 
     def __init__(self, config, src, inclusions, exclusions, dst_path,
                  run_delta, retention_delta):
@@ -91,8 +92,6 @@ class BaseSaver:
         return True
 
     def _purge_dst(self):
-        if self.dst_type != 'local':
-            return
         if not self.dst_paths:
             remove_path(self.dst)
             return
@@ -109,7 +108,8 @@ class BaseSaver:
         self.ref.src = self.src
         try:
             self.do_run()
-            self._purge_dst()
+            if self.purge:
+                self._purge_dst()
             if os.path.exists(self.ref.dst):
                 self.ref.save(force=self.config.ALWAYS_UPDATE_REF)
             self.success = True

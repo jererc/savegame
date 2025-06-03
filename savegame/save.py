@@ -9,7 +9,7 @@ from svcutils.service import Notifier, RunFile
 from savegame import NAME, WORK_DIR, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
     InvalidPath, UnhandledPath, get_file_hash, get_file_mtime,
-    to_json, validate_path)
+    list_volumes, to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
@@ -30,8 +30,11 @@ def get_local_path(x):
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
                  dst_path=None, run_delta=None, retention_delta=None,
-                 loadable=True, platform=None, hostname=None):
+                 loadable=True, platform=None, hostname=None,
+                 src_volume_label=None, dst_volume_label=None):
         self.config = config
+        self.src_volume_label = src_volume_label
+        self.dst_volume_label = dst_volume_label
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_id = saver_id
         self.saver_cls = get_saver_class(self.saver_id)
@@ -44,6 +47,11 @@ class SaveItem:
         self.platform = platform
         self.hostname = hostname
 
+    def _get_volume_path_by_label(self, label):
+        if not hasattr(self, '_volumes_by_label'):
+            self._volumes_by_label = list_volumes()
+        return self._volumes_by_label.get(label)
+
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple))
             else (s, [], []) for s in (src_paths or [])]
@@ -52,11 +60,15 @@ class SaveItem:
         if not dst_path:
             raise Exception('missing dst_path')
         if self.saver_cls.dst_type == 'local':
+            if self.dst_volume_label:
+                volume_path = self._get_volume_path_by_label(self.dst_volume_label)
+                if not volume_path:
+                    return None
+                dst_path = os.path.join(volume_path, dst_path)
             validate_path(dst_path)
             dst_path = os.path.expanduser(dst_path)
             if not os.path.exists(dst_path):
-                raise InvalidPath(
-                    f'invalid dst_path {dst_path}: does not exist')
+                raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
             return os.path.join(dst_path, self.config.DST_ROOT_DIR,
                 self.saver_id)
         return dst_path
@@ -64,6 +76,11 @@ class SaveItem:
     def _generate_src_and_patterns(self):
         if self.src_paths:
             for src_path, inclusions, exclusions in self.src_paths:
+                if self.src_volume_label:
+                    volume_path = self._get_volume_path_by_label(self.src_volume_label)
+                    if not volume_path:
+                        continue
+                    src_path = os.path.join(volume_path, src_path)
                 try:
                     validate_path(src_path)
                 except UnhandledPath:
@@ -77,6 +94,8 @@ class SaveItem:
         if self.platform and sys.platform != self.platform:
             return
         if self.hostname and HOSTNAME != self.hostname:
+            return
+        if not self.dst_path:
             return
         for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(
