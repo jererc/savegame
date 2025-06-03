@@ -44,13 +44,13 @@ class LocalSaver(BaseSaver):
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
-            file_size = os.path.getsize(src_file)
-            if file_size > BIG_FILE_SIZE:
-                logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
             src_hash = get_file_hash(src_file)
             try:
                 if src_hash != get_file_hash(dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                    file_size = os.path.getsize(src_file)
+                    if file_size > BIG_FILE_SIZE:
+                        logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
                     shutil.copy2(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = src_hash

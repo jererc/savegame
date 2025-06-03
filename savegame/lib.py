@@ -50,9 +50,14 @@ def get_file_hash(file, chunk_size=8192):
     if not os.path.exists(file):
         return None
     md5_hash = hashlib.md5()
+    start_ts = time.time()
     with open(file, 'rb') as fd:
         while chunk := fd.read(chunk_size):
             md5_hash.update(chunk)
+    duration = time.time() - start_ts
+    if duration > 10:
+        logger.warning(f'get_file_hash {file} took {duration:.02f} '
+                       f'seconds ({os.path.getsize(file)/1024/1024:.02f} MB)')
     return md5_hash.hexdigest()
 
 
