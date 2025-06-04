@@ -83,7 +83,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         self.assertEqual(obj._get_src_file_for_user(path), None)
         path = f'C:\\Users\\{self.own_username}\\name'
         self.assertEqual(obj._get_src_file_for_user(path),
-            f'C:\\Users\\{self.own_username}\\name')
+                         f'C:\\Users\\{self.own_username}\\name')
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
@@ -100,8 +100,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = load.LocalLoader(self.dst_path,
-            username=self.username2)
+        obj = load.LocalLoader(self.dst_path, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -113,12 +112,11 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         self.assertEqual(obj._get_src_file_for_user(path), None)
         path = f'C:\\Users\\{self.username2}\\name'
         self.assertEqual(obj._get_src_file_for_user(path),
-            f'C:\\Users\\{self.own_username}\\name')
+                         f'C:\\Users\\{self.own_username}\\name')
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = load.LocalLoader(self.dst_path,
-            username=self.username2)
+        obj = load.LocalLoader(self.dst_path, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -130,41 +128,25 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         self.assertEqual(obj._get_src_file_for_user(path), None)
         path = f'/home/{self.username2}/name'
         self.assertEqual(obj._get_src_file_for_user(path),
-            f'/home/{self.own_username}/name')
+                         f'/home/{self.own_username}/name')
 
 
 class PatternTestCase(unittest.TestCase):
     def setUp(self):
         self.file = os.path.join(os.path.expanduser('~'),
-            'first_dir', 'second_dir', 'savegame.py')
+                                 'first_dir', 'second_dir', 'savegame.py')
 
     def test_ko(self):
-        self.assertFalse(module.lib.check_patterns(self.file,
-            inclusions=['*third_dir*'],
-        ))
-        self.assertFalse(module.lib.check_patterns(self.file,
-            inclusions=['*.bin'],
-        ))
-        self.assertFalse(module.lib.check_patterns(self.file,
-            exclusions=['*dir*'],
-        ))
-        self.assertFalse(module.lib.check_patterns(self.file,
-            exclusions=['*.py'],
-        ))
+        self.assertFalse(module.lib.check_patterns(self.file, inclusions=['*third_dir*']))
+        self.assertFalse(module.lib.check_patterns(self.file, inclusions=['*.bin']))
+        self.assertFalse(module.lib.check_patterns(self.file, exclusions=['*dir*']))
+        self.assertFalse(module.lib.check_patterns(self.file, exclusions=['*.py']))
 
     def test_ok(self):
-        self.assertTrue(module.lib.check_patterns(self.file,
-            inclusions=['*game*'],
-        ))
-        self.assertTrue(module.lib.check_patterns(self.file,
-            inclusions=['*.py'],
-        ))
-        self.assertTrue(module.lib.check_patterns(self.file,
-            exclusions=['*third*'],
-        ))
-        self.assertTrue(module.lib.check_patterns(self.file,
-            exclusions=['*.bin'],
-        ))
+        self.assertTrue(module.lib.check_patterns(self.file, inclusions=['*game*']))
+        self.assertTrue(module.lib.check_patterns(self.file, inclusions=['*.py']))
+        self.assertTrue(module.lib.check_patterns(self.file, exclusions=['*third*']))
+        self.assertTrue(module.lib.check_patterns(self.file, exclusions=['*.bin']))
 
 
 class BaseTestCase(unittest.TestCase):
@@ -188,7 +170,7 @@ class BaseTestCase(unittest.TestCase):
         )
 
     def _generate_src_data(self, index_start, src_count=2, dir_count=2,
-            file_count=2, file_version=1):
+                           file_count=2, file_version=1):
         for s in range(index_start, index_start + src_count):
             s_name = f'src{s}'
             for d in range(index_start, index_start + dir_count):
@@ -206,14 +188,14 @@ class BaseTestCase(unittest.TestCase):
 
     def _get_src_paths(self, index_start=1, src_count=2, **kwargs):
         return [os.path.join(self.src_root, f'src{i}')
-            for i in range(index_start, index_start + src_count)]
+                for i in range(index_start, index_start + src_count)]
 
     def _list_src_root_paths(self):
         return set(walk_paths(self.src_root))
 
     def _list_src_root_src_paths(self):
         return {r for r in self._list_src_root_paths()
-            if os.path.basename(r).startswith('src')}
+                if os.path.basename(r).startswith('src')}
 
     def _list_dst_root_paths(self):
         return set(walk_paths(self.dst_root))
@@ -221,14 +203,11 @@ class BaseTestCase(unittest.TestCase):
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
             for saver_id in os.listdir(os.path.join(self.dst_root, base_dir)):
-                for hostname in os.listdir(os.path.join(self.dst_root,
-                        base_dir, saver_id)):
+                for hostname in os.listdir(os.path.join(self.dst_root, base_dir, saver_id)):
                     if hostname != from_hostname:
                         continue
-                    os.rename(os.path.join(self.dst_root,
-                            base_dir, saver_id, hostname),
-                        os.path.join(self.dst_root,
-                            base_dir, saver_id, to_hostname))
+                    os.rename(os.path.join(self.dst_root, base_dir, saver_id, hostname),
+                              os.path.join(self.dst_root, base_dir, saver_id, to_hostname))
 
     def _switch_dst_data_username(self, from_username, to_username):
 
@@ -237,8 +216,7 @@ class BaseTestCase(unittest.TestCase):
             username_str = f'{os.sep}{from_username}{os.sep}'
             if username_str not in ref.src:
                 return
-            ref.src = ref.src.replace(username_str,
-                f'{os.sep}{to_username}{os.sep}')
+            ref.src = ref.src.replace(username_str, f'{os.sep}{to_username}{os.sep}')
             ref.save()
 
         for path in walk_paths(self.dst_root):
@@ -312,8 +290,7 @@ class SaveItemTestCase(BaseTestCase):
         dst_path = os.path.expanduser('~')
         src_paths = glob(os.path.join(dst_path, '*'))[:3]
         self.assertTrue(src_paths)
-        si = save.SaveItem(self.config, src_paths=src_paths,
-            dst_path=dst_path)
+        si = save.SaveItem(self.config, src_paths=src_paths, dst_path=dst_path)
         self.assertTrue(list(si.generate_savers()))
 
         if sys.platform == 'win32':
@@ -321,8 +298,10 @@ class SaveItemTestCase(BaseTestCase):
         else:
             dst_path = r'C:\Users\jerer\data'
         self.assertRaises(module.lib.UnhandledPath,
-            save.SaveItem, self.config,
-            src_paths=src_paths, dst_path=dst_path)
+                          save.SaveItem,
+                          self.config,
+                          src_paths=src_paths,
+                          dst_path=dst_path)
 
 
 class DstDirTestCase(unittest.TestCase):
@@ -338,8 +317,7 @@ class DstDirTestCase(unittest.TestCase):
 
 class SavegameTestCase(BaseTestCase):
     def test_save_glob_and_exclusions(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         saves = [
             {
                 'src_paths': [
@@ -366,15 +344,13 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*file3*'))
 
     def test_no_save(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         with patch.object(save.Notifier, 'send') as mock_send:
             save.savegame(self.config)
         self.assertTrue(mock_send.call_args_list)
 
     def test_save(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
@@ -416,11 +392,10 @@ class SavegameTestCase(BaseTestCase):
 
     def _get_ref(self):
         return {s: module.lib.Reference(d['dst'])
-            for s, d in self.meta.data.items()}
+                for s, d in self.meta.data.items()}
 
     def test_ref(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=2,
-            file_count=2)
+        self._generate_src_data(index_start=1, src_count=2, dir_count=2, file_count=2)
         src1 = os.path.join(self.src_root, 'src1')
         saves = [
             {
@@ -490,8 +465,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2/file2*'))
 
     def test_meta(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=2,
-            file_count=2)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=2, file_count=2)
         src1 = os.path.join(self.src_root, 'src1')
         src2 = os.path.join(self.src_root, 'src2')
         src3 = os.path.join(self.src_root, 'src3')
@@ -531,16 +505,14 @@ class SavegameTestCase(BaseTestCase):
             raise Exception('do_run failed')
 
         with patch.object(module.savers.base.BaseSaver, 'notify_error'), \
-                patch.object(module.savers.local.LocalSaver,
-                    'do_run') as mock_do_run:
+                patch.object(module.savers.local.LocalSaver, 'do_run') as mock_do_run:
             mock_do_run.side_effect = side_do_run
             self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(set(self.meta.data.keys()), {src1, src2})
 
     def test_stats(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
@@ -555,8 +527,7 @@ class SavegameTestCase(BaseTestCase):
         pprint(self.meta.data)
 
     def test_monitor(self):
-        self._generate_src_data(index_start=1, src_count=4, dir_count=2,
-            file_count=2)
+        self._generate_src_data(index_start=1, src_count=4, dir_count=2, file_count=2)
         saves = [
             {
                 'src_paths': [
@@ -585,8 +556,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(mock_send.call_args_list)
 
     def test_purge(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=4,
-            file_count=4)
+        self._generate_src_data(index_start=1, src_count=2, dir_count=4, file_count=4)
         saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
@@ -596,8 +566,7 @@ class SavegameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         remove_path(self.src_root)
-        self._generate_src_data(index_start=1, src_count=1, dir_count=2,
-            file_count=2)
+        self._generate_src_data(index_start=1, src_count=1, dir_count=2, file_count=2)
         src_paths = self._list_src_root_paths()
         self._savegame(saves=saves)
 
@@ -629,8 +598,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertEqual(src_paths2, src_paths)
 
     def test_src_path_patterns(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
         saves = [
             {
                 'src_paths': [
@@ -672,8 +640,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
 
     def test_volume_label(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
         volumes = {'volume1': self.src_root, 'volume2': self.dst_root}
         dst_path = os.path.join(self.dst_root, 'src1')
         os.makedirs(dst_path, exist_ok=True)
@@ -726,8 +693,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
     def test_remove_dst_path_patterns(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
         saves = [
             {
                 'src_paths': [
@@ -799,8 +765,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
     def test_old_save(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         saves = [
             {
                 'src_paths': [os.path.join(self.src_root, 'src1')],
@@ -836,8 +801,7 @@ class SavegameTestCase(BaseTestCase):
         self._savegame(saves=saves, force=True)
 
     def test_home_path_other_os(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3,
-            file_count=3)
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         src_path = {'win32': f'~/_tests/{TEST_DIRNAME}/*',
                     'linux': f'~\\_tests\\{TEST_DIRNAME}\\*'}[sys.platform]
         saves = [
@@ -852,8 +816,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*src*'))
 
     def test_home_paths(self):
-        self._generate_src_data(index_start=1, src_count=2, dir_count=2,
-            file_count=2)
+        self._generate_src_data(index_start=1, src_count=2, dir_count=2, file_count=2)
         saves = [
             {
                 'src_paths': [
@@ -923,7 +886,7 @@ class LoadgameTestCase(BaseTestCase):
         diff = src_paths4 - src_paths
         self.assertTrue(diff)
         self.assertTrue(all(os.path.splitext(f)[-1] == '.savegamebak'
-            for f in diff))
+                            for f in diff))
 
     def test_load_hostname(self):
         hostname2 = 'hostname2'
@@ -931,12 +894,10 @@ class LoadgameTestCase(BaseTestCase):
 
         self._savegame_with_data(index_start=1)
         remove_path(self.src_root)
-        self._switch_dst_data_hostname(from_hostname=HOSTNAME,
-            to_hostname=hostname2)
+        self._switch_dst_data_hostname(from_hostname=HOSTNAME, to_hostname=hostname2)
         self._savegame_with_data(index_start=3)
         remove_path(self.src_root)
-        self._switch_dst_data_hostname(from_hostname=HOSTNAME,
-            to_hostname=hostname3)
+        self._switch_dst_data_hostname(from_hostname=HOSTNAME, to_hostname=hostname3)
         self._savegame_with_data(index_start=5)
         remove_path(self.src_root)
 
@@ -966,12 +927,10 @@ class LoadgameTestCase(BaseTestCase):
 
         self._savegame_with_data(index_start=1)
         remove_path(self.src_root)
-        self._switch_dst_data_username(from_username=USERNAME,
-            to_username=username2)
+        self._switch_dst_data_username(from_username=USERNAME, to_username=username2)
         self._savegame_with_data(index_start=3)
         remove_path(self.src_root)
-        self._switch_dst_data_username(from_username=USERNAME,
-            to_username=username3)
+        self._switch_dst_data_username(from_username=USERNAME, to_username=username3)
         self._savegame_with_data(index_start=5)
         remove_path(self.src_root)
 

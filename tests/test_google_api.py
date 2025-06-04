@@ -24,12 +24,13 @@ class FileTestCase(unittest.TestCase):
 
     def test_1(self):
         secrets_file = os.path.join(WORK_DIR, 'secrets.json')
-        self.assertRaises(Exception, GoogleCloud,
-            oauth_secrets_file=secrets_file)
+        self.assertRaises(Exception,
+                          GoogleCloud,
+                          oauth_secrets_file=secrets_file)
 
         with open(secrets_file, 'w') as fd:
             json.dump({'k': 'v'}, fd)
         res = GoogleCloud(oauth_secrets_file=secrets_file)
         print(res.token_file)
         self.assertEqual(res.token_file,
-            os.path.join(WORK_DIR, 'secrets-token.json'))
+                         os.path.join(WORK_DIR, 'secrets-token.json'))
