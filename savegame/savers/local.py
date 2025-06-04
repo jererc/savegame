@@ -35,7 +35,7 @@ class LocalSaver(BaseSaver):
             return src, {f for f in files if is_valid(f)}
         return self.src, set()
 
-    def compare_files_and_get_hash(self, src_file, dst_file):
+    def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
         return src_hash == get_file_hash(dst_file), src_hash
 
@@ -48,7 +48,7 @@ class LocalSaver(BaseSaver):
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
-            equal, src_hash = self.compare_files_and_get_hash(src_file, dst_file)
+            equal, ref_value = self.compare_files_and_get_ref_value(src_file, dst_file)
             try:
                 if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
@@ -57,7 +57,7 @@ class LocalSaver(BaseSaver):
                         logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
                     shutil.copy2(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                self.ref.files[rel_path] = src_hash
+                self.ref.files[rel_path] = ref_value
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
@@ -68,7 +68,7 @@ class LocalInPlaceSaver(LocalSaver):
     hostname = HOSTNAME
     in_place = True
 
-    def compare_files_and_get_hash(self, src_file, dst_file):
+    def compare_files_and_get_ref_value(self, src_file, dst_file):
         equal = (get_file_size(src_file) == get_file_size(dst_file)
                  and get_file_mtime(src_file) == get_file_mtime(dst_file))
         return equal, None
