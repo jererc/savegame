@@ -122,6 +122,7 @@ class BaseSaver:
         self.start_ts = time.time()
         self.ref.save_src = self.src
         self.ref.src = self.src
+        logger.info(f'saving {self.src} to {self.dst}')
         try:
             self.do_run()
             if self.purge:
