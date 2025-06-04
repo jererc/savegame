@@ -68,9 +68,9 @@ class BaseSaver:
         return os.path.join(dst_path, root_dirname, cls.id)
 
     def get_dst(self, dst_path):
-        if self.in_place:
-            return dst_path
         if self.dst_type != 'local':
+            return dst_path
+        if self.in_place:
             return dst_path
         return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
 
