@@ -31,8 +31,9 @@ def get_local_path(x):
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
                  dst_path=None, run_delta=None, purge_delta=None,
-                 loadable=True, platform=None, hostname=None,
-                 src_volume_label=None, dst_volume_label=None):
+                 enable_purge=True, loadable=True, platform=None,
+                 hostname=None, src_volume_label=None, dst_volume_label=None,
+                 ):
         self.config = config
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label
@@ -43,6 +44,7 @@ class SaveItem:
                           if run_delta is None else run_delta)
         self.purge_delta = (self.config.PURGE_DELTA
                             if purge_delta is None else purge_delta)
+        self.enable_purge = enable_purge
         self.loadable = loadable
         self.platform = platform
         self.hostname = hostname
@@ -100,6 +102,7 @@ class SaveItem:
                 dst_path=self.dst_path,
                 run_delta=self.run_delta,
                 purge_delta=self.purge_delta,
+                enable_purge=self.enable_purge,
             )
 
     def is_loadable(self):

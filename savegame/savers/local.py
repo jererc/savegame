@@ -19,7 +19,6 @@ def walk_files(path):
 class LocalSaver(BaseSaver):
     id = 'local'
     hostname = HOSTNAME
-    purge = True
 
     def _get_src_and_files(self):
         def is_valid(file):
@@ -67,7 +66,6 @@ class LocalSaver(BaseSaver):
 class LocalInPlaceSaver(LocalSaver):
     id = 'local_in_place'
     hostname = HOSTNAME
-    purge = False
     in_place = True
 
     def compare_files_and_get_hash(self, src_file, dst_file):

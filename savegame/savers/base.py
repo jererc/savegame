@@ -31,17 +31,17 @@ class BaseSaver:
     hostname = None
     src_type = 'local'
     dst_type = 'local'
-    purge = False
     in_place = False
 
     def __init__(self, config, src, inclusions, exclusions, dst_path,
-                 run_delta, purge_delta):
+                 run_delta, purge_delta, enable_purge=True):
         self.config = config
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
         self.run_delta = run_delta
         self.purge_delta = purge_delta
+        self.enable_purge = enable_purge
         self.dst = self.get_dst(dst_path)
         self.dst_paths = set()
         self.ref = Reference(self.dst)
@@ -100,8 +100,8 @@ class BaseSaver:
             name = os.path.basename(path)
             if name == REF_FILENAME:
                 return False
-            if not name.startswith(REF_FILENAME) and \
-                    get_file_mtime(path) > time.time() - self.purge_delta:
+            if (not name.startswith(REF_FILENAME)
+                    and get_file_mtime(path) > time.time() - self.purge_delta):
                 return False
         elif os.listdir(path):
             return False
@@ -125,7 +125,7 @@ class BaseSaver:
         logger.info(f'saving {self.src} to {self.dst}')
         try:
             self.do_run()
-            if self.purge:
+            if self.enable_purge:
                 self._purge_dst()
             if os.path.exists(self.ref.dst):
                 self.ref.save(force=self.config.ALWAYS_UPDATE_REF)

@@ -674,25 +674,52 @@ class SavegameTestCase(BaseTestCase):
     def test_volume_label(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3,
             file_count=3)
+        volumes = {'volume1': self.src_root, 'volume2': self.dst_root}
         dst_path = os.path.join(self.dst_root, 'src1')
         os.makedirs(dst_path, exist_ok=True)
+        with open(os.path.join(dst_path, 'old_file'), 'w') as fd:
+            fd.write('data')
         saves = [
             {
+                'saver_id': 'local_in_place',
+                'enable_purge': False,
                 'src_paths': ['src1'],
-                'dst_path': dst_path,
+                'dst_path': 'src1',
                 'src_volume_label': 'volume1',
                 'dst_volume_label': 'volume2',
-                'saver_id': 'local_in_place',
             },
         ]
         with patch.object(save, 'list_volumes',
-                          return_value={'volume1': self.src_root,
-                                        'volume2': self.dst_root}):
+                          return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertTrue(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*old_file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
+
+        saves = [
+            {
+                'saver_id': 'local_in_place',
+                'enable_purge': True,
+                'purge_delta': 0,
+                'src_paths': ['src1'],
+                'dst_path': 'src1',
+                'src_volume_label': 'volume1',
+                'dst_volume_label': 'volume2',
+            },
+        ]
+        with patch.object(save, 'list_volumes',
+                          return_value=volumes):
+            self._savegame(saves=saves)
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*old_file*'))
         self.assertTrue(any_str_matches(dst_paths, '*src1*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir1*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
