@@ -166,8 +166,7 @@ class Reference:
                     self.data = json.load(fd)
             except Exception as exc:
                 os.remove(self.file)
-                logger.exception('removed invalid ref file '
-                    f'{self.file}: {exc}')
+                logger.exception(f'removed invalid ref file {self.file}: {exc}')
                 self.data = {}
         self.save_src = self.data.get('save_src')
         self.src = self.data.get('src')

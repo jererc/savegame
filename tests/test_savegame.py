@@ -247,7 +247,7 @@ class BaseTestCase(unittest.TestCase):
 
     def _get_config(self, **kwargs):
         args = {
-            'DST_ROOT_DIR': 'saves',
+            'DST_ROOT_DIRNAME': 'saves',
             'SAVE_RUN_DELTA': 0,
             'PURGE_DELTA': 7 * 24 * 3600,
             'MONITOR_DELTA': 16 * 3600,
@@ -693,6 +693,10 @@ class SavegameTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         pprint(dst_paths)
         self.assertTrue(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*src1*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir1*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
+        self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
 
     def test_remove_dst_path_patterns(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3,

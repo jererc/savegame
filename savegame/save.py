@@ -8,8 +8,9 @@ from svcutils.service import Notifier, RunFile
 
 from savegame import NAME, WORK_DIR, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
-    InvalidPath, UnhandledPath, get_file_hash, get_file_mtime,
-    get_file_size, list_volumes, to_json, validate_path)
+                          InvalidPath, UnhandledPath, get_file_hash,
+                          get_file_mtime, get_file_size, list_volumes,
+                          to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
@@ -39,16 +40,16 @@ class SaveItem:
         self.saver_cls = get_saver_class(saver_id)
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
         self.run_delta = (self.config.SAVE_RUN_DELTA
-            if run_delta is None else run_delta)
+                          if run_delta is None else run_delta)
         self.purge_delta = (self.config.PURGE_DELTA
-            if purge_delta is None else purge_delta)
+                            if purge_delta is None else purge_delta)
         self.loadable = loadable
         self.platform = platform
         self.hostname = hostname
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple))
-            else (s, [], []) for s in (src_paths or [])]
+                else (s, [], []) for s in (src_paths or [])]
 
     def _get_volume_path_by_label(self, label):
         if not hasattr(self, '_volumes_by_label'):
@@ -56,22 +57,17 @@ class SaveItem:
         return self._volumes_by_label.get(label)
 
     def _get_dst_path(self, dst_path):
-        if not dst_path:
-            raise Exception('missing dst_path')
-        if self.saver_cls.dst_type != 'local':
-            return dst_path
         if self.dst_volume_label:
             volume_path = self._get_volume_path_by_label(self.dst_volume_label)
             if not volume_path:
                 return None
-            dst_path = os.path.join(volume_path, dst_path)
-        validate_path(dst_path)
-        dst_path = os.path.expanduser(dst_path)
-        if not os.path.exists(dst_path):
-            raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
-        if self.saver_cls.in_place:
-            return dst_path
-        return os.path.join(dst_path, self.config.DST_ROOT_DIR, self.saver_cls.id)
+        else:
+            volume_path = None
+        return self.saver_cls.get_base_dst_path(
+            dst_path,
+            volume_path=volume_path,
+            root_dirname=self.config.DST_ROOT_DIRNAME,
+        )
 
     def _generate_src_and_patterns(self):
         if self.src_paths:
@@ -105,6 +101,9 @@ class SaveItem:
                 run_delta=self.run_delta,
                 purge_delta=self.purge_delta,
             )
+
+    def is_loadable(self):
+        return self.saver_cls == LocalSaver and self.loadable
 
 
 def iterate_save_items(config, log_unhandled=False, log_invalid=True):
@@ -142,15 +141,15 @@ class SaveHandler:
             except Exception as exc:
                 logger.exception(f'failed to save {saver.src}')
                 Notifier().send(title='exception',
-                    body=f'failed to save {saver.src}: {exc}',
-                    app_name=NAME)
+                                body=f'failed to save {saver.src}: {exc}',
+                                app_name=NAME)
             report.merge(saver.report)
         Metadata().save(keys={s.src for s in savers})
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
         logger.info(f'processed {len(savers)} saves in '
-            f'{time.time() - start_ts:.02f} seconds')
+                    f'{time.time() - start_ts:.02f} seconds')
 
 
 class SaveMonitor:
@@ -164,7 +163,7 @@ class SaveMonitor:
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
-            if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
+                     if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
         for dst_path in dst_paths:
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
@@ -177,7 +176,7 @@ class SaveMonitor:
     def _get_size(self, ref):
         try:
             sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)), default=0)
-                for r in ref.files.keys()]
+                     for r in ref.files.keys()]
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
@@ -248,7 +247,7 @@ class SaveMonitor:
             'orphans': orphan_dsts,
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
-            for k in ('saves', 'desynced', 'orphans')])
+                                       for k in ('saves', 'desynced', 'orphans')])
         return report
 
     def run(self):
@@ -264,17 +263,17 @@ class SaveMonitor:
         headers = {k: k for k in saves[0].keys()}
         order_by_cols = order_by.split(',') + ['src']
         rows = [headers] + sorted(saves,
-            key=lambda x: [x[k] for k in order_by_cols],
-            reverse=True)
+                                  key=lambda x: [x[k] for k in order_by_cols],
+                                  reverse=True)
         for i, r in enumerate(rows):
             if i > 0:
                 r['modified'] = ts_to_str(r['modified'])
                 r['duration'] = (f'{r["duration"]:.02f}'
-                    if r['duration'] is not None else '')
+                                 if r['duration'] is not None else '')
                 r['desynced'] = r['desynced'] or ''
             print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  '
-                f'{r["desynced"]:10}  {r["hostname"]:20}  {r["duration"]:10}  '
-                f'{r["src"]}')
+                  f'{r["desynced"]:10}  {r["hostname"]:20}  {r["duration"]:10}  '
+                  f'{r["src"]}')
 
     def get_status(self, order_by='hostname,modified'):
         report = self._monitor()

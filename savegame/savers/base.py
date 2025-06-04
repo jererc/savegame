@@ -7,8 +7,8 @@ import time
 from svcutils.service import Notifier
 
 from savegame import NAME, logger
-from savegame.lib import (REF_FILENAME, Metadata, Reference, Report,
-    get_file_mtime, remove_path)
+from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
+                          Report, get_file_mtime, remove_path, validate_path)
 
 
 RETRY_DELTA = 2 * 3600
@@ -40,10 +40,9 @@ class BaseSaver:
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
-        self.dst_path = dst_path
         self.run_delta = run_delta
         self.purge_delta = purge_delta
-        self.dst = self.get_dst()
+        self.dst = self.get_dst(dst_path)
         self.dst_paths = set()
         self.ref = Reference(self.dst)
         self.meta = Metadata()
@@ -52,12 +51,28 @@ class BaseSaver:
         self.end_ts = None
         self.success = None
 
-    def get_dst(self):
+    @classmethod
+    def get_base_dst_path(cls, dst_path, volume_path, root_dirname):
+        if not dst_path:
+            raise Exception('missing dst_path')
+        if cls.dst_type != 'local':
+            return dst_path
+        if volume_path:
+            dst_path = os.path.join(volume_path, dst_path)
+        validate_path(dst_path)
+        dst_path = os.path.expanduser(dst_path)
+        if not os.path.exists(dst_path):
+            raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
+        if cls.in_place:
+            return dst_path
+        return os.path.join(dst_path, root_dirname, cls.id)
+
+    def get_dst(self, dst_path):
         if self.in_place:
-            return self.dst_path
+            return dst_path
         if self.dst_type != 'local':
-            return self.dst_path
-        return os.path.join(self.dst_path, self.hostname, path_to_dirname(self.src))
+            return dst_path
+        return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
 
     def notify_error(self, message, exc=None):
         Notifier().send(title='error', body=message, app_name=NAME)
@@ -70,10 +85,9 @@ class BaseSaver:
             'dst': self.dst,
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
-            'next_ts': time.time() + (self.run_delta if self.success
-                else RETRY_DELTA),
-            'success_ts': self.end_ts if self.success
-                else self.meta.get(self.src).get('success_ts', 0),
+            'next_ts': time.time() + (self.run_delta if self.success else RETRY_DELTA),
+            'success_ts': (self.end_ts if self.success
+                           else self.meta.get(self.src).get('success_ts', 0)),
         })
 
     def do_run(self):

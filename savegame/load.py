@@ -6,10 +6,9 @@ import sys
 
 from savegame import NAME, logger
 from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath,
-    check_patterns, get_file_hash, get_file_mtime, to_json,
-    validate_path)
+                          check_patterns, get_file_hash, get_file_mtime,
+                          to_json, validate_path)
 from savegame.save import iterate_save_items
-from savegame.savers.local import LocalSaver
 
 
 HOME_DIR = os.path.expanduser('~')
@@ -43,8 +42,7 @@ class LocalLoader:
         if username in SHARED_USERNAMES:
             return path
         if username == self.username:
-            return path.replace(os.path.join(home_root, username),
-                HOME_DIR, 1)
+            return path.replace(os.path.join(home_root, username), HOME_DIR, 1)
         return None
 
     def _iterate_refs(self):
@@ -66,11 +64,9 @@ class LocalLoader:
             return False
         if not self.overwrite:
             if get_file_mtime(src_file) > get_file_mtime(dst_file):
-                self.report.add('conflict_src_more_recent',
-                    src, src_file)
+                self.report.add('conflict_src_more_recent', src, src_file)
             else:
-                self.report.add('conflict_dst_more_recent',
-                    src, src_file)
+                self.report.add('conflict_dst_more_recent', src, src_file)
             return False
         return True
 
@@ -88,7 +84,7 @@ class LocalLoader:
                 else:
                     os.rename(src_file, src_file_bak)
                     logger.warning(f'renamed existing src file '
-                        f'{src_file} to {src_file_bak}')
+                                   f'{src_file} to {src_file_bak}')
                 self.report.add('loaded_overwritten', src, src_file)
             else:
                 self.report.add('loaded', src, src_file)
@@ -98,7 +94,7 @@ class LocalLoader:
         except Exception as exc:
             self.report.add('failed', src, src_file)
             logger.error(f'failed to load {src_file} '
-                f'from {dst_file}: {exc}')
+                         f'from {dst_file}: {exc}')
 
     def run(self):
         for ref in self._iterate_refs():
@@ -125,11 +121,9 @@ class LocalLoader:
                 src_file_raw = os.path.join(ref.src, rel_path)
                 src_file = self._get_src_file_for_user(src_file_raw)
                 if not src_file:
-                    self.report.add('skipped_other_username', ref.src,
-                        src_file_raw)
+                    self.report.add('skipped_other_username', ref.src, src_file_raw)
                     continue
-                self._load_file(os.path.join(ref.dst, rel_path),
-                    src_file, ref.src)
+                self._load_file(os.path.join(ref.dst, rel_path), src_file, ref.src)
 
 
 class LoadHandler:
@@ -139,8 +133,8 @@ class LoadHandler:
 
     def _iterate_loaders(self):
         dst_paths = {s.dst_path
-            for s in iterate_save_items(self.config, log_unhandled=True)
-            if s.saver_cls == LocalSaver and s.loadable}
+                     for s in iterate_save_items(self.config, log_unhandled=True)
+                     if s.is_loadable()}
         if not dst_paths:
             logger.info('nothing to load')
         for dst_path in dst_paths:

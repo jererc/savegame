@@ -21,12 +21,10 @@ SCOPES = [
 EXPORT_SIZE_LIMIT = 50000000
 MIME_TYPE_MAP = {
     # https://developers.google.com/drive/api/guides/ref-export-formats
-    'application/vnd.google-apps.document': ('application/'
-        'vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.docx'),
-    'application/vnd.google-apps.spreadsheet': ('application/'
-        'vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        '.xlsx'),
+    'application/vnd.google-apps.document': ('application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                             '.docx'),
+    'application/vnd.google-apps.spreadsheet': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                                '.xlsx'),
 }
 
 logger = logging.getLogger(__name__)
@@ -42,7 +40,7 @@ def get_file(path):
 
 class GoogleCloud:
     def __init__(self, oauth_secrets_file=None, service_secrets_file=None,
-            **browser_args):
+                 **browser_args):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
         self.service_secrets_file = get_file(service_secrets_file)
         self.browser_args = browser_args
@@ -55,7 +53,7 @@ class GoogleCloud:
 
     def _get_token_file(self):
         dirname, basename = os.path.split(self.oauth_secrets_file
-            or self.service_secrets_file)
+                                          or self.service_secrets_file)
         name, ext = os.path.splitext(basename)
         return os.path.join(dirname, f'{name}-token{ext}')
 
@@ -86,8 +84,7 @@ class GoogleCloud:
             raise Exception('missing oauth secrets')
         creds = None
         if os.path.exists(self.token_file):
-            creds = Credentials.from_authorized_user_file(self.token_file,
-                SCOPES)
+            creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 try:
@@ -126,7 +123,7 @@ class GoogleCloud:
                 file_meta = self._file_cache[parent_id]
             except KeyError:
                 file_meta = service.files().get(fileId=parent_id,
-                    fields='id, name, parents').execute()
+                                                fields='id, name, parents').execute()
                 self._file_cache[parent_id] = file_meta
             path = os.path.join(file_meta['name'], path)
             parent_id = get_parent_id(file_meta)
@@ -138,12 +135,12 @@ class GoogleCloud:
         page_token = None
         query = ' or '.join([f"mimeType='{r}'" for r in MIME_TYPE_MAP.keys()])
         while True:
-            response = (service.files()
+            response = (
+                service.files()
                 .list(
                     q=f'trashed=false and ({query})',
                     spaces='drive',
-                    fields='nextPageToken, files(id, name, mimeType, '
-                        'modifiedTime, size, parents)',
+                    fields='nextPageToken, files(id, name, mimeType, modifiedTime, size, parents)',
                     pageToken=page_token,
                 )
                 .execute()
@@ -171,14 +168,13 @@ class GoogleCloud:
     def export_file(self, file_id, path, mime_type):
         service = self._get_drive_service()
         request = service.files().export_media(fileId=file_id,
-            mimeType=mime_type)
+                                               mimeType=mime_type)
         fh = io.FileIO(path, 'wb')
         downloader = MediaIoBaseDownload(fh, request)
         done = False
         while not done:
             status, done = downloader.next_chunk()
-            logger.debug('Download progress: '
-                f'{int(status.progress() * 100)}%')
+            logger.debug(f'Download progress: {int(status.progress() * 100)}%')
 
     def _get_people_service(self):
         if not self.oauth_creds:
@@ -189,7 +185,8 @@ class GoogleCloud:
         contacts = []
         page_token = None
         while True:
-            response = (self._get_people_service().people()
+            response = (
+                self._get_people_service().people()
                 .connections()
                 .list(
                     resourceName='people/me',

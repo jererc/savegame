@@ -39,14 +39,15 @@ class GoogleDriveExportSaver(BaseSaver):
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             try:
                 gc.export_file(file_id=file_meta['id'],
-                    path=dst_file, mime_type=file_meta['mime_type'])
+                               path=dst_file,
+                               mime_type=file_meta['mime_type'])
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
                 logger.error('failed to save google drive file '
-                    f'{file_meta["name"]}: {exc}')
+                             f'{file_meta["name"]}: {exc}')
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
-            for p in self.dst_paths}
+                          for p in self.dst_paths}
 
 
 class GoogleContactsExportSaver(BaseSaver):

@@ -40,7 +40,7 @@ def main():
     path = os.path.realpath(os.path.expanduser(args.path))
     config = Config(
         os.path.join(path, 'user_settings.py'),
-        DST_ROOT_DIR='saves',
+        DST_ROOT_DIRNAME='saves',
         SAVE_RUN_DELTA=3600,
         PURGE_DELTA=7 * 24 * 3600,
         ALWAYS_UPDATE_REF=False,
