@@ -62,7 +62,12 @@ def main():
         elif args.task:
             service.run_once()
         else:
-            service.run_once(force=True)
+            Service(
+                target=wrap_savegame,
+                args=(config,),
+                kwargs={'force': True},
+                work_dir=WORK_DIR,
+            ).run_once(force=True)
     else:
         from savegame import load, save
         {
