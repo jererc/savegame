@@ -135,22 +135,23 @@ class SaveHandler:
     def run(self):
         start_ts = time.time()
         savers = list(self._generate_savers())
+        saver_results = {}
         report = Report()
         for saver in savers:
             try:
-                saver.run(force=self.force)
+                saver_results[saver.key] = saver.run(force=self.force)
             except Exception as exc:
                 logger.exception(f'failed to save {saver.src}')
                 Notifier().send(title='exception',
                                 body=f'failed to save {saver.src}: {exc}',
                                 app_name=NAME)
             report.merge(saver.report)
-        Metadata().save(keys={s.src for s in savers})
+        Metadata().save(keys={s.key for s in savers})
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        logger.info(f'processed {len(savers)} saves in '
-                    f'{time.time() - start_ts:.02f} seconds')
+        logger.info(f'processed {len([r for r in saver_results.values() if r])}'
+                    f'/{len(saver_results)} saves in {time.time() - start_ts:.02f} seconds')
 
 
 class SaveMonitor:
@@ -212,7 +213,8 @@ class SaveMonitor:
 
     def _get_duration(self, hostname, ref):
         if hostname in self.saver_hostnames:
-            meta = Metadata().data.get(ref.save_src)
+            by_src = {r['src']: r for r in Metadata().data.values()}
+            meta = by_src.get(ref.save_src)
             if meta:
                 return meta['end_ts'] - meta['start_ts']
         return None

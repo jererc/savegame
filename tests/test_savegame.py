@@ -385,7 +385,9 @@ class SavegameTestCase(BaseTestCase):
             pprint(set(walk_paths(data['dst'])))
 
     def _get_ref(self):
-        return {s: module.lib.Reference(d['dst'])
+        print('*' * 80)
+        pprint(self.meta.data)
+        return {d['src']: module.lib.Reference(d['dst'])
                 for s, d in self.meta.data.items()}
 
     def test_ref(self):
@@ -479,7 +481,10 @@ class SavegameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual(set(self.meta.data.keys()), {src1, src2, src3})
+        self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
+                         {src1, src2, src3})
+        self.assertEqual({r['src'] for r in self.meta.data.values()},
+                         {src1, src2, src3})
 
         saves = [
             {
@@ -493,7 +498,10 @@ class SavegameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual(set(self.meta.data.keys()), {src1, src2})
+        self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
+                         {src1, src2})
+        self.assertEqual({r['src'] for r in self.meta.data.values()},
+                         {src1, src2})
 
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
@@ -503,7 +511,10 @@ class SavegameTestCase(BaseTestCase):
             mock_do_run.side_effect = side_do_run
             self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual(set(self.meta.data.keys()), {src1, src2})
+        self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
+                         {src1, src2})
+        self.assertEqual({r['src'] for r in self.meta.data.values()},
+                         {src1, src2})
 
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)

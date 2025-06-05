@@ -45,6 +45,7 @@ class BaseSaver:
         self.dst = self.get_dst(dst_path)
         self.dst_paths = set()
         self.ref = Reference(self.dst)
+        self.key = self._get_key()
         self.meta = Metadata()
         self.report = Report()
         self.start_ts = None
@@ -74,20 +75,24 @@ class BaseSaver:
             return dst_path
         return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
 
+    def _get_key(self):
+        return f'{self.src}|{self.dst}'
+
     def notify_error(self, message, exc=None):
         Notifier().send(title='error', body=message, app_name=NAME)
 
     def _must_run(self):
-        return time.time() > self.meta.get(self.src).get('next_ts', 0)
+        return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
     def _update_meta(self):
-        self.meta.set(self.src, {
+        self.meta.set(self.key, {
+            'src': self.src,
             'dst': self.dst,
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
             'next_ts': time.time() + (self.run_delta if self.success else RETRY_DELTA),
             'success_ts': (self.end_ts if self.success
-                           else self.meta.get(self.src).get('success_ts', 0)),
+                           else self.meta.get(self.key).get('success_ts', 0)),
         })
 
     def do_run(self):
@@ -118,7 +123,7 @@ class BaseSaver:
 
     def run(self, force=False):
         if not (force or self._must_run()):
-            return
+            return False
         self.start_ts = time.time()
         self.ref.save_src = self.src
         self.ref.src = self.src
@@ -136,6 +141,7 @@ class BaseSaver:
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         self.end_ts = time.time()
         self._update_meta()
+        return True
 
 
 def iterate_saver_classes(package='savegame.savers'):
