@@ -123,7 +123,9 @@ class BaseSaver:
 
     def run(self, force=False):
         if not (force or self._must_run()):
-            return False
+            self.report.add('not_run', self.src, self.dst)
+            return
+        self.report.add('run', self.src, self.dst)
         self.start_ts = time.time()
         self.ref.save_src = self.src
         self.ref.src = self.src
@@ -141,7 +143,6 @@ class BaseSaver:
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         self.end_ts = time.time()
         self._update_meta()
-        return True
 
 
 def iterate_saver_classes(package='savegame.savers'):
