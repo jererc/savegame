@@ -343,12 +343,6 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*file3*'))
 
-    def test_no_save(self):
-        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
-        with patch.object(save.Notifier, 'send') as mock_send:
-            save.savegame(self.config)
-        self.assertTrue(mock_send.call_args_list)
-
     def test_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         saves = [
@@ -639,6 +633,32 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file1'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file1'))
 
+    def test_volume_label_not_found(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
+        volumes = {'volume1': self.src_root, 'volume2': self.dst_root}
+        dst_path = os.path.join(self.dst_root, 'src1')
+        os.makedirs(dst_path, exist_ok=True)
+        saves = [
+            {
+                'saver_id': 'local_in_place',
+                'enable_purge': False,
+                'src_paths': ['src1'],
+                'dst_path': 'src1',
+                'src_volume_label': 'not_found',
+                'dst_volume_label': 'volume2',
+            },
+        ]
+        with patch.object(save, 'list_volumes', return_value=volumes):
+            self._savegame(saves=saves)
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertFalse(any_str_matches(dst_paths, '*dir*file*'))
+
+        self.meta = module.lib.Metadata()
+        pprint(self.meta.data)
+        self.assertFalse(self.meta.data)
+
     def test_volume_label(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
         volumes = {'volume1': self.src_root, 'volume2': self.dst_root}
@@ -656,8 +676,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_volume_label': 'volume2',
             },
         ]
-        with patch.object(save, 'list_volumes',
-                          return_value=volumes):
+        with patch.object(save, 'list_volumes', return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
@@ -680,8 +699,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_volume_label': 'volume2',
             },
         ]
-        with patch.object(save, 'list_volumes',
-                          return_value=volumes):
+        with patch.object(save, 'list_volumes', return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()

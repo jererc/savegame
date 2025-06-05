@@ -62,7 +62,7 @@ class SaveItem:
         if self.dst_volume_label:
             volume_path = self._get_volume_path_by_label(self.dst_volume_label)
             if not volume_path:
-                return None
+                raise UnhandledPath(f'volume {self.dst_volume_label} not found')
         else:
             volume_path = None
         return self.saver_cls.get_base_dst_path(
@@ -135,8 +135,6 @@ class SaveHandler:
     def run(self):
         start_ts = time.time()
         savers = list(self._generate_savers())
-        if not savers:
-            raise Exception('nothing to save')
         report = Report()
         for saver in savers:
             try:
