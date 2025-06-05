@@ -149,8 +149,8 @@ class SaveHandler:
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        run_count = len(report.data.get('run', {}).keys())
-        not_run_count = len(report.data.get('not_run', {}).keys())
+        run_count = len(report.get('run').keys())
+        not_run_count = len(report.get('not_run').keys())
         logger.info(f'processed {run_count}/{not_run_count + run_count} '
                     f'saves in {time.time() - start_ts:.02f} seconds')
 

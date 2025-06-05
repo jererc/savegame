@@ -200,6 +200,10 @@ class Report:
         else:
             self.data[k1][k2].add(v)
 
+    def get(self, k1, k2=None):
+        data = self.data.get(k1, {})
+        return data.get(k2) if k2 else data
+
     def merge(self, report):
         for k, v in report.data.items():
             for k2, v2 in v.items():
