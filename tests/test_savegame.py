@@ -486,23 +486,6 @@ class SavegameTestCase(BaseTestCase):
         self.assertEqual({r['src'] for r in self.meta.data.values()},
                          {src1, src2, src3})
 
-        saves = [
-            {
-                'src_paths': [src1],
-                'dst_path': self.dst_root,
-            },
-            {
-                'src_paths': [src2],
-                'dst_path': self.dst_root,
-            },
-        ]
-        self._savegame(saves=saves)
-        pprint(self.meta.data)
-        self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
-                         {src1, src2})
-        self.assertEqual({r['src'] for r in self.meta.data.values()},
-                         {src1, src2})
-
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
 
@@ -512,9 +495,9 @@ class SavegameTestCase(BaseTestCase):
             self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
-                         {src1, src2})
+                         {src1, src2, src3})
         self.assertEqual({r['src'] for r in self.meta.data.values()},
-                         {src1, src2})
+                         {src1, src2, src3})
 
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)

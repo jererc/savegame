@@ -145,7 +145,7 @@ class SaveHandler:
                                 body=f'failed to save {saver.src}: {exc}',
                                 app_name=NAME)
             report.merge(saver.report)
-        Metadata().save(keys={s.key for s in savers})
+        Metadata().save()
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')

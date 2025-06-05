@@ -139,8 +139,9 @@ class Metadata:
     def set(self, key, value: dict):
         self.data[key] = value
 
-    def save(self, keys):
-        self.data = {k: v for k, v in self.data.items() if k in keys}
+    def save(self, keys=None):
+        if keys:
+            self.data = {k: v for k, v in self.data.items() if k in keys}
         with open(self.file, 'w', encoding='utf-8') as fd:
             json.dump(self.data, fd, sort_keys=True, indent=4)
 
