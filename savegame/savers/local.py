@@ -1,3 +1,4 @@
+import filecmp
 import os
 import shutil
 import time
@@ -79,3 +80,12 @@ class LocalInPlaceSaver(LocalSaver):
         equal = (get_file_size(src_file) == get_file_size(dst_file)
                  and get_file_mtime(src_file) == get_file_mtime(dst_file))
         return equal, None
+
+
+class LocalInPlaceSaver2(LocalInPlaceSaver):
+    id = 'local_in_place2'
+
+    def compare_files_and_get_ref_value(self, src_file, dst_file):
+        if not os.path.exists(dst_file):
+            return False, None
+        return filecmp.cmp(src_file, dst_file, shallow=True), None
