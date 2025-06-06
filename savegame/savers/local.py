@@ -38,6 +38,7 @@ class LocalSaver(BaseSaver):
             files = list(walk_files(src))
             if len(files) > BIG_FILE_COUNT:
                 logger.info(f'listed {len(files)} files from {src} '
+                            f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
                             f'in {time.time() - start_time:.02f} seconds')
         return src, {f for f in files if self._is_file_valid(f)}
 
