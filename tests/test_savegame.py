@@ -346,6 +346,33 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*file3*'))
 
+    def test_save_glob_and_exclusions_file(self):
+        self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
+        file = os.path.join(self.src_root, 'excluded_file')
+        with open(file, 'w') as fd:
+            fd.write('content')
+        saves = [
+            {
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, '*'),
+                        [],
+                        ['*/excluded_file', '*/src2*', '*/src3*', '*/dir3*', '*/file3'],
+                    ],
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*src1*'))
+        self.assertFalse(any_str_matches(dst_paths, '*excluded_file*'))
+        self.assertFalse(any_str_matches(dst_paths, '*src2*'))
+        self.assertFalse(any_str_matches(dst_paths, '*src3*'))
+        self.assertFalse(any_str_matches(dst_paths, '*dir3*'))
+        self.assertFalse(any_str_matches(dst_paths, '*file3*'))
+
     def test_save(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
         saves = [

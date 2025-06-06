@@ -29,17 +29,21 @@ class LocalSaver(BaseSaver):
 
     def _get_src_and_files(self):
         if self.src_type != 'local':
-            return self.src, set()
-        if os.path.isfile(self.src):
-            return os.path.dirname(self.src), {self.src}
+            return self.src, []
         start_ts = time.time()
-        files = {f for f in walk_files(self.src) if self._is_file_valid(f)}
+        if os.path.isfile(self.src):
+            src = os.path.dirname(self.src)
+            raw_files = [self.src]
+        else:
+            src = self.src
+            raw_files = list(walk_files(self.src))
+        files = {f for f in raw_files if self._is_file_valid(f)}
         duration = time.time() - start_ts
         if duration > BIG_FILE_LIST_DURATION:
             logger.warning(f'listed {len(files)} files from {self.src} '
-                           f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
-                           f'in {duration:.02f} seconds')
-        return self.src, files
+                        f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
+                        f'in {duration:.02f} seconds')
+        return src, files
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
