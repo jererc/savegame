@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 
 from savegame import logger
 from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
@@ -7,6 +8,7 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
 from savegame.savers.base import BaseSaver
 
 
+BIG_FILE_COUNT = 10000
 BIG_FILE_SIZE = 1000000000
 
 
@@ -20,20 +22,24 @@ class LocalSaver(BaseSaver):
     id = 'local'
     hostname = HOSTNAME
 
-    def _get_src_and_files(self):
-        def is_valid(file):
-            return (os.path.basename(file) != REF_FILENAME
-                    and check_patterns(file, self.inclusions, self.exclusions))
+    def _is_file_valid(self, file):
+        return (os.path.basename(file) != REF_FILENAME
+                and check_patterns(file, self.inclusions, self.exclusions))
 
-        if self.src_type == 'local':
-            src = self.src
-            if os.path.isfile(src):
-                files = [src]
-                src = os.path.dirname(src)
-            else:
-                files = list(walk_files(src))
-            return src, {f for f in files if is_valid(f)}
-        return self.src, set()
+    def _get_src_and_files(self):
+        if self.src_type != 'local':
+            return self.src, set()
+        src = self.src
+        if os.path.isfile(src):
+            files = [src]
+            src = os.path.dirname(src)
+        else:
+            start_time = time.time()
+            files = list(walk_files(src))
+            if len(files) > BIG_FILE_COUNT:
+                logger.info(f'listed {len(files)} files from {src} '
+                            f'in {time.time() - start_time:.02f} seconds')
+        return src, {f for f in files if self._is_file_valid(f)}
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
