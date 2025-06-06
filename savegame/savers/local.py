@@ -32,15 +32,10 @@ class LocalSaver(BaseSaver):
             return self.src, set()
         src = self.src
         if os.path.isfile(src):
-            files = [src]
+            files = {src}
             src = os.path.dirname(src)
         else:
-            start_time = time.time()
             files = {f for f in walk_files(src) if self._is_file_valid(f)}
-            if len(files) > 0:
-                logger.info(f'listed {len(files)} files from {src} '
-                            f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
-                            f'in {time.time() - start_time:.02f} seconds')
         return src, files
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
@@ -48,10 +43,17 @@ class LocalSaver(BaseSaver):
         return src_hash == get_file_hash(dst_file), src_hash
 
     def do_run(self):
+        start_ts = time.time()
         src, src_files = self._get_src_and_files()
+        if len(src_files) > BIG_FILE_COUNT:
+            logger.info(f'listed {len(src_files)} files from {src} '
+                        f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
+                        f'in {time.time() - start_ts:.02f} seconds')
+
         self.report.add('files', self.src, src_files)
         self.ref.src = src
         self.ref.files = {}
+        start_ts = time.time()
         for src_file in src_files:
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
@@ -69,6 +71,11 @@ class LocalSaver(BaseSaver):
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
+
+        if len(src_files) > BIG_FILE_COUNT:
+            logger.info(f'processed {len(src_files)} files from {src} '
+                        f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
+                        f'in {time.time() - start_ts:.02f} seconds')
 
 
 class LocalInPlaceSaver(LocalSaver):
