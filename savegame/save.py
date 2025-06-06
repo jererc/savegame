@@ -171,6 +171,9 @@ class SaveMonitor:
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
                      if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
         for dst_path in dst_paths:
+            if not os.path.exists(dst_path):
+                logger.warning(f'missing dst path {dst_path}')
+                continue
             for hostname in sorted(os.listdir(dst_path)):
                 for dst in glob(os.path.join(dst_path, hostname, '*')):
                     ref = Reference(dst)
