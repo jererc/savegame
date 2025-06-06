@@ -8,7 +8,7 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
 from savegame.savers.base import BaseSaver
 
 
-BIG_FILE_COUNT = 10000
+BIG_FILE_COUNT = 1000
 BIG_FILE_SIZE = 1000000000
 
 
@@ -35,12 +35,12 @@ class LocalSaver(BaseSaver):
             src = os.path.dirname(src)
         else:
             start_time = time.time()
-            files = list(walk_files(src))
-            if len(files) > BIG_FILE_COUNT:
+            files = {f for f in walk_files(src) if self._is_file_valid(f)}
+            if len(files) > 0:
                 logger.info(f'listed {len(files)} files from {src} '
                             f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
                             f'in {time.time() - start_time:.02f} seconds')
-        return src, {f for f in files if self._is_file_valid(f)}
+        return src, files
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
