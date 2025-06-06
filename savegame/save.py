@@ -96,14 +96,7 @@ class SaveItem:
         if not self.dst_path:
             return
         for src_and_patterns in self._generate_src_and_patterns():
-            yield self.saver_cls(
-                self.config,
-                *src_and_patterns,
-                dst_path=self.dst_path,
-                run_delta=self.run_delta,
-                purge_delta=self.purge_delta,
-                enable_purge=self.enable_purge,
-            )
+            yield self.saver_cls(self.config, self, *src_and_patterns)
 
     def is_loadable(self):
         return self.saver_cls == LocalSaver and self.loadable
@@ -136,6 +129,7 @@ class SaveHandler:
         start_ts = time.time()
         savers = list(self._generate_savers())
         report = Report()
+        volume_labels = set()
         for saver in savers:
             try:
                 saver.run(force=self.force)
@@ -145,6 +139,11 @@ class SaveHandler:
                                 body=f'failed to save {saver.src}: {exc}',
                                 app_name=NAME)
             report.merge(saver.report)
+            for attr in ('src_volume_label', 'dst_volume_label'):
+                volume_label = getattr(saver.save_item, attr)
+                if volume_label:
+                    volume_labels.add(volume_label)
+
         Metadata().save()
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
@@ -153,6 +152,10 @@ class SaveHandler:
         not_run_count = len(report.get('not_run').keys())
         logger.info(f'processed {run_count}/{not_run_count + run_count} '
                     f'saves in {time.time() - start_ts:.02f} seconds')
+        if volume_labels:
+            Notifier().send(title='saved volumes',
+                            body=', '.join(sorted(volume_labels)),
+                            app_name=NAME)
 
 
 class SaveMonitor:

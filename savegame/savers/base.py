@@ -33,16 +33,13 @@ class BaseSaver:
     dst_type = 'local'
     in_place = False
 
-    def __init__(self, config, src, inclusions, exclusions, dst_path,
-                 run_delta, purge_delta, enable_purge=True):
+    def __init__(self, config, save_item, src, inclusions, exclusions):
         self.config = config
+        self.save_item = save_item
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
-        self.run_delta = run_delta
-        self.purge_delta = purge_delta
-        self.enable_purge = enable_purge
-        self.dst = self.get_dst(dst_path)
+        self.dst = self.get_dst(self.save_item.dst_path)
         self.dst_paths = set()
         self.ref = Reference(self.dst)
         self.key = self._get_key()
@@ -90,7 +87,8 @@ class BaseSaver:
             'dst': self.dst,
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
-            'next_ts': time.time() + (self.run_delta if self.success else RETRY_DELTA),
+            'next_ts': time.time() + (self.save_item.run_delta
+                                      if self.success else RETRY_DELTA),
             'success_ts': (self.end_ts if self.success
                            else self.meta.get(self.key).get('success_ts', 0)),
         })
@@ -106,7 +104,7 @@ class BaseSaver:
             if name == REF_FILENAME:
                 return False
             if (not name.startswith(REF_FILENAME)
-                    and get_file_mtime(path) > time.time() - self.purge_delta):
+                    and get_file_mtime(path) > time.time() - self.save_item.purge_delta):
                 return False
         elif os.listdir(path):
             return False
@@ -132,7 +130,7 @@ class BaseSaver:
         logger.info(f'saving {self.src} to {self.dst}')
         try:
             self.do_run()
-            if self.enable_purge:
+            if self.save_item.enable_purge:
                 self._purge_dst()
             if os.path.exists(self.ref.dst):
                 self.ref.save(force=self.config.ALWAYS_UPDATE_REF)

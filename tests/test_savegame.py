@@ -236,9 +236,12 @@ class BaseTestCase(unittest.TestCase):
 
     def _savegame(self, saves, **kwargs):
         self.config.SAVES = saves
-        with patch.object(save.Notifier, 'send'):
+        with patch.object(save.Notifier, 'send') as mock_send:
             config = self._get_config(SAVES=saves)
             save.savegame(config, **kwargs)
+        if mock_send.call_args_list:
+            print('notifier calls:')
+            pprint(mock_send.call_args_list)
 
     def _loadgame(self, **kwargs):
         with patch.object(save.Notifier, 'send'):
@@ -653,7 +656,7 @@ class SavegameTestCase(BaseTestCase):
         pprint(self.meta.data)
         self.assertFalse(self.meta.data)
 
-    def test_volume_label(self):
+    def test_volume_label_purge(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
         volumes = {'volume1': self.src_root, 'volume2': self.dst_root}
         dst_path = os.path.join(self.dst_root, 'src1')
@@ -703,6 +706,38 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*dir1*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir2*file*'))
         self.assertTrue(any_str_matches(dst_paths, '*dir3*file*'))
+
+    def test_volume_label_notification(self):
+        self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
+        volumes = {'volume1': self.src_root, 'volume2': self.dst_root}
+        dst_path = os.path.join(self.dst_root, 'src1')
+        os.makedirs(dst_path, exist_ok=True)
+        with open(os.path.join(dst_path, 'old_file'), 'w') as fd:
+            fd.write('data')
+
+        saves = [
+            {
+                'saver_id': 'local_in_place',
+                'src_paths': ['src1'],
+                'dst_path': 'src1',
+                'src_volume_label': 'volume1',
+                'dst_volume_label': 'volume2',
+            },
+            {
+                'saver_id': 'local_in_place',
+                'src_paths': ['src2'],
+                'dst_path': 'src2',
+                'src_volume_label': 'volume2',
+                'dst_volume_label': 'volume3',
+            },
+        ]
+        with patch.object(save, 'list_volumes', return_value=volumes):
+            self._savegame(saves=saves)
+        print('dst data:')
+        dst_paths = self._list_dst_root_paths()
+        pprint(dst_paths)
+        self.assertTrue(any_str_matches(dst_paths, '*src1*dir*file*'))
+        self.assertFalse(any_str_matches(dst_paths, '*src2*'))
 
     def test_remove_dst_path_patterns(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=3, file_count=3)
