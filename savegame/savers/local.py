@@ -9,8 +9,8 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
 from savegame.savers.base import BaseSaver
 
 
-BIG_FILE_COUNT = 1000
-BIG_FILE_SIZE = 1000000000
+BIG_FILE_LIST_DURATION = 30
+BIG_FILE_SIZE = 1024 * 1024 * 1024
 
 
 def walk_files(path):
@@ -32,24 +32,24 @@ class LocalSaver(BaseSaver):
             return self.src, set()
         if os.path.isfile(self.src):
             return os.path.dirname(self.src), {self.src}
-        return self.src, {f for f in walk_files(self.src) if self._is_file_valid(f)}
+        start_ts = time.time()
+        files = {f for f in walk_files(self.src) if self._is_file_valid(f)}
+        duration = time.time() - start_ts
+        if duration > BIG_FILE_LIST_DURATION:
+            logger.warning(f'listed {len(files)} files from {self.src} '
+                           f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
+                           f'in {duration:.02f} seconds')
+        return self.src, files
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
         return src_hash == get_file_hash(dst_file), src_hash
 
     def do_run(self):
-        start_ts = time.time()
         src, src_files = self._get_src_and_files()
-        if len(src_files) > BIG_FILE_COUNT:
-            logger.info(f'listed {len(src_files)} files from {src} '
-                        f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
-                        f'in {time.time() - start_ts:.02f} seconds')
-
         self.report.add('files', self.src, src_files)
         self.ref.src = src
         self.ref.files = {}
-        start_ts = time.time()
         for src_file in src_files:
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
@@ -67,10 +67,6 @@ class LocalSaver(BaseSaver):
             except Exception:
                 self.report.add('failed', self.src, src_file)
                 logger.exception(f'failed to save {src_file}')
-
-        if len(src_files) > BIG_FILE_COUNT:
-            logger.info(f'saved {len(src_files)} files from {src} to {self.dst} '
-                        f'in {time.time() - start_ts:.02f} seconds')
 
 
 class LocalInPlaceSaver(LocalSaver):
