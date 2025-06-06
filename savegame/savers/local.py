@@ -5,7 +5,7 @@ import time
 
 from savegame import logger
 from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
-                          get_file_hash, get_file_mtime, get_file_size)
+                          get_file_hash, get_file_size)
 from savegame.savers.base import BaseSaver
 
 
@@ -30,13 +30,9 @@ class LocalSaver(BaseSaver):
     def _get_src_and_files(self):
         if self.src_type != 'local':
             return self.src, set()
-        src = self.src
-        if os.path.isfile(src):
-            files = {src}
-            src = os.path.dirname(src)
-        else:
-            files = {f for f in walk_files(src) if self._is_file_valid(f)}
-        return src, files
+        if os.path.isfile(self.src):
+            return os.path.dirname(self.src), {self.src}
+        return self.src, {f for f in walk_files(self.src) if self._is_file_valid(f)}
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
@@ -73,8 +69,7 @@ class LocalSaver(BaseSaver):
                 logger.exception(f'failed to save {src_file}')
 
         if len(src_files) > BIG_FILE_COUNT:
-            logger.info(f'processed {len(src_files)} files from {src} '
-                        f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
+            logger.info(f'saved {len(src_files)} files from {src} to {self.dst} '
                         f'in {time.time() - start_ts:.02f} seconds')
 
 
@@ -82,15 +77,6 @@ class LocalInPlaceSaver(LocalSaver):
     id = 'local_in_place'
     hostname = HOSTNAME
     in_place = True
-
-    def compare_files_and_get_ref_value(self, src_file, dst_file):
-        equal = (get_file_size(src_file) == get_file_size(dst_file)
-                 and get_file_mtime(src_file) == get_file_mtime(dst_file))
-        return equal, None
-
-
-class LocalInPlaceSaver2(LocalInPlaceSaver):
-    id = 'local_in_place2'
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         if not os.path.exists(dst_file):
