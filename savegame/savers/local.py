@@ -46,9 +46,10 @@ class LocalSaver(BaseSaver):
                            f'in {duration:.02f} seconds')
         return src, files
 
-    def _check_volume(self):
-        if self.dst_volume_path and not os.path.exists(self.dst_volume_path):
-            raise Exception(f'volume {self.dst_volume_path} does not exist')
+    def _check_dst_volume(self):
+        if self.save_item.dst_volume_path and \
+                not os.path.exists(self.save_item.dst_volume_path):
+            raise Exception(f'volume {self.save_item.dst_volume_path} does not exist')
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
         src_hash = get_file_hash(src_file)
@@ -60,12 +61,12 @@ class LocalSaver(BaseSaver):
         self.ref.src = src
         self.ref.files = {}
         for src_file in src_files:
-            self._check_volume()
+            self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)
-            equal, ref_value = self.compare_files_and_get_ref_value(src_file, dst_file)
             try:
+                equal, ref_value = self.compare_files_and_get_ref_value(src_file, dst_file)
                 if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
