@@ -12,6 +12,7 @@ from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
 
 
 RETRY_DELTA = 2 * 3600
+SAVE_DURATION_THRESHOLD = 30
 
 
 def path_to_dirname(x):
@@ -141,8 +142,9 @@ class BaseSaver:
             self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
         self.end_ts = time.time()
         self._update_meta()
-        logger.info(f'saved {self.src} to {self.dst} '
-                    f'in {self.end_ts - self.start_ts:.02f} seconds')
+        duration = self.end_ts - self.start_ts
+        if duration > SAVE_DURATION_THRESHOLD:
+            logger.warning(f'saved {self.src} to {self.dst} in {duration:.02f} seconds')
 
 
 def iterate_saver_classes(package='savegame.savers'):

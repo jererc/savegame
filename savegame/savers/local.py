@@ -9,8 +9,8 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
 from savegame.savers.base import BaseSaver
 
 
-BIG_FILE_LIST_DURATION = 30
-BIG_FILE_COPY_DURATION = 30
+LIST_DURATION_THRESHOLD = 30
+COPY_DURATION_THRESHOLD = 30
 
 
 def walk_files(path):
@@ -39,7 +39,7 @@ class LocalSaver(BaseSaver):
             raw_files = list(walk_files(self.src))
         files = {f for f in raw_files if self._is_file_valid(f)}
         duration = time.time() - start_ts
-        if duration > BIG_FILE_LIST_DURATION:
+        if duration > LIST_DURATION_THRESHOLD:
             logger.warning(f'listed {len(files)} files from {self.src} '
                            f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
                            f'in {duration:.02f} seconds')
@@ -65,7 +65,7 @@ class LocalSaver(BaseSaver):
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     duration = time.time() - start_ts
-                    if duration > BIG_FILE_COPY_DURATION:
+                    if duration > COPY_DURATION_THRESHOLD:
                         logger.warning(f'copied {src_file} to {dst_file} '
                                        f'({get_file_size(src_file)/1024/1024:.02f} MB) '
                                        f'in {duration:.02f} seconds')
