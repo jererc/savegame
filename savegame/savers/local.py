@@ -67,7 +67,7 @@ class LocalSaver(BaseSaver):
                     duration = time.time() - start_ts
                     if duration > BIG_FILE_COPY_DURATION:
                         logger.warning(f'copied {src_file} to {dst_file} '
-                                       f'({get_file_size(src_file)/1024/1024:.02f} MB)'
+                                       f'({get_file_size(src_file)/1024/1024:.02f} MB) '
                                        f'in {duration:.02f} seconds')
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = ref_value
