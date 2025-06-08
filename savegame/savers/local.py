@@ -56,8 +56,6 @@ class LocalSaver(BaseSaver):
         self.ref.src = src
         self.ref.files = {}
         for src_file in src_files:
-            if self.dst_volume_path and not os.path.exists(self.dst_volume_path):
-                raise Exception(f'volume {self.dst_volume_path} does not exist')
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
             self.dst_paths.add(dst_file)

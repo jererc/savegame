@@ -99,8 +99,7 @@ class SaveItem:
         if not self.dst_path:
             return
         for src_and_patterns in self._generate_src_and_patterns():
-            yield self.saver_cls(self.config, self, *src_and_patterns,
-                                 dst_volume_path=self.dst_volume_path)
+            yield self.saver_cls(self.config, self, *src_and_patterns)
 
     def is_loadable(self):
         return self.saver_cls == LocalSaver and self.loadable

@@ -34,14 +34,12 @@ class BaseSaver:
     dst_type = 'local'
     in_place = False
 
-    def __init__(self, config, save_item, src, inclusions, exclusions,
-                 dst_volume_path=None):
+    def __init__(self, config, save_item, src, inclusions, exclusions):
         self.config = config
         self.save_item = save_item
         self.src = src
         self.inclusions = inclusions
         self.exclusions = exclusions
-        self.dst_volume_path = dst_volume_path
         self.dst = self.get_dst(self.save_item.dst_path)
         self.dst_paths = set()
         self.ref = Reference(self.dst)
