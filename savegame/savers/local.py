@@ -10,7 +10,7 @@ from savegame.savers.base import BaseSaver
 
 
 BIG_FILE_LIST_DURATION = 30
-BIG_FILE_SIZE = 1024 * 1024 * 1024
+BIG_FILE_COPY_DURATION = 30
 
 
 def walk_files(path):
@@ -41,8 +41,8 @@ class LocalSaver(BaseSaver):
         duration = time.time() - start_ts
         if duration > BIG_FILE_LIST_DURATION:
             logger.warning(f'listed {len(files)} files from {self.src} '
-                        f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
-                        f'in {duration:.02f} seconds')
+                           f'(inclusions: {self.inclusions}, exclusions: {self.exclusions}) '
+                           f'in {duration:.02f} seconds')
         return src, files
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
@@ -62,10 +62,13 @@ class LocalSaver(BaseSaver):
             try:
                 if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-                    file_size = get_file_size(src_file)
-                    if file_size > BIG_FILE_SIZE:
-                        logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
+                    start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
+                    duration = time.time() - start_ts
+                    if duration > BIG_FILE_COPY_DURATION:
+                        logger.warning(f'copied {src_file} to {dst_file} '
+                                       f'({get_file_size(src_file)/1024/1024:.02f} MB)'
+                                       f'in {duration:.02f} seconds')
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = ref_value
             except Exception:
