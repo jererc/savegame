@@ -39,6 +39,7 @@ class SaveItem:
         self.dst_volume_label = dst_volume_label
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_cls = get_saver_class(saver_id)
+        self.dst_volume_path = self._get_dst_volume_path()
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
         self.run_delta = (self.config.SAVE_RUN_DELTA
                           if run_delta is None else run_delta)
@@ -54,20 +55,22 @@ class SaveItem:
                 else (s, [], []) for s in (src_paths or [])]
 
     def _get_volume_path_by_label(self, label):
-        if not hasattr(self, '_volumes_by_label'):
-            self._volumes_by_label = list_volumes()
-        return self._volumes_by_label.get(label)
+        if not hasattr(self, '_volume_path_by_label'):
+            self._volume_path_by_label = list_volumes()
+        return self._volume_path_by_label.get(label)
+
+    def _get_dst_volume_path(self):
+        if not self.dst_volume_label:
+            return None
+        volume_path = self._get_volume_path_by_label(self.dst_volume_label)
+        if not volume_path:
+            raise UnhandledPath(f'volume {self.dst_volume_label} not found')
+        return volume_path
 
     def _get_dst_path(self, dst_path):
-        if self.dst_volume_label:
-            volume_path = self._get_volume_path_by_label(self.dst_volume_label)
-            if not volume_path:
-                raise UnhandledPath(f'volume {self.dst_volume_label} not found')
-        else:
-            volume_path = None
         return self.saver_cls.get_base_dst_path(
             dst_path,
-            volume_path=volume_path,
+            volume_path=self.dst_volume_path,
             root_dirname=self.config.DST_ROOT_DIRNAME,
         )
 
@@ -96,7 +99,8 @@ class SaveItem:
         if not self.dst_path:
             return
         for src_and_patterns in self._generate_src_and_patterns():
-            yield self.saver_cls(self.config, self, *src_and_patterns)
+            yield self.saver_cls(self.config, self, *src_and_patterns,
+                                 dst_volume_path=self.dst_volume_path)
 
     def is_loadable(self):
         return self.saver_cls == LocalSaver and self.loadable
