@@ -217,7 +217,7 @@ class SaveMonitor:
             yield from si.generate_savers()
 
     def _get_orphan_dsts(self):
-        dsts = {s.dst for s in self._generate_savers()}
+        dsts = {s.dst for s in self._generate_savers() if not s.in_place}
         res = set()
         for dirname in {os.path.dirname(r) for r in dsts}:
             res.update(set(glob(os.path.join(dirname, '*'))) - dsts)
