@@ -172,7 +172,9 @@ class SaveMonitor:
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
-                     if s.saver_cls.dst_type == 'local' and os.path.exists(s.dst_path)}
+                     if s.saver_cls.dst_type == 'local'
+                     and not s.saver_cls.in_place
+                     and os.path.exists(s.dst_path)}
         for dst_path in dst_paths:
             if not os.path.exists(dst_path):
                 logger.warning(f'missing dst path {dst_path}')

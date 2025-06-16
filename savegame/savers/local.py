@@ -11,7 +11,6 @@ from savegame.savers.base import BaseSaver
 
 LIST_DURATION_THRESHOLD = 30
 COPY_DURATION_THRESHOLD = 30
-FILE_SIZE_THRESHOLD = 100 * 1024 * 1024
 
 
 def walk_files(path):
@@ -60,7 +59,7 @@ class LocalSaver(BaseSaver):
         self.report.add('files', self.src, src_files)
         self.ref.src = src
         self.ref.files = {}
-        for src_file in src_files:
+        for src_file in sorted(src_files):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
@@ -70,9 +69,8 @@ class LocalSaver(BaseSaver):
                 if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
-                    if file_size > FILE_SIZE_THRESHOLD:
-                        logger.warning(f'copying {src_file} to {dst_file} '
-                                       f'({file_size/1024/1024:.02f} MB)')
+                    logger.info(f'copying {src_file} to {dst_file} '
+                                f'({file_size/1024/1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     duration = time.time() - start_ts
