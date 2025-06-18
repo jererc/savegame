@@ -15,6 +15,7 @@ from savegame import NAME, WORK_DIR, logger
 
 HOSTNAME = socket.gethostname()
 REF_FILENAME = f'.{NAME}'
+METADATA_MAX_AGE = 3600 * 24 * 90
 
 
 class UnhandledPath(Exception):
@@ -139,9 +140,9 @@ class Metadata:
     def set(self, key, value: dict):
         self.data[key] = value
 
-    def save(self, keys=None):
-        if keys:
-            self.data = {k: v for k, v in self.data.items() if k in keys}
+    def save(self):
+        max_ts = time.time() - METADATA_MAX_AGE
+        self.data = {k: v for k, v in self.data.items() if v.get('next_ts') > max_ts}
         with open(self.file, 'w', encoding='utf-8') as fd:
             json.dump(self.data, fd, sort_keys=True, indent=4)
 

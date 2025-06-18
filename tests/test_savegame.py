@@ -248,6 +248,36 @@ class BaseTestCase(unittest.TestCase):
             load.loadgame(self.config, **kwargs)
 
 
+class MetadataTestCase(BaseTestCase):
+    def test_1(self):
+        meta = module.lib.Metadata()
+        now = time.time()
+        old_ts = now - 3600 * 24 * 91
+        meta.set('key1', {'next_ts': now})
+        meta.set('key2', {'next_ts': now})
+        meta.save()
+
+        self.assertEqual(meta.get('key1')['next_ts'], now)
+        self.assertEqual(meta.get('key2')['next_ts'], now)
+
+        with open(meta.file, 'r', encoding='utf-8') as fd:
+            data = json.load(fd)
+        data['key2']['next_ts'] = old_ts
+        with open(meta.file, 'w', encoding='utf-8') as fd:
+            json.dump(data, fd, sort_keys=True, indent=4)
+
+        meta.load()
+        self.assertEqual(meta.get('key1')['next_ts'], now)
+        self.assertEqual(meta.get('key2')['next_ts'], old_ts)
+        meta.save()
+
+        meta = module.lib.Metadata()
+        pprint(meta.data)
+        self.assertFalse('key2' in meta.data)
+        self.assertEqual(meta.get('key1')['next_ts'], now)
+        self.assertEqual(meta.get('key2'), {})
+
+
 class ReferenceTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
