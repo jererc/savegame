@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import json
 import os
 import re
 import time
@@ -8,7 +9,8 @@ from svcutils.service import Notifier
 
 from savegame import NAME, logger
 from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
-                          Report, get_file_mtime, remove_path, validate_path)
+                          Report, get_file_mtime, get_hash, remove_path,
+                          validate_path)
 
 
 RETRY_DELTA = 2 * 3600
@@ -74,7 +76,12 @@ class BaseSaver:
         return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
 
     def _get_key(self):
-        return f'{self.src}|{self.dst}'
+        return get_hash(json.dumps({
+            'src': self.src,
+            'dst': self.dst,
+            'inclusions': self.inclusions,
+            'exclusions': self.exclusions,
+        }, sort_keys=True))
 
     def notify_error(self, message, exc=None):
         Notifier().send(title='error', body=message, app_name=NAME)

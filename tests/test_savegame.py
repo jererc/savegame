@@ -477,8 +477,8 @@ class SavegameTestCase(BaseTestCase):
         def side_copy(*args, **kwargs):
             raise Exception('copy failed')
 
-        with patch.object(module.savers.local.shutil, 'copy2') as mock_copy:
-            mock_copy.side_effect = side_copy
+        with patch.object(module.savers.local.shutil, 'copy2',
+                          side_effect=side_copy):
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
@@ -539,25 +539,22 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame(saves=saves)
+        for i in range(2):
+            self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
-                         {src1, src2, src3})
-        self.assertEqual({r['src'] for r in self.meta.data.values()},
-                         {src1, src2, src3})
+        self.assertEqual(sorted(r['src'] for r in self.meta.data.values()),
+                         sorted([src1, src2, src3]))
 
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
 
         with patch.object(module.savers.base.BaseSaver, 'notify_error'), \
-                patch.object(module.savers.local.LocalSaver, 'do_run') as mock_do_run:
-            mock_do_run.side_effect = side_do_run
+                patch.object(module.savers.local.LocalSaver, 'do_run',
+                             side_effect=side_do_run):
             self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual({r.split('|')[0] for r in self.meta.data.keys()},
-                         {src1, src2, src3})
-        self.assertEqual({r['src'] for r in self.meta.data.values()},
-                         {src1, src2, src3})
+        self.assertEqual(sorted(r['src'] for r in self.meta.data.values()),
+                         sorted([src1, src2, src3]))
 
     def test_stats(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
@@ -595,9 +592,9 @@ class SavegameTestCase(BaseTestCase):
         self._savegame(saves=saves)
         self.assertFalse(save.SaveMonitor(self.config)._must_run())
 
-        with patch.object(save.SaveMonitor, '_must_run') as mock__must_run, \
+        with patch.object(save.SaveMonitor, '_must_run',
+                          return_value=True), \
                 patch.object(save.Notifier, 'send') as mock_send:
-            mock__must_run.return_value = True
             sc = save.SaveMonitor(self.config)
             sc.run()
         print(mock_send.call_args_list)
@@ -710,7 +707,6 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*dir*file*'))
 
         self.meta = module.lib.Metadata()
-        pprint(self.meta.data)
         self.assertFalse(self.meta.data)
 
     def test_volume_label_purge(self):
