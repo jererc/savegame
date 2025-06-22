@@ -131,11 +131,12 @@ class SaveHandler:
     def run(self):
         start_ts = time.time()
         savers = list(self._generate_savers())
+        runnable_savers = [s for s in savers if self.force or s.must_run()]
         report = Report()
         volume_labels = set()
-        for saver in savers:
+        for saver in runnable_savers:
             try:
-                saver.run(force=self.force)
+                saver.run()
             except Exception as exc:
                 logger.exception(f'failed to save {saver.src}')
                 Notifier().send(title='exception',
@@ -151,9 +152,7 @@ class SaveHandler:
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        run_count = len(report.get('run').keys())
-        not_run_count = len(report.get('not_run').keys())
-        logger.info(f'processed {run_count}/{not_run_count + run_count} '
+        logger.info(f'processed {len(runnable_savers)}/{len(savers)} '
                     f'saves in {time.time() - start_ts:.02f} seconds')
         if volume_labels:
             Notifier().send(title='saved volumes',

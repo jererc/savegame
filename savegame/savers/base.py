@@ -86,7 +86,7 @@ class BaseSaver:
     def notify_error(self, message, exc=None):
         Notifier().send(title='error', body=message, app_name=NAME)
 
-    def _must_run(self):
+    def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
     def _update_meta(self):
@@ -127,11 +127,7 @@ class BaseSaver:
                 remove_path(path)
                 self.report.add('removed', self.src, path)
 
-    def run(self, force=False):
-        if not (force or self._must_run()):
-            self.report.add('not_run', self.src, self.dst)
-            return
-        self.report.add('run', self.src, self.dst)
+    def run(self):
         self.start_ts = time.time()
         self.ref.save_src = self.src
         self.ref.src = self.src
