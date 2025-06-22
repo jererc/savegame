@@ -228,7 +228,7 @@ class BaseTestCase(unittest.TestCase):
             'DST_ROOT_DIRNAME': 'saves',
             'SAVE_RUN_DELTA': 0,
             'PURGE_DELTA': 7 * 24 * 3600,
-            'MONITOR_DELTA': 16 * 3600,
+            'MONITOR_DELTA_DAYS': 1,
             'ALWAYS_UPDATE_REF': False,
         }
         args.update(kwargs)

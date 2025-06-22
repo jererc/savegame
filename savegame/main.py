@@ -45,7 +45,7 @@ def main():
         PURGE_DELTA=7 * 24 * 3600,
         ALWAYS_UPDATE_REF=False,
         RUN_DELTA=15 * 60,
-        MONITOR_DELTA=16 * 3600,
+        MONITOR_DELTA_DAYS=1,
         GOOGLE_CREDS=os.path.join(WORK_DIR, 'google_creds.json'),
     )
     if args.cmd == 'save':
