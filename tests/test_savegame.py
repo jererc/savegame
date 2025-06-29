@@ -236,15 +236,15 @@ class BaseTestCase(unittest.TestCase):
 
     def _savegame(self, saves, **kwargs):
         self.config.SAVES = saves
-        with patch.object(save.Notifier, 'send') as mock_send:
+        with patch.object(save, 'notify') as mock_notify:
             config = self._get_config(SAVES=saves)
             save.savegame(config, **kwargs)
-        if mock_send.call_args_list:
-            print('notifier calls:')
-            pprint(mock_send.call_args_list)
+        if mock_notify.call_args_list:
+            print('notify calls:')
+            pprint(mock_notify.call_args_list)
 
     def _loadgame(self, **kwargs):
-        with patch.object(save.Notifier, 'send'):
+        with patch.object(save, 'notify'):
             load.loadgame(self.config, **kwargs)
 
 
@@ -594,11 +594,11 @@ class SavegameTestCase(BaseTestCase):
 
         with patch.object(save.SaveMonitor, '_must_run',
                           return_value=True), \
-                patch.object(save.Notifier, 'send') as mock_send:
+                patch.object(save, 'notify') as mock_notify:
             sc = save.SaveMonitor(self.config)
             sc.run()
-        print(mock_send.call_args_list)
-        self.assertTrue(mock_send.call_args_list)
+        print(mock_notify.call_args_list)
+        self.assertTrue(mock_notify.call_args_list)
 
     def test_purge(self):
         self._generate_src_data(index_start=1, src_count=2, dir_count=4, file_count=4)

@@ -5,7 +5,7 @@ import os
 import re
 import time
 
-from svcutils.service import Notifier
+from svcutils.notifier import notify
 
 from savegame import NAME, logger
 from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
@@ -84,7 +84,7 @@ class BaseSaver:
         }, sort_keys=True))
 
     def notify_error(self, message, exc=None):
-        Notifier().send(title='error', body=message, app_name=NAME)
+        notify(title='error', body=message, app_name=NAME)
 
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)

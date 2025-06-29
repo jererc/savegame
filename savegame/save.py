@@ -4,7 +4,8 @@ import os
 import sys
 import time
 
-from svcutils.service import Notifier, RunFile
+from svcutils.notifier import notify
+from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR, logger
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
@@ -139,9 +140,9 @@ class SaveHandler:
                 saver.run()
             except Exception as exc:
                 logger.exception(f'failed to save {saver.src}')
-                Notifier().send(title='exception',
-                                body=f'failed to save {saver.src}: {exc}',
-                                app_name=NAME)
+                notify(title='exception',
+                       body=f'failed to save {saver.src}: {exc}',
+                       app_name=NAME)
             report.merge(saver.report)
             for attr in ('src_volume_label', 'dst_volume_label'):
                 volume_label = getattr(saver.save_item, attr)
@@ -155,9 +156,9 @@ class SaveHandler:
         logger.info(f'processed {len(runnable_savers)}/{len(savers)} '
                     f'saves in {time.time() - start_ts:.02f} seconds')
         if volume_labels:
-            Notifier().send(title='saved volumes',
-                            body=', '.join(sorted(volume_labels)),
-                            app_name=NAME)
+            notify(title='saved volumes',
+                   body=', '.join(sorted(volume_labels)),
+                   app_name=NAME)
 
 
 class SaveMonitor:
@@ -260,7 +261,8 @@ class SaveMonitor:
         if not self._must_run():
             return
         report = self._monitor()
-        Notifier().send(title='status', body=report['message'], app_name=NAME)
+        notify(title='status', body=report['message'], app_name=NAME,
+               replace_key='status', work_dir=WORK_DIR)
         self.run_file.touch()
 
     def _print_saves(self, saves, order_by):
@@ -289,12 +291,12 @@ def savegame(config, force=False):
         SaveHandler(config, force=force).run()
     except Exception as exc:
         logger.exception('failed to save')
-        Notifier().send(title='error', body=str(exc), app_name=NAME)
+        notify(title='error', body=str(exc), app_name=NAME)
     try:
         SaveMonitor(config).run()
     except Exception as exc:
         logger.exception('failed to monitor')
-        Notifier().send(title='error', body=str(exc), app_name=NAME)
+        notify(title='error', body=str(exc), app_name=NAME)
 
 
 def status(config, **kwargs):
