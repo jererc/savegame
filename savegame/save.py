@@ -142,7 +142,9 @@ class SaveHandler:
                 logger.exception(f'failed to save {saver.src}')
                 notify(title='exception',
                        body=f'failed to save {saver.src}: {exc}',
-                       app_name=NAME)
+                       app_name=NAME,
+                       replace_key=f'save-error-{saver.key}',
+                       work_dir=WORK_DIR)
             report.merge(saver.report)
             for attr in ('src_volume_label', 'dst_volume_label'):
                 volume_label = getattr(saver.save_item, attr)
@@ -158,7 +160,9 @@ class SaveHandler:
         if volume_labels:
             notify(title='saved volumes',
                    body=', '.join(sorted(volume_labels)),
-                   app_name=NAME)
+                   app_name=NAME,
+                   replace_key='saved-volumes',
+                   work_dir=WORK_DIR)
 
 
 class SaveMonitor:
@@ -291,12 +295,14 @@ def savegame(config, force=False):
         SaveHandler(config, force=force).run()
     except Exception as exc:
         logger.exception('failed to save')
-        notify(title='error', body=str(exc), app_name=NAME)
+        notify(title='error', body=str(exc), app_name=NAME,
+               replace_key='save-error', work_dir=WORK_DIR)
     try:
         SaveMonitor(config).run()
     except Exception as exc:
         logger.exception('failed to monitor')
-        notify(title='error', body=str(exc), app_name=NAME)
+        notify(title='error', body=str(exc), app_name=NAME,
+               replace_key='status-error', work_dir=WORK_DIR)
 
 
 def status(config, **kwargs):
