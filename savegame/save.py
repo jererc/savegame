@@ -134,23 +134,25 @@ class SaveHandler:
         savers = list(self._generate_savers())
         runnable_savers = [s for s in savers if self.force or s.must_run()]
         report = Report()
+        failed_savers = []
         volume_labels = set()
         for saver in runnable_savers:
             try:
                 saver.run()
-            except Exception as exc:
+            except Exception:
                 logger.exception(f'failed to save {saver.src}')
-                notify(title='exception',
-                       body=f'failed to save {saver.src}: {exc}',
-                       app_name=NAME,
-                       replace_key=f'save-error-{saver.key}',
-                       work_dir=WORK_DIR)
+                failed_savers.append(saver)
             report.merge(saver.report)
             for attr in ('src_volume_label', 'dst_volume_label'):
                 volume_label = getattr(saver.save_item, attr)
                 if volume_label:
                     volume_labels.add(volume_label)
-
+        if failed_savers:
+            notify(title='failed savers',
+                   body=', '.join(sorted(r.src for r in failed_savers)),
+                   app_name=NAME,
+                   replace_key='failed-savers',
+                   work_dir=WORK_DIR)
         Metadata().save()
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
