@@ -174,8 +174,11 @@ class SaveMonitor:
         self.saver_hostnames = {r.hostname for r in iterate_saver_classes()}
 
     def _must_run(self):
-        day = datetime.fromtimestamp(self.run_file.get_ts(), tz=timezone.utc).date()
-        return date.today() >= day + timedelta(days=self.config.MONITOR_DELTA_DAYS)
+        dt = datetime.fromtimestamp(self.run_file.get_ts())
+        if date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS):
+            logger.info(f'last monitor report run: {dt.isoformat()}')
+            return True
+        return False
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
@@ -262,7 +265,7 @@ class SaveMonitor:
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
                                        for k in ('saves', 'desynced', 'orphans')])
-        logger.info(f'generated report in {time.time() - start_ts:.02f} seconds')
+        logger.info(f'generated monitor report in {time.time() - start_ts:.02f} seconds')
         return report
 
     def run(self):
