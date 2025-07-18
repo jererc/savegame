@@ -230,7 +230,8 @@ class SaveMonitor:
             res.update(set(glob(os.path.join(dirname, '*'))) - dsts)
         return res
 
-    def _monitor(self):
+    def _generate_report(self):
+        start_ts = time.time()
         saves = []
         for hostname, ref in self._iterate_hostname_refs():
             mtimes = []
@@ -261,34 +262,31 @@ class SaveMonitor:
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
                                        for k in ('saves', 'desynced', 'orphans')])
+        logger.info(f'generated report in {time.time() - start_ts:.02f} seconds')
         return report
 
     def run(self):
         if not self._must_run():
             return
-        report = self._monitor()
+        self.run_file.touch()
+        report = self._generate_report()
         notify(title='status', body=report['message'], app_name=NAME,
                replace_key='status', work_dir=WORK_DIR)
-        self.run_file.touch()
-
-    def _print_saves(self, saves, order_by):
-        if not saves:
-            return
-        headers = {k: k for k in saves[0].keys()}
-        order_by_cols = order_by.split(',') + ['src']
-        rows = [headers] + sorted(saves,
-                                  key=lambda x: [x[k] for k in order_by_cols],
-                                  reverse=True)
-        for i, r in enumerate(rows):
-            if i > 0:
-                r['modified'] = ts_to_str(r['modified'])
-                r['desynced'] = r['desynced'] or ''
-            print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  '
-                  f'{r["desynced"]:10}  {r["hostname"]:20}  {r["src"]}')
 
     def get_status(self, order_by='hostname,modified'):
-        report = self._monitor()
-        self._print_saves(report['saves'], order_by=order_by)
+        report = self._generate_report()
+        if report['saves']:
+            headers = {k: k for k in report['saves'][0].keys()}
+            order_by_cols = order_by.split(',') + ['src']
+            rows = [headers] + sorted(report['saves'],
+                                      key=lambda x: [x[k] for k in order_by_cols],
+                                      reverse=True)
+            for i, r in enumerate(rows):
+                if i > 0:
+                    r['modified'] = ts_to_str(r['modified'])
+                    r['desynced'] = r['desynced'] or ''
+                print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  '
+                      f'{r["desynced"]:10}  {r["hostname"]:20}  {r["src"]}')
         print(report['message'])
 
 
