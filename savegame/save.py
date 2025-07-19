@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from glob import glob
 import os
 import sys
@@ -130,6 +130,7 @@ class SaveHandler:
             yield from si.generate_savers()
 
     def run(self):
+        logger.info('running save handler')
         start_ts = time.time()
         savers = list(self._generate_savers())
         runnable_savers = [s for s in savers if self.force or s.must_run()]
@@ -157,14 +158,14 @@ class SaveHandler:
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
-        logger.info(f'processed {len(runnable_savers)}/{len(savers)} '
-                    f'saves in {time.time() - start_ts:.02f} seconds')
         if volume_labels:
             notify(title='saved volumes',
                    body=', '.join(sorted(volume_labels)),
                    app_name=NAME,
                    replace_key='saved-volumes',
                    work_dir=WORK_DIR)
+        logger.info(f'completed {len(runnable_savers)}/{len(savers)} '
+                    f'saves in {time.time() - start_ts:.02f} seconds')
 
 
 class SaveMonitor:
@@ -175,10 +176,7 @@ class SaveMonitor:
 
     def _must_run(self):
         dt = datetime.fromtimestamp(self.run_file.get_ts())
-        if date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS):
-            logger.info(f'last monitor report run: {dt.isoformat()}')
-            return True
-        return False
+        return date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS)
 
     def _iterate_hostname_refs(self):
         dst_paths = {s.dst_path for s in iterate_save_items(self.config)
@@ -234,7 +232,6 @@ class SaveMonitor:
         return res
 
     def _generate_report(self):
-        start_ts = time.time()
         saves = []
         for hostname, ref in self._iterate_hostname_refs():
             mtimes = []
@@ -265,16 +262,18 @@ class SaveMonitor:
         }
         report['message'] = ', '.join([f'{k}: {len(report[k])}'
                                        for k in ('saves', 'desynced', 'orphans')])
-        logger.info(f'generated monitor report in {time.time() - start_ts:.02f} seconds')
         return report
 
     def run(self):
         if not self._must_run():
             return
+        logger.info('running save monitor')
+        start_ts = time.time()
         self.run_file.touch()
         report = self._generate_report()
         notify(title='status', body=report['message'], app_name=NAME,
                replace_key='status', work_dir=WORK_DIR)
+        logger.info(f'completed save monitor in {time.time() - start_ts:.02f} seconds')
 
     def get_status(self, order_by='hostname,modified'):
         report = self._generate_report()
