@@ -18,10 +18,8 @@ TEST_DIRNAME = 'savegame'
 WORK_DIR = os.path.join(os.path.expanduser('~'), '_tests', TEST_DIRNAME)
 import savegame as module
 module.WORK_DIR = WORK_DIR
-module.logger.setLevel(logging.DEBUG)
-module.logger.handlers.clear()
+logging.getLogger('').handlers.clear()
 from savegame import load, save, savers
-
 
 GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
 HOSTNAME = socket.gethostname()

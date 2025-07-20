@@ -1,13 +1,14 @@
 import importlib
 import inspect
 import json
+import logging
 import os
 import re
 import time
 
 from svcutils.notifier import notify
 
-from savegame import NAME, logger
+from savegame import NAME
 from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
                           Report, get_file_mtime, get_hash, remove_path,
                           validate_path)
@@ -15,6 +16,8 @@ from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
 
 RETRY_DELTA = 2 * 3600
 SAVE_DURATION_THRESHOLD = 30
+
+logger = logging.getLogger(__name__)
 
 
 def path_to_dirname(x):

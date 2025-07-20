@@ -3,6 +3,7 @@ from copy import deepcopy
 from fnmatch import fnmatch
 import hashlib
 import json
+import logging
 import os
 import shutil
 import socket
@@ -10,7 +11,10 @@ import string
 import sys
 import time
 
-from savegame import NAME, WORK_DIR, logger
+from savegame import NAME, WORK_DIR
+
+
+logger = logging.getLogger(__name__)
 
 
 HOSTNAME = socket.gethostname()

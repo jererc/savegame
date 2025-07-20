@@ -1,9 +1,9 @@
 import filecmp
+import logging
 import os
 import shutil
 import time
 
-from savegame import logger
 from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
                           get_file_hash, get_file_size)
 from savegame.savers.base import BaseSaver
@@ -11,6 +11,8 @@ from savegame.savers.base import BaseSaver
 
 LIST_DURATION_THRESHOLD = 30
 COPY_DURATION_THRESHOLD = 30
+
+logger = logging.getLogger(__name__)
 
 
 def walk_files(path):

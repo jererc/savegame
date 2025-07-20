@@ -1,10 +1,11 @@
 from glob import glob
+import logging
 import os
 from pathlib import PurePath
 import shutil
 import sys
 
-from savegame import NAME, logger
+from savegame import NAME
 from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath,
                           check_patterns, get_file_hash, get_file_mtime,
                           to_json, validate_path)
@@ -15,6 +16,8 @@ HOME_DIR = os.path.expanduser('~')
 USERNAME = os.getlogin()
 SHARED_USERNAMES = {'win32': {'Public'},
                     'linux': {'shared'}}.get(sys.platform, set())
+
+logger = logging.getLogger(__name__)
 
 
 class LocalLoader:

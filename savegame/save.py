@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from glob import glob
+import logging
 import os
 import sys
 import time
@@ -7,7 +8,7 @@ import time
 from svcutils.notifier import notify
 from svcutils.service import RunFile
 
-from savegame import NAME, WORK_DIR, logger
+from savegame import NAME, WORK_DIR
 from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
                           InvalidPath, UnhandledPath, get_file_hash,
                           get_file_mtime, get_file_size, list_volumes,
@@ -15,6 +16,9 @@ from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
+
+
+logger = logging.getLogger(__name__)
 
 
 def ts_to_str(x):
