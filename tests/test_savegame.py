@@ -2,7 +2,6 @@ from copy import deepcopy
 from fnmatch import fnmatch
 from glob import glob
 import json
-import logging
 import os
 from pprint import pprint
 import shutil
@@ -14,12 +13,9 @@ from unittest.mock import patch
 
 from svcutils.service import Config
 
-TEST_DIRNAME = 'savegame'
-WORK_DIR = os.path.join(os.path.expanduser('~'), '_tests', TEST_DIRNAME)
-import savegame as module
-module.WORK_DIR = WORK_DIR
-logging.getLogger('').handlers.clear()
+from tests import TEST_DIRNAME, WORK_DIR, module
 from savegame import load, save, savers
+
 
 GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
 HOSTNAME = socket.gethostname()
