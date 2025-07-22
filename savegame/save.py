@@ -273,10 +273,10 @@ class SaveMonitor:
             return
         logger.info('running save monitor')
         start_ts = time.time()
-        self.run_file.touch()
         report = self._generate_report()
         notify(title='status', body=report['message'], app_name=NAME,
                replace_key='status', work_dir=WORK_DIR)
+        self.run_file.touch()
         logger.info(f'completed save monitor in {time.time() - start_ts:.02f} seconds')
 
     def get_status(self, order_by='hostname,modified'):
