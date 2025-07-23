@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from svcutils.service import Config
 
-from tests import TEST_DIRNAME, WORK_DIR, module
+from tests import WORK_DIR, module
 from savegame import load, save, savers
 
 
@@ -896,8 +896,12 @@ class SavegameTestCase(BaseTestCase):
 
     def test_home_path_other_os(self):
         self._generate_src_data(index_start=1, src_count=3, dir_count=3, file_count=3)
-        src_path = {'win32': f'~/_tests/{TEST_DIRNAME}/*',
-                    'linux': f'~\\_tests\\{TEST_DIRNAME}\\*'}[sys.platform]
+        home_path = os.path.expanduser('~')
+        self.assertTrue(glob(os.path.join(WORK_DIR, '*')))
+        path = ['~'] + os.path.relpath(WORK_DIR, home_path).split(os.sep) + ['*']
+        src_path = {'win32': '/'.join(path),
+                    'linux': '\\'.join(path)}[sys.platform]
+        print(f'{src_path=}')
         saves = [
             {
                 'src_paths': [src_path],
@@ -914,9 +918,9 @@ class SavegameTestCase(BaseTestCase):
         saves = [
             {
                 'src_paths': [
-                    os.path.join('~', '_tests', TEST_DIRNAME, SRC_DIR),
+                    os.path.join(WORK_DIR, SRC_DIR),
                 ],
-                'dst_path': os.path.join('~', '_tests', TEST_DIRNAME, DST_DIR),
+                'dst_path': os.path.join(WORK_DIR, DST_DIR),
             },
         ]
         self._savegame(saves=saves)

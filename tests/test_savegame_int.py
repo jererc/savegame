@@ -2,6 +2,7 @@ from pprint import pprint
 import sys
 import unittest
 
+from tests import WORK_DIR
 from tests.test_savegame import BaseTestCase, module
 
 
