@@ -124,7 +124,7 @@ def list_volumes():
 
 
 class Metadata:
-    file = os.path.join(WORK_DIR, 'meta.json')
+    file = os.path.join(WORK_DIR, '.meta.json')
     data = {}
 
     def __new__(cls):
