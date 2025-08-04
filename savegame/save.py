@@ -114,13 +114,13 @@ def iterate_save_items(config, log_unhandled=False, log_invalid=True):
     for save in config.SAVES:
         try:
             yield SaveItem(config, **save)
-        except UnhandledPath as exc:
+        except UnhandledPath as e:
             if log_unhandled:
-                logger.warning(exc)
+                logger.warning(e)
             continue
-        except InvalidPath as exc:
+        except InvalidPath as e:
             if log_invalid:
-                logger.warning(exc)
+                logger.warning(e)
             continue
 
 
@@ -156,8 +156,7 @@ class SaveHandler:
             notify(title='failed savers',
                    body=', '.join(sorted(r.src for r in failed_savers)),
                    app_name=NAME,
-                   replace_key='failed-savers',
-                   work_dir=WORK_DIR)
+                   replace_key='failed-savers')
         Metadata().save()
         report_dict = report.clean(keys={'saved', 'removed'})
         if report_dict:
@@ -166,8 +165,7 @@ class SaveHandler:
             notify(title='saved volumes',
                    body=', '.join(sorted(volume_labels)),
                    app_name=NAME,
-                   replace_key='saved-volumes',
-                   work_dir=WORK_DIR)
+                   replace_key='saved-volumes')
         logger.info(f'completed {len(runnable_savers)}/{len(savers)} '
                     f'saves in {time.time() - start_ts:.02f} seconds')
 
@@ -274,8 +272,7 @@ class SaveMonitor:
         logger.info('running save monitor')
         start_ts = time.time()
         report = self._generate_report()
-        notify(title='status', body=report['message'], app_name=NAME,
-               replace_key='status', work_dir=WORK_DIR)
+        notify(title='status', body=report['message'], app_name=NAME, replace_key='status')
         self.run_file.touch()
         logger.info(f'completed save monitor in {time.time() - start_ts:.02f} seconds')
 
@@ -299,16 +296,14 @@ class SaveMonitor:
 def savegame(config, force=False):
     try:
         SaveHandler(config, force=force).run()
-    except Exception as exc:
+    except Exception as e:
         logger.exception('failed to save')
-        notify(title='error', body=str(exc), app_name=NAME,
-               replace_key='save-error', work_dir=WORK_DIR)
+        notify(title='error', body=str(e), app_name=NAME, replace_key='save-error')
     try:
         SaveMonitor(config).run()
-    except Exception as exc:
+    except Exception as e:
         logger.exception('failed to monitor')
-        notify(title='error', body=str(exc), app_name=NAME,
-               replace_key='status-error', work_dir=WORK_DIR)
+        notify(title='error', body=str(e), app_name=NAME, replace_key='status-error')
 
 
 def status(config, **kwargs):
