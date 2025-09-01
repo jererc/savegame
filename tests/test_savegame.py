@@ -693,7 +693,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_volume_label': 'volume2',
             },
         ]
-        with patch.object(save, 'list_volumes', return_value=volumes):
+        with patch.object(save, 'list_label_mountpoints', return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
@@ -720,7 +720,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_volume_label': 'volume2',
             },
         ]
-        with patch.object(save, 'list_volumes', return_value=volumes):
+        with patch.object(save, 'list_label_mountpoints', return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
@@ -743,7 +743,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_volume_label': 'volume2',
             },
         ]
-        with patch.object(save, 'list_volumes', return_value=volumes):
+        with patch.object(save, 'list_label_mountpoints', return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()
@@ -778,7 +778,7 @@ class SavegameTestCase(BaseTestCase):
                 'dst_volume_label': 'volume3',
             },
         ]
-        with patch.object(save, 'list_volumes', return_value=volumes):
+        with patch.object(save, 'list_label_mountpoints', return_value=volumes):
             self._savegame(saves=saves)
         print('dst data:')
         dst_paths = self._list_dst_root_paths()

@@ -9,9 +9,8 @@ from svcutils.notifier import notify
 from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
-from savegame.lib import (HOSTNAME, Metadata, Reference, Report,
-                          InvalidPath, UnhandledPath, get_file_hash,
-                          get_file_mtime, get_file_size, list_volumes,
+from savegame.lib import (HOSTNAME, Metadata, Reference, Report, InvalidPath, UnhandledPath,
+                          get_file_hash, get_file_mtime, get_file_size, list_label_mountpoints,
                           to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
@@ -61,7 +60,7 @@ class SaveItem:
 
     def _get_volume_path_by_label(self, label):
         if not hasattr(self, '_volume_path_by_label'):
-            self._volume_path_by_label = list_volumes()
+            self._volume_path_by_label = list_label_mountpoints()
         return self._volume_path_by_label.get(label)
 
     def _get_dst_volume_path(self):
