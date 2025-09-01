@@ -90,7 +90,7 @@ def check_patterns(path, inclusions=None, exclusions=None):
 
 
 def list_label_mountpoints():
-    return {label: mountpoint for mountpoint, label in list_mountpoint_labels().items()}
+    return {label: mountpoint for mountpoint, label in list_mountpoint_labels().items() if label}
 
 
 class Metadata:
