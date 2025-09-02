@@ -98,10 +98,8 @@ class BaseSaver:
             'dst': self.dst,
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
-            'next_ts': time.time() + (self.save_item.run_delta
-                                      if self.success else RETRY_DELTA),
-            'success_ts': (self.end_ts if self.success
-                           else self.meta.get(self.key).get('success_ts', 0)),
+            'next_ts': time.time() + (self.save_item.run_delta if self.success else RETRY_DELTA),
+            'success_ts': self.end_ts if self.success else self.meta.get(self.key).get('success_ts', 0),
         })
 
     def do_run(self):
@@ -114,8 +112,7 @@ class BaseSaver:
             name = os.path.basename(path)
             if name == REF_FILENAME:
                 return False
-            if (not name.startswith(REF_FILENAME)
-                    and get_file_mtime(path) > time.time() - self.save_item.purge_delta):
+            if not name.startswith(REF_FILENAME) and get_file_mtime(path) > time.time() - self.save_item.purge_delta:
                 return False
         elif os.listdir(path):
             return False

@@ -47,10 +47,8 @@ class GoogleDriveExportSaver(BaseSaver):
                 self.report.add('saved', self.src, dst_file)
             except Exception as exc:
                 self.report.add('failed', self.src, dst_file)
-                logger.error('failed to save google drive file '
-                             f'{file_meta["name"]}: {exc}')
-        self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p)
-                          for p in self.dst_paths}
+                logger.error(f'failed to save google drive file {file_meta["name"]}: {exc}')
+        self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p) for p in self.dst_paths}
 
 
 class GoogleContactsExportSaver(BaseSaver):
@@ -66,8 +64,7 @@ class GoogleContactsExportSaver(BaseSaver):
         dst_file = os.path.join(self.dst, rel_path)
         self.dst_paths.add(dst_file)
         dst_hash = get_hash(data)
-        if os.path.exists(dst_file) and \
-                dst_hash == self.ref.files.get(rel_path):
+        if os.path.exists(dst_file) and dst_hash == self.ref.files.get(rel_path):
             self.report.add('skipped', self.src, dst_file)
         else:
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)

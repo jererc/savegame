@@ -15,12 +15,11 @@ from svcutils.service import list_mountpoint_labels
 from savegame import NAME, WORK_DIR
 
 
-logger = logging.getLogger(__name__)
-
-
 HOSTNAME = socket.gethostname()
 REF_FILENAME = f'.{NAME}'
 METADATA_MAX_AGE = 3600 * 24 * 90
+
+logger = logging.getLogger(__name__)
 
 
 class UnhandledPath(Exception):
@@ -62,8 +61,7 @@ def get_file_hash(file, chunk_size=8192):
             md5_hash.update(chunk)
     duration = time.time() - start_ts
     if duration > 10:
-        logger.warning(f'get_file_hash {file} took {duration:.02f} '
-                       f'seconds ({os.path.getsize(file)/1024/1024:.02f} MB)')
+        logger.warning(f'get_file_hash {file} took {duration:.02f} seconds ({os.path.getsize(file)/1024/1024:.02f} MB)')
     return md5_hash.hexdigest()
 
 

@@ -52,23 +52,19 @@ class GoogleCloud:
         self._file_cache = {}
 
     def _get_token_file(self):
-        dirname, basename = os.path.split(self.oauth_secrets_file
-                                          or self.service_secrets_file)
+        dirname, basename = os.path.split(self.oauth_secrets_file or self.service_secrets_file)
         name, ext = os.path.splitext(basename)
         return os.path.join(dirname, f'{name}-token{ext}')
 
     def _get_service_creds(self):
         if not self.service_secrets_file:
             raise Exception('missing service account secrets')
-        return service_account.Credentials.from_service_account_file(
-            self.service_secrets_file, scopes=SCOPES)
+        return service_account.Credentials.from_service_account_file(self.service_secrets_file, scopes=SCOPES)
 
     # def _manual_auth(self):
-    #     flow = InstalledAppFlow.from_client_secrets_file(
-    #         self.oauth_secrets_file, SCOPES)
+    #     flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
     #     try:
-    #         return flow.run_local_server(port=0, open_browser=True,
-    #             timeout_seconds=60)
+    #         return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
     #     except Exception:
     #         raise Exception('failed to auth')
 
@@ -122,8 +118,7 @@ class GoogleCloud:
             try:
                 file_meta = self._file_cache[parent_id]
             except KeyError:
-                file_meta = service.files().get(fileId=parent_id,
-                                                fields='id, name, parents').execute()
+                file_meta = service.files().get(fileId=parent_id, fields='id, name, parents').execute()
                 self._file_cache[parent_id] = file_meta
             path = os.path.join(file_meta['name'], path)
             parent_id = get_parent_id(file_meta)
@@ -167,8 +162,7 @@ class GoogleCloud:
 
     def export_file(self, file_id, path, mime_type):
         service = self._get_drive_service()
-        request = service.files().export_media(fileId=file_id,
-                                               mimeType=mime_type)
+        request = service.files().export_media(fileId=file_id, mimeType=mime_type)
         fh = io.FileIO(path, 'wb')
         downloader = MediaIoBaseDownload(fh, request)
         done = False

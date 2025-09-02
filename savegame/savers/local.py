@@ -26,8 +26,7 @@ class LocalSaver(BaseSaver):
     hostname = HOSTNAME
 
     def _is_file_valid(self, file):
-        return (os.path.basename(file) != REF_FILENAME
-                and check_patterns(file, self.inclusions, self.exclusions))
+        return os.path.basename(file) != REF_FILENAME and check_patterns(file, self.inclusions, self.exclusions)
 
     def _get_src_and_files(self):
         if self.src_type != 'local':
@@ -48,8 +47,7 @@ class LocalSaver(BaseSaver):
         return src, files
 
     def _check_dst_volume(self):
-        if self.save_item.dst_volume_path and \
-                not os.path.exists(self.save_item.dst_volume_path):
+        if self.save_item.dst_volume_path and not os.path.exists(self.save_item.dst_volume_path):
             raise Exception(f'volume {self.save_item.dst_volume_path} does not exist')
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
@@ -71,15 +69,12 @@ class LocalSaver(BaseSaver):
                 if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
-                    logger.info(f'copying {src_file} to {dst_file} '
-                                f'({file_size/1024/1024:.02f} MB)')
+                    logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     duration = time.time() - start_ts
                     if duration > COPY_DURATION_THRESHOLD:
-                        logger.warning(f'copied {src_file} to {dst_file} '
-                                       f'({file_size/1024/1024:.02f} MB) '
-                                       f'in {duration:.02f} seconds')
+                        logger.warning(f'copied {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB) in {duration:.02f} seconds')
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = ref_value
             except Exception:
