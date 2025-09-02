@@ -45,18 +45,15 @@ class SaveItem:
         self.saver_cls = get_saver_class(saver_id)
         self.dst_volume_path = self._get_dst_volume_path()
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
-        self.run_delta = (self.config.SAVE_RUN_DELTA
-                          if run_delta is None else run_delta)
-        self.purge_delta = (self.config.PURGE_DELTA
-                            if purge_delta is None else purge_delta)
+        self.run_delta = self.config.SAVE_RUN_DELTA if run_delta is None else run_delta
+        self.purge_delta = self.config.PURGE_DELTA if purge_delta is None else purge_delta
         self.enable_purge = enable_purge
         self.loadable = loadable
         self.platform = platform
         self.hostname = hostname
 
     def _get_src_paths(self, src_paths):
-        return [s if isinstance(s, (list, tuple))
-                else (s, [], []) for s in (src_paths or [])]
+        return [s if isinstance(s, (list, tuple)) else (s, [], []) for s in (src_paths or [])]
 
     def _get_volume_path_by_label(self, label):
         if not hasattr(self, '_volume_path_by_label'):
@@ -165,8 +162,7 @@ class SaveHandler:
                    body=', '.join(sorted(volume_labels)),
                    app_name=NAME,
                    replace_key='saved-volumes')
-        logger.info(f'completed {len(runnable_savers)}/{len(savers)} '
-                    f'saves in {time.time() - start_ts:.02f} seconds')
+        logger.info(f'completed {len(runnable_savers)}/{len(savers)} saves in {time.time() - start_ts:.02f} seconds')
 
 
 class SaveMonitor:
@@ -198,8 +194,7 @@ class SaveMonitor:
 
     def _get_size(self, ref):
         try:
-            sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)), default=0)
-                     for r in ref.files.keys()]
+            sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)), default=0) for r in ref.files.keys()]
             return to_float(sum(sizes) / 1024 / 1024)
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
@@ -261,8 +256,7 @@ class SaveMonitor:
             'desynced': [r for r in saves if r['desynced']],
             'orphans': orphan_dsts,
         }
-        report['message'] = ', '.join([f'{k}: {len(report[k])}'
-                                       for k in ('saves', 'desynced', 'orphans')])
+        report['message'] = ', '.join([f'{k}: {len(report[k])}' for k in ('saves', 'desynced', 'orphans')])
         return report
 
     def run(self):
@@ -280,15 +274,12 @@ class SaveMonitor:
         if report['saves']:
             headers = {k: k for k in report['saves'][0].keys()}
             order_by_cols = order_by.split(',') + ['src']
-            rows = [headers] + sorted(report['saves'],
-                                      key=lambda x: [x[k] for k in order_by_cols],
-                                      reverse=True)
+            rows = [headers] + sorted(report['saves'], key=lambda x: [x[k] for k in order_by_cols], reverse=True)
             for i, r in enumerate(rows):
                 if i > 0:
                     r['modified'] = ts_to_str(r['modified'])
                     r['desynced'] = r['desynced'] or ''
-                print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  '
-                      f'{r["desynced"]:10}  {r["hostname"]:20}  {r["src"]}')
+                print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  {r["desynced"]:10}  {r["hostname"]:20}  {r["src"]}')
         print(report['message'])
 
 
