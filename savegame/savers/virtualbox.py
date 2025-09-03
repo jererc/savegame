@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 
-from svcutils.notifier import notify, clear_notification
+from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.savers.base import BaseSaver
@@ -75,8 +75,17 @@ class VirtualboxExportSaver(BaseSaver):
             file = os.path.join(self.dst, f'{vm}.ova')
             if os.path.exists(file):
                 os.remove(file)
-            logger.info(f'exporting {vm=} to {file=}')
-            notif_key = f'{self.id}-{vm}'
-            notify(title=f'exporting vm {vm}', body=f'{vm=} to {file=}', app_name=NAME, replace_key=notif_key)
+            start_ts = time.time()
+            logger.debug(f'exporting {vm=} to {file=}')
+            replace_key = f'{self.id}-{vm}'
+            notify(title=f'exporting vm {vm}',
+                   body=f'file: {file}',
+                   app_name=NAME,
+                   replace_key=replace_key)
             vb.export_vm(vm, file)
-            clear_notification(app_name=NAME, replace_key=notif_key)
+            duration = time.time() - start_ts
+            logger.debug(f'exported {vm=} to {file=} in {duration:.02f} seconds')
+            notify(title=f'exported vm {vm}',
+                   body=f'file: {file}\nduration: {duration:.02f} seconds',
+                   app_name=NAME,
+                   replace_key=replace_key)
