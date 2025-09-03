@@ -86,6 +86,6 @@ class VirtualboxExportSaver(BaseSaver):
             duration = time.time() - start_ts
             logger.debug(f'exported {vm=} to {file=} in {duration:.02f} seconds')
             notify(title=f'exported vm {vm}',
-                   body=f'file: {file}\nduration: {duration:.02f} seconds',
+                   body=f'file: {file}\rduration: {duration:.02f} seconds',
                    app_name=NAME,
                    replace_key=replace_key)
