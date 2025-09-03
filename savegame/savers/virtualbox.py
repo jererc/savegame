@@ -60,6 +60,7 @@ class Virtualbox:
 class VirtualboxExportSaver(BaseSaver):
     id = 'virtualbox_export'
     src_type = 'remote'
+    in_place = True
 
     def do_run(self):
         vb = Virtualbox()
