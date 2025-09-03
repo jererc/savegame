@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 class Virtualbox:
     bin_file = {'win32': r'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe',
                 'linux': '/usr/bin/VBoxManage'}[sys.platform]
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
 
     def _list(self, command):
-        stdout = subprocess.check_output([self.bin_file, 'list', command])
+        stdout = subprocess.check_output([self.bin_file, 'list', command], creationflags=self.creationflags)
         return {r.rsplit(None, 1)[0].strip('"') for r in stdout.decode('utf-8').splitlines()}
 
     def list_vms(self):
@@ -39,7 +40,7 @@ class Virtualbox:
         cmd = [self.bin_file, *args]
         logger.debug(f'running {cmd=}')
         try:
-            subprocess.run(cmd, check=True, stdout=sys.stdout)
+            subprocess.run(cmd, check=True, stdout=sys.stdout, creationflags=self.creationflags)
         except subprocess.CalledProcessError:
             logger.exception(f'failed to run {cmd=}')
 
