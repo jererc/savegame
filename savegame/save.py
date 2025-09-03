@@ -37,6 +37,7 @@ class SaveItem:
                  dst_path=None, run_delta=None, purge_delta=None,
                  enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None,
+                 trigger_volume_labels=None,
                  ):
         self.config = config
         self.src_volume_label = src_volume_label
@@ -44,6 +45,7 @@ class SaveItem:
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_cls = get_saver_class(saver_id)
         self.dst_volume_path = self._get_dst_volume_path()
+        self.trigger_volume_labels = trigger_volume_labels or []
         self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
         self.run_delta = self.config.SAVE_RUN_DELTA if run_delta is None else run_delta
         self.purge_delta = self.config.PURGE_DELTA if purge_delta is None else purge_delta
@@ -55,15 +57,15 @@ class SaveItem:
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple)) else (s, [], []) for s in (src_paths or [])]
 
-    def _get_volume_path_by_label(self, label):
-        if not hasattr(self, '_volume_path_by_label'):
-            self._volume_path_by_label = list_label_mountpoints()
-        return self._volume_path_by_label.get(label)
+    def _list_label_mountpoints(self):
+        if not hasattr(self, '_label_mountpoints'):
+            self._label_mountpoints = list_label_mountpoints()
+        return self._label_mountpoints
 
     def _get_dst_volume_path(self):
         if not self.dst_volume_label:
             return None
-        volume_path = self._get_volume_path_by_label(self.dst_volume_label)
+        volume_path = self._list_label_mountpoints().get(self.dst_volume_label)
         if not volume_path:
             raise UnhandledPath(f'volume {self.dst_volume_label} not found')
         return volume_path
@@ -75,11 +77,14 @@ class SaveItem:
             root_dirname=self.config.DST_ROOT_DIRNAME,
         )
 
+    def _check_trigger_volume_labels(self):
+        return bool(set(self.trigger_volume_labels).intersection(self._list_label_mountpoints().keys()))
+
     def _generate_src_and_patterns(self):
         if self.src_paths:
             for src_path, inclusions, exclusions in self.src_paths:
                 if self.src_volume_label:
-                    volume_path = self._get_volume_path_by_label(self.src_volume_label)
+                    volume_path = self._list_label_mountpoints().get(self.src_volume_label)
                     if not volume_path:
                         continue
                     src_path = os.path.join(volume_path, src_path)
@@ -98,6 +103,8 @@ class SaveItem:
         if self.hostname and HOSTNAME != self.hostname:
             return
         if not self.dst_path:
+            return
+        if self.trigger_volume_labels and not self._check_trigger_volume_labels():
             return
         for src_and_patterns in self._generate_src_and_patterns():
             yield self.saver_cls(self.config, self, *src_and_patterns)
