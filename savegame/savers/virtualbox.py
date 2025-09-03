@@ -43,6 +43,7 @@ class Virtualbox:
             subprocess.run(cmd, check=True, stdout=sys.stdout, creationflags=self.creationflags)
         except subprocess.CalledProcessError:
             logger.exception(f'failed to run {cmd=}')
+            raise
 
     def clone_vm(self, vm, name):
         self._run_cmd('clonevm', vm, '--name', name, '--register')
@@ -62,21 +63,20 @@ class VirtualboxExportSaver(BaseSaver):
     id = 'virtualbox_export'
     src_type = 'remote'
     in_place = True
+    retry_delta = 30
 
     def do_run(self):
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
+        failed_vms = []
         for vm in vb.list_vms():
             notif_key = f'{self.id}-{vm}'
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
                 continue
             if vm in running_vms:
-                logger.debug(f'{vm=} is running, skipping')
-                notify(title=f'failed to export vm {vm}',
-                       body=f'{vm} is running',
-                       app_name=NAME,
-                       replace_key=notif_key)
+                logger.error(f'failed to export {vm=}: is running')
+                failed_vms.append(vm)
                 continue
             file = os.path.join(self.dst, f'{vm}.ova')
             if os.path.exists(file):
@@ -87,10 +87,17 @@ class VirtualboxExportSaver(BaseSaver):
                    body=f'file: {file}',
                    app_name=NAME,
                    replace_key=notif_key)
-            vb.export_vm(vm, file)
+            try:
+                vb.export_vm(vm, file)
+            except Exception:
+                logger.exception(f'failed to export {vm=}')
+                failed_vms.append(vm)
+                continue
             duration = time.time() - start_ts
             logger.debug(f'exported {vm=} to {file=} in {duration:.02f} seconds')
             notify(title=f'exported vm {vm}',
                    body=f'file: {file}\rduration: {duration:.02f} seconds',
                    app_name=NAME,
                    replace_key=notif_key)
+        if failed_vms:
+            raise Exception(f'failed to export {failed_vms=}')

@@ -37,7 +37,7 @@ class SaveItem:
                  dst_path=None, run_delta=None, purge_delta=None,
                  enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None,
-                 trigger_volume_labels=None,
+                 trigger_volume_labels=None, retry_delta=None,
                  ):
         self.config = config
         self.src_volume_label = src_volume_label
@@ -45,7 +45,6 @@ class SaveItem:
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_cls = get_saver_class(saver_id)
         self.dst_volume_path = self._get_dst_volume_path()
-        self.trigger_volume_labels = trigger_volume_labels or []
         self.item_dst_path = dst_path or self.config.DST_PATH
         self.dst_path = self._get_dst_path(self.item_dst_path)
         self.run_delta = self.config.SAVE_RUN_DELTA if run_delta is None else run_delta
@@ -54,6 +53,8 @@ class SaveItem:
         self.loadable = loadable
         self.platform = platform
         self.hostname = hostname
+        self.trigger_volume_labels = trigger_volume_labels or []
+        self.retry_delta = retry_delta
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple)) else (s, [], []) for s in (src_paths or [])]

@@ -13,7 +13,6 @@ from savegame.lib import (REF_FILENAME, Metadata, Reference, Report, get_file_mt
                           get_hash, remove_path, validate_path)
 
 
-RETRY_DELTA = 2 * 3600
 SAVE_DURATION_THRESHOLD = 30
 
 logger = logging.getLogger(__name__)
@@ -37,6 +36,7 @@ class BaseSaver:
     src_type = 'local'
     dst_type = 'local'
     in_place = False
+    retry_delta = 2 * 3600
 
     def __init__(self, config, save_item, src, inclusions, exclusions):
         self.config = config
@@ -91,18 +91,24 @@ class BaseSaver:
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
+    def _get_retry_delta(self):
+        return self.save_item.run_delta if self.success else (self.save_item.retry_delta or self.retry_delta)
+
+    def _get_next_ts(self):
+        return time.time() + self._get_retry_delta()
+
+    def _get_success_ts(self):
+        return self.end_ts if self.success else self.meta.get(self.key).get('success_ts', 0)
+
     def _update_meta(self):
         self.meta.set(self.key, {
             'src': self.src,
             'dst': self.dst,
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
-            'next_ts': time.time() + (self.save_item.run_delta if self.success else RETRY_DELTA),
-            'success_ts': self.end_ts if self.success else self.meta.get(self.key).get('success_ts', 0),
+            'next_ts': self._get_next_ts(),
+            'success_ts': self._get_success_ts(),
         })
-
-    def do_run(self):
-        raise NotImplementedError()
 
     def _requires_purge(self, path):
         if os.path.isfile(path):
@@ -125,6 +131,9 @@ class BaseSaver:
             if self._requires_purge(path):
                 remove_path(path)
                 self.report.add('removed', self.src, path)
+
+    def do_run(self):
+        raise NotImplementedError()
 
     def run(self):
         self.start_ts = time.time()
