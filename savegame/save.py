@@ -78,9 +78,7 @@ class SaveItem:
         )
 
     def _check_trigger_volume_labels(self):
-        volume_labels = set(self._list_label_mountpoints().keys())
-        logger.info(f'{volume_labels=} {self.trigger_volume_labels=}')
-        return bool(set(self.trigger_volume_labels).intersection(volume_labels))
+        return bool(set(self.trigger_volume_labels).intersection(set(self._list_label_mountpoints().keys())))
 
     def _generate_src_and_patterns(self):
         if self.src_paths:

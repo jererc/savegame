@@ -65,7 +65,6 @@ class VirtualboxExportSaver(BaseSaver):
     def do_run(self):
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
-        logger.debug(f'{running_vms=}')
         for vm in vb.list_vms():
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
@@ -74,9 +73,10 @@ class VirtualboxExportSaver(BaseSaver):
                 logger.debug(f'{vm=} is running, skipping')
                 continue
             file = os.path.join(self.dst, f'{vm}.ova')
-            logger.debug(f'exporting {vm=} to {file=}')
+            if os.path.exists(file):
+                os.remove(file)
+            logger.info(f'exporting {vm=} to {file=}')
             notif_key = f'{self.id}-{vm}'
             notify(title=f'exporting vm {vm}', body=f'{vm=} to {file=}', app_name=NAME, replace_key=notif_key)
-            # vb.export_vm(vm, file)
-            time.sleep(5)
+            vb.export_vm(vm, file)
             clear_notification(app_name=NAME, replace_key=notif_key)
