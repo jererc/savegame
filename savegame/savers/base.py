@@ -9,9 +9,8 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (REF_FILENAME, InvalidPath, Metadata, Reference,
-                          Report, get_file_mtime, get_hash, remove_path,
-                          validate_path)
+from savegame.lib import (REF_FILENAME, Metadata, Reference, Report, get_file_mtime,
+                          get_hash, remove_path, validate_path)
 
 
 RETRY_DELTA = 2 * 3600
@@ -66,7 +65,7 @@ class BaseSaver:
         validate_path(dst_path)
         dst_path = os.path.expanduser(dst_path)
         if not os.path.exists(dst_path):
-            raise InvalidPath(f'invalid dst_path {dst_path}: does not exist')
+            return None
         if cls.in_place:
             return dst_path
         return os.path.join(dst_path, root_dirname, cls.id)

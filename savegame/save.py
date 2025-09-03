@@ -9,9 +9,9 @@ from svcutils.notifier import notify
 from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
-from savegame.lib import (HOSTNAME, Metadata, Reference, Report, InvalidPath, UnhandledPath,
-                          get_file_hash, get_file_mtime, get_file_size, list_label_mountpoints,
-                          to_json, validate_path)
+from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, Reference, Report, InvalidPath,
+                          UnhandledPath, get_file_hash, get_file_mtime, get_file_size,
+                          list_label_mountpoints, to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.local import LocalSaver
@@ -20,16 +20,16 @@ from savegame.savers.local import LocalSaver
 logger = logging.getLogger(__name__)
 
 
-def ts_to_str(x):
-    return datetime.fromtimestamp(int(x)).isoformat(' ')
+def ts_to_str(ts):
+    return datetime.fromtimestamp(int(ts)).isoformat(' ')
 
 
-def to_float(x):
-    return float(f'{x:.02f}')
+def to_float(val):
+    return float(f'{val:.02f}')
 
 
-def get_local_path(x):
-    return x.replace('\\' if os.path.sep == '/' else '/', os.path.sep)
+def get_local_path(path):
+    return path.replace(INVALID_PATH_SEP, os.path.sep)
 
 
 class SaveItem:
@@ -46,7 +46,8 @@ class SaveItem:
         self.saver_cls = get_saver_class(saver_id)
         self.dst_volume_path = self._get_dst_volume_path()
         self.trigger_volume_labels = trigger_volume_labels or []
-        self.dst_path = self._get_dst_path(dst_path or self.config.DST_PATH)
+        self.item_dst_path = dst_path or self.config.DST_PATH
+        self.dst_path = self._get_dst_path(self.item_dst_path)
         self.run_delta = self.config.SAVE_RUN_DELTA if run_delta is None else run_delta
         self.purge_delta = self.config.PURGE_DELTA if purge_delta is None else purge_delta
         self.enable_purge = enable_purge
@@ -103,6 +104,7 @@ class SaveItem:
         if self.hostname and HOSTNAME != self.hostname:
             return
         if not self.dst_path:
+            logger.debug(f'invalid dst_path {self.item_dst_path} for {self.saver_cls.id}')
             return
         if self.trigger_volume_labels and not self._check_trigger_volume_labels():
             return

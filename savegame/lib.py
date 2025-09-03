@@ -18,6 +18,7 @@ from savegame import NAME, WORK_DIR
 HOSTNAME = socket.gethostname()
 REF_FILENAME = f'.{NAME}'
 METADATA_MAX_AGE = 3600 * 24 * 90
+INVALID_PATH_SEP = {'win32': '/', 'linux': '\\'}[sys.platform]
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +31,17 @@ class InvalidPath(Exception):
     pass
 
 
-def get_file_mtime(x, default=None):
-    return os.stat(x).st_mtime if os.path.exists(x) else default
+def get_file_mtime(path, default=None):
+    return os.stat(path).st_mtime if os.path.exists(path) else default
 
 
-def validate_path(x):
-    if os.path.sep not in x:
-        raise UnhandledPath(f'unhandled path {x}: {sys.platform=}')
+def validate_path(path):
+    if INVALID_PATH_SEP in path:
+        raise UnhandledPath(f'invalid path {path} on {sys.platform=}')
 
 
-def to_json(x):
-    return json.dumps(x, sort_keys=True, indent=4)
+def to_json(path):
+    return json.dumps(path, sort_keys=True, indent=4)
 
 
 def remove_path(path):
@@ -69,8 +70,8 @@ def get_hash(data, encoding='utf-8'):
     return hashlib.md5(data.encode(encoding)).hexdigest()
 
 
-def get_file_size(x, default=None):
-    return os.path.getsize(x) if os.path.exists(x) else default
+def get_file_size(file, default=None):
+    return os.path.getsize(file) if os.path.exists(file) else default
 
 
 def check_patterns(path, inclusions=None, exclusions=None):
