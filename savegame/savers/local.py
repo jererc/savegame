@@ -84,7 +84,6 @@ class LocalSaver(BaseSaver):
 
 class LocalInPlaceSaver(LocalSaver):
     id = 'local_in_place'
-    hostname = HOSTNAME
     in_place = True
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):
