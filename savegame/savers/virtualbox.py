@@ -65,6 +65,7 @@ class VirtualboxExportSaver(BaseSaver):
     def do_run(self):
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
+        logger.debug(f'{running_vms=}')
         for vm in vb.list_vms():
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
