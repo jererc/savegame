@@ -542,9 +542,8 @@ class SavegameTestCase(BaseTestCase):
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
 
-        with patch.object(module.savers.base.BaseSaver, 'notify_error'), \
-                patch.object(module.savers.local.LocalSaver, 'do_run',
-                             side_effect=side_do_run):
+        with patch.object(module.savers.base, 'notify'), \
+                patch.object(module.savers.local.LocalSaver, 'do_run', side_effect=side_do_run):
             self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(sorted(r['src'] for r in self.meta.data.values()),

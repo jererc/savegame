@@ -69,15 +69,14 @@ class VirtualboxExportSaver(BaseSaver):
     def do_run(self):
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
-        failed_vms = []
+        errors = []
         for vm in vb.list_vms():
             notif_key = f'{self.id}-{vm}'
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
                 continue
             if vm in running_vms:
-                logger.error(f'failed to export {vm=}: is running')
-                failed_vms.append(vm)
+                errors.append(f'{vm} is running')
                 continue
             file = os.path.join(self.dst, f'{vm}.ova')
             if os.path.exists(file):
@@ -90,9 +89,9 @@ class VirtualboxExportSaver(BaseSaver):
                    replace_key=notif_key)
             try:
                 vb.export_vm(vm, file)
-            except Exception:
+            except Exception as e:
                 logger.exception(f'failed to export {vm=}')
-                failed_vms.append(vm)
+                errors.append(f'{vm}: {e}')
                 continue
             duration = time.time() - start_ts
             logger.debug(f'exported {vm=} to {file=} in {duration:.02f} seconds')
@@ -100,5 +99,5 @@ class VirtualboxExportSaver(BaseSaver):
                    body=f'file: {file}\rduration: {duration:.02f} seconds',
                    app_name=NAME,
                    replace_key=notif_key)
-        if failed_vms:
-            raise Exception(f'failed to export {failed_vms=}')
+        if errors:
+            raise Exception(f'{", ".join(errors)}')

@@ -85,9 +85,6 @@ class BaseSaver:
             'exclusions': self.exclusions,
         }, sort_keys=True))
 
-    def notify_error(self, message, exc=None):
-        notify(title='error', body=message, app_name=NAME)
-
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
@@ -147,10 +144,10 @@ class BaseSaver:
             if os.path.exists(self.ref.dst):
                 self.ref.save(force=self.config.ALWAYS_UPDATE_REF)
             self.success = True
-        except Exception as exc:
-            self.success = False
+        except Exception as e:
             logger.exception(f'failed to save {self.src}')
-            self.notify_error(f'failed to save {self.src}: {exc}', exc=exc)
+            notify(title='error', body=f'failed to save {self.src}: {e}', app_name=NAME)
+            self.success = False
         self.end_ts = time.time()
         self._update_meta()
         duration = self.end_ts - self.start_ts
