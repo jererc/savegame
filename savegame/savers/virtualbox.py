@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -20,7 +21,7 @@ class Virtualbox:
 
     def _list(self, command):
         stdout = subprocess.check_output([self.bin_file, 'list', command], creationflags=self.creationflags)
-        return {r.rsplit(None, 1)[0].strip('"') for r in stdout.decode('utf-8').splitlines()}
+        return re.findall(r'"([^"]+)"', stdout.decode('utf-8'))
 
     def list_vms(self):
         return self._list('vms')
