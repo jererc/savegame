@@ -24,10 +24,6 @@ def ts_to_str(ts):
     return datetime.fromtimestamp(int(ts)).isoformat(' ')
 
 
-def to_float(val):
-    return float(f'{val:.02f}')
-
-
 def get_local_path(path):
     return path.replace(INVALID_PATH_SEP, os.path.sep)
 
@@ -205,7 +201,7 @@ class SaveMonitor:
     def _get_size(self, ref):
         try:
             sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)), default=0) for r in ref.files.keys()]
-            return to_float(sum(sizes) / 1024 / 1024)
+            return float(f'{sum(sizes) / 1024 / 1024:.02f}')
         except Exception:
             logger.exception(f'failed to get {ref.dst} size')
             return -1
