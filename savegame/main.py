@@ -56,7 +56,7 @@ def main():
             run_delta=config.RUN_DELTA,
             min_uptime=180,
             requires_online=False,
-            trigger_on_new_volume=True,
+            trigger_on_volume_change=True,
         )
         if args.daemon:
             service.run()
