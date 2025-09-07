@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import os
 import re
@@ -10,6 +11,7 @@ from svcutils.notifier import notify
 from savegame import NAME
 from savegame.savers.base import BaseSaver
 
+DUE_WARNING_DELTA = 7 * 24 * 3600
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,15 @@ class VirtualboxExportSaver(BaseSaver):
     src_type = 'remote'
     in_place = True
     retry_delta = 30
+
+    def must_run(self):
+        success_ts = self.meta.get(self.key).get('success_ts', 0)
+        if success_ts and success_ts < time.time() - DUE_WARNING_DELTA:
+            notify(title=f'{self.id} is due',
+                   body=f'last export was {datetime.fromtimestamp(success_ts).isoformat()}',
+                   app_name=NAME,
+                   replace_key=f'{self.id}-due_warning')
+        return super().must_run()
 
     def do_run(self):
         vb = Virtualbox()
