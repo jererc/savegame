@@ -77,10 +77,15 @@ class BaseSaver:
             return dst_path
         return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
 
+    def _get_key_src_dst(self, key):
+        label = getattr(self.save_item, f'{key}_volume_label', None)
+        label_prefix = f'{label}:' if label else ''
+        return f'{label_prefix}{getattr(self, key)}'
+
     def _get_key(self):
         return get_hash(json.dumps({
-            'src': self.src,
-            'dst': self.dst,
+            'src': self._get_key_src_dst('src'),
+            'dst': self._get_key_src_dst('dst'),
             'inclusions': self.inclusions,
             'exclusions': self.exclusions,
         }, sort_keys=True))
@@ -98,14 +103,9 @@ class BaseSaver:
         return self.end_ts if self.success else self.meta.get(self.key).get('success_ts', 0)
 
     def _update_meta(self):
-        def get_src_dst(key):
-            label = getattr(self.save_item, f'{key}_volume_label', None)
-            label_prefix = f'{label}:' if label else ''
-            return f'{label_prefix}{getattr(self, key)}'
-
         self.meta.set(self.key, {
-            'src': get_src_dst('src'),
-            'dst': get_src_dst('dst'),
+            'src': self._get_key_src_dst('src'),
+            'dst': self._get_key_src_dst('dst'),
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
             'next_ts': self._get_next_ts(),
