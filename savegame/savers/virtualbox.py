@@ -78,25 +78,29 @@ class VirtualboxExportSaver(BaseSaver):
             if vm in running_vms:
                 errors.append(f'{vm} is running')
                 continue
-            file = os.path.join(self.dst, f'{vm}.ova')
-            if os.path.exists(file):
-                os.remove(file)
+            dst_file = os.path.join(self.dst, f'{vm}.ova')
+            tmp_file = f'{dst_file}.tmp'
+            if os.path.exists(tmp_file):
+                os.remove(tmp_file)
             start_ts = time.time()
-            logger.debug(f'exporting {vm=} to {file=}')
+            logger.debug(f'exporting {vm=} to {dst_file=}')
             notify(title=f'exporting vm {vm}',
-                   body=f'file: {file}',
+                   body=f'file: {dst_file}',
                    app_name=NAME,
                    replace_key=notif_key)
             try:
-                vb.export_vm(vm, file)
+                vb.export_vm(vm, tmp_file)
             except Exception as e:
                 logger.exception(f'failed to export {vm=}')
                 errors.append(f'{vm}: {e}')
                 continue
+            if os.path.exists(dst_file):
+                os.remove(dst_file)
+            os.rename(tmp_file, dst_file)
             duration = time.time() - start_ts
-            logger.debug(f'exported {vm=} to {file=} in {duration:.02f} seconds')
+            logger.debug(f'exported {vm=} to {dst_file=} in {duration:.02f} seconds')
             notify(title=f'exported vm {vm}',
-                   body=f'file: {file}, size: {os.path.getsize(file) / 1024 / 1024:.02f} MB, duration: {duration:.02f} seconds',
+                   body=f'file: {dst_file}, size: {os.path.getsize(dst_file) / 1024 / 1024:.02f} MB, duration: {duration:.02f} seconds',
                    app_name=NAME,
                    replace_key=notif_key)
         if errors:
