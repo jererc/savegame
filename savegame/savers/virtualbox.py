@@ -8,6 +8,7 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
+from savegame.lib import remove_path
 from savegame.savers.base import BaseSaver
 
 
@@ -80,8 +81,7 @@ class VirtualboxExportSaver(BaseSaver):
                 continue
             dst_file = os.path.join(self.dst, f'{vm}.ova')
             tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
-            if os.path.exists(tmp_file):
-                os.remove(tmp_file)
+            remove_path(tmp_file)
             start_ts = time.time()
             logger.debug(f'exporting {vm=} to {dst_file=}')
             notify(title=f'exporting vm {vm}',
@@ -94,8 +94,7 @@ class VirtualboxExportSaver(BaseSaver):
                 logger.exception(f'failed to export {vm=}')
                 errors.append(f'{vm}: {e}')
                 continue
-            if os.path.exists(dst_file):
-                os.remove(dst_file)
+            remove_path(dst_file)
             os.rename(tmp_file, dst_file)
             duration = time.time() - start_ts
             logger.debug(f'exported {vm=} to {dst_file=} in {duration:.02f} seconds')
