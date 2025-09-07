@@ -34,7 +34,7 @@ class SaveItem:
                  enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None,
                  trigger_volume_labels=None, retry_delta=None,
-                 ):
+                 due_warning_delta=7 * 24 * 3600):
         self.config = config
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label
@@ -51,6 +51,7 @@ class SaveItem:
         self.hostname = hostname
         self.trigger_volume_labels = trigger_volume_labels or []
         self.retry_delta = retry_delta
+        self.due_warning_delta = due_warning_delta
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple)) else (s, [], []) for s in (src_paths or [])]
@@ -78,6 +79,14 @@ class SaveItem:
     def _check_trigger_volume_labels(self):
         return bool(set(self.trigger_volume_labels).intersection(set(self._list_label_mountpoints().keys())))
 
+    def _check_due(self, saver):
+        next_ts = saver.meta.get(saver.key).get('next_ts', 0)
+        if next_ts and time.time() > next_ts + self.due_warning_delta:
+            notify(title=f'{saver.id} is due',
+                   body=f'next run was scheduled for {datetime.fromtimestamp(next_ts).isoformat()}',
+                   app_name=NAME,
+                   replace_key=f'{saver.id}-due_warning')
+
     def _generate_src_and_patterns(self):
         if self.src_paths:
             for src_path, inclusions, exclusions in self.src_paths:
@@ -103,10 +112,13 @@ class SaveItem:
         if not self.dst_path:
             logger.debug(f'invalid dst_path {self.item_dst_path} for {self.saver_cls.id}')
             return
-        if self.trigger_volume_labels and not self._check_trigger_volume_labels():
-            return
+        is_ready = not self.trigger_volume_labels or self._check_trigger_volume_labels()
         for src_and_patterns in self._generate_src_and_patterns():
-            yield self.saver_cls(self.config, self, *src_and_patterns)
+            saver = self.saver_cls(self.config, self, *src_and_patterns)
+            if not is_ready:
+                self._check_due(saver)
+                continue
+            yield saver
 
     def is_loadable(self):
         return self.saver_cls == LocalSaver and self.loadable
