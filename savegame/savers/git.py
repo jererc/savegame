@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 
-from savegame.lib import remove_path
+from savegame.lib import HOSTNAME, remove_path
 from savegame.savers.base import BaseSaver
 
 
@@ -32,6 +32,7 @@ class Git:
 
 class GitBundleSaver(BaseSaver):
     id = 'git_bundle'
+    hostname = HOSTNAME
 
     def do_run(self):
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
