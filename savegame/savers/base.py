@@ -9,8 +9,8 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (REF_FILENAME, Metadata, Reference, Report, get_file_mtime,
-                          get_hash, remove_path, validate_path)
+from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, Report,
+                          get_file_mtime, get_hash, remove_path, validate_path)
 
 
 SAVE_DURATION_THRESHOLD = 30
@@ -32,7 +32,7 @@ def walk_paths(path):
 
 class BaseSaver:
     id = None
-    hostname = None
+    hostname = HOSTNAME
     src_type = 'local'
     dst_type = 'local'
     in_place = False

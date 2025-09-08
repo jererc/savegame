@@ -87,3 +87,19 @@ class GoogleContactsExportTestCase(BaseTestCase):
         for i in range(2):
             self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
+
+
+class GitBundleSaverTestCase(BaseTestCase):
+    def test_1(self):
+        saves = [
+            {
+                'saver_id': 'git_bundle',
+                'src_paths': [
+                    '~/data/code',
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        for i in range(2):
+            self._savegame(saves, force=True)
+            pprint(self._list_dst_root_paths())
