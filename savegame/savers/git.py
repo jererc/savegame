@@ -24,7 +24,7 @@ class Git:
 
     def bundle(self, dst_file):
         try:
-            subprocess.run(['git', '-C', self.path, 'bundle', 'create', dst_file, '--all'],
+            subprocess.run(['git', '-C', self.path, 'bundle', 'create', dst_file, '--branches'],
                            check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
             raise Exception(f'failed to bundle {self.path}: {e.stderr.decode()}')
