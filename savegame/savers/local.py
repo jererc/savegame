@@ -4,8 +4,7 @@ import os
 import shutil
 import time
 
-from savegame.lib import (HOSTNAME, REF_FILENAME, check_patterns,
-                          get_file_hash, get_file_size)
+from savegame.lib import REF_FILENAME, check_patterns, get_file_hash, get_file_size
 from savegame.savers.base import BaseSaver
 
 
@@ -23,7 +22,6 @@ def walk_files(path):
 
 class LocalSaver(BaseSaver):
     id = 'local'
-    hostname = HOSTNAME
 
     def _is_file_valid(self, file):
         return os.path.basename(file) != REF_FILENAME and check_patterns(file, self.inclusions, self.exclusions)
@@ -63,7 +61,7 @@ class LocalSaver(BaseSaver):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
-            self.dst_paths.add(dst_file)
+            self.add_seen_file(dst_file)
             try:
                 equal, ref_value = self.compare_files_and_get_ref_value(src_file, dst_file)
                 if not equal:

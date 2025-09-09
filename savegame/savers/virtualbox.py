@@ -63,7 +63,6 @@ class Virtualbox:
 
 class VirtualboxExportSaver(BaseSaver):
     id = 'virtualbox_export'
-    src_type = 'remote'
     in_place = True
     retry_delta = 30
 
@@ -76,11 +75,11 @@ class VirtualboxExportSaver(BaseSaver):
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
                 continue
+            dst_file = os.path.join(self.dst, f'{vm}.ova')
+            self.add_seen_file(dst_file)
             if vm in running_vms:
                 errors.append(f'{vm} is running')
                 continue
-            dst_file = os.path.join(self.dst, f'{vm}.ova')
-            self.dst_paths.add(dst_file)
             tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
             remove_path(tmp_file)
             start_ts = time.time()

@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 
-from savegame.lib import HOSTNAME, remove_path
+from savegame.lib import remove_path
 from savegame.savers.base import BaseSaver
 
 
@@ -32,7 +32,6 @@ class Git:
 
 class GitSaver(BaseSaver):
     id = 'git'
-    hostname = HOSTNAME
 
     def do_run(self):
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
@@ -43,7 +42,7 @@ class GitSaver(BaseSaver):
                 continue
             name = os.path.basename(src_path)
             dst_file = os.path.join(self.dst, f'{name}.bundle')
-            self.dst_paths.add(dst_file)
+            self.add_seen_file(dst_file)
             tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
             remove_path(tmp_file)
             os.makedirs(os.path.dirname(tmp_file), exist_ok=True)

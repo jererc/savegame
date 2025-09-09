@@ -9,8 +9,8 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (REF_FILENAME, Metadata, Reference, Report, get_file_mtime,
-                          get_hash, remove_path, validate_path)
+from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, Report,
+                          get_file_mtime, get_hash, remove_path, validate_path)
 
 
 SAVE_DURATION_THRESHOLD = 30
@@ -32,7 +32,7 @@ def walk_paths(path):
 
 class BaseSaver:
     id = None
-    hostname = None
+    hostname = HOSTNAME
     src_type = 'local'
     dst_type = 'local'
     in_place = False
@@ -75,8 +75,6 @@ class BaseSaver:
             return dst_path
         if self.in_place:
             return dst_path
-        if not self.hostname:
-            raise Exception(f'undefined hostname for {self.id}')
         return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
 
     def _get_key_src_dst(self, key):
@@ -113,6 +111,9 @@ class BaseSaver:
             'next_ts': self._get_next_ts(),
             'success_ts': self._get_success_ts(),
         })
+
+    def add_seen_file(self, path):
+        self.dst_paths.add(path)
 
     def _requires_purge(self, path):
         if os.path.isfile(path):
