@@ -64,6 +64,7 @@ class Virtualbox:
 class VirtualboxExportSaver(BaseSaver):
     id = 'virtualbox_export'
     in_place = True
+    enable_purge = False
     retry_delta = 30
 
     def do_run(self):

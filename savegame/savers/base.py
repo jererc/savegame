@@ -35,6 +35,7 @@ class BaseSaver:
     hostname = HOSTNAME
     dst_type = 'local'
     in_place = False
+    enable_purge = True
     retry_delta = 2 * 3600
 
     def __init__(self, config, save_item, src, inclusions, exclusions):
@@ -147,7 +148,7 @@ class BaseSaver:
         logger.info(f'saving {self.src} to {self.dst}')
         try:
             self.do_run()
-            if self.save_item.enable_purge:
+            if self.enable_purge and self.save_item.enable_purge:
                 self._purge_dst()
             if os.path.exists(self.ref.dst):
                 self.ref.save(force=self.config.ALWAYS_UPDATE_REF)
