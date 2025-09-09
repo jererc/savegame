@@ -25,7 +25,6 @@ def get_google_cloud(config, headless=True):
 class GoogleDriveExportSaver(BaseSaver):
     id = 'google_drive_export'
     hostname = 'google_cloud'
-    src_type = 'remote'
 
     def do_run(self):
         gc = get_google_cloud(self.config)
@@ -54,7 +53,6 @@ class GoogleDriveExportSaver(BaseSaver):
 class GoogleContactsExportSaver(BaseSaver):
     id = 'google_contacts_export'
     hostname = 'google_cloud'
-    src_type = 'remote'
 
     def do_run(self):
         gc = get_google_cloud(self.config)

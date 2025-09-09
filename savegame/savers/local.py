@@ -27,8 +27,6 @@ class LocalSaver(BaseSaver):
         return os.path.basename(file) != REF_FILENAME and check_patterns(file, self.inclusions, self.exclusions)
 
     def _get_src_and_files(self):
-        if self.src_type != 'local':
-            return self.src, []
         start_ts = time.time()
         if os.path.isfile(self.src):
             src = os.path.dirname(self.src)

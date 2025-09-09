@@ -33,7 +33,6 @@ def walk_paths(path):
 class BaseSaver:
     id = None
     hostname = HOSTNAME
-    src_type = 'local'
     dst_type = 'local'
     in_place = False
     retry_delta = 2 * 3600
