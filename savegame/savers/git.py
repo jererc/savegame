@@ -24,14 +24,14 @@ class Git:
 
     def bundle(self, dst_file):
         try:
-            subprocess.run(['git', '-C', self.path, 'bundle', 'create', dst_file, '--branches', '--tags'],
+            subprocess.run(['git', '-C', self.path, 'bundle', 'create', dst_file, '--all'],
                            check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
             raise Exception(f'failed to bundle {self.path}: {e.stderr.decode()}')
 
 
-class GitBundleSaver(BaseSaver):
-    id = 'git_bundle'
+class GitSaver(BaseSaver):
+    id = 'git'
     hostname = HOSTNAME
 
     def do_run(self):

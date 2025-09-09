@@ -130,6 +130,7 @@ class BaseSaver:
     def _purge_dst(self):
         if not self.dst_paths:
             remove_path(self.dst)
+            logger.warning(f'purged {self.dst} because no paths were saved')
             return
         for path in walk_paths(self.dst):
             if self._requires_purge(path):

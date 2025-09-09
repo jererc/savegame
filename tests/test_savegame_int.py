@@ -89,11 +89,11 @@ class GoogleContactsExportTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class GitBundleSaverTestCase(BaseTestCase):
+class GitSaverTestCase(BaseTestCase):
     def test_1(self):
         saves = [
             {
-                'saver_id': 'git_bundle',
+                'saver_id': 'git',
                 'src_paths': [
                     '~/data/code',
                 ],
