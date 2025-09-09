@@ -76,7 +76,7 @@ class VirtualboxExportSaver(BaseSaver):
                 logger.debug(f'skipping {vm=}')
                 continue
             dst_file = os.path.join(self.dst, f'{vm}.ova')
-            self.add_seen_file(dst_file)
+            self.register_dst_file(dst_file)
             if vm in running_vms:
                 errors.append(f'{vm} is running')
                 continue

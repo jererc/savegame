@@ -61,7 +61,7 @@ class LocalSaver(BaseSaver):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
-            self.add_seen_file(dst_file)
+            self.register_dst_file(dst_file)
             try:
                 equal, ref_value = self.compare_files_and_get_ref_value(src_file, dst_file)
                 if not equal:

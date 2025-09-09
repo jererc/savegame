@@ -112,7 +112,7 @@ class BaseSaver:
             'success_ts': self._get_success_ts(),
         })
 
-    def add_seen_file(self, path):
+    def register_dst_file(self, path):
         self.dst_paths.add(path)
 
     def _requires_purge(self, path):
