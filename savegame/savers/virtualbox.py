@@ -80,6 +80,7 @@ class VirtualboxExportSaver(BaseSaver):
                 errors.append(f'{vm} is running')
                 continue
             dst_file = os.path.join(self.dst, f'{vm}.ova')
+            self.dst_paths.add(dst_file)
             tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
             remove_path(tmp_file)
             start_ts = time.time()
