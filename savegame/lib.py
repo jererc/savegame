@@ -92,6 +92,13 @@ def list_label_mountpoints():
     return {label: mountpoint for mountpoint, label in list_mountpoint_labels().items() if label}
 
 
+def coalesce(*values):
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
 class Metadata:
     file = os.path.join(WORK_DIR, '.meta.json')
     data = {}

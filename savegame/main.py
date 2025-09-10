@@ -42,7 +42,6 @@ def main():
         os.path.join(path, 'user_settings.py'),
         DST_ROOT_DIRNAME='saves',
         SAVE_RUN_DELTA=3600,
-        PURGE_DELTA=7 * 24 * 3600,
         ALWAYS_UPDATE_REF=False,
         RUN_DELTA=30 * 60,
         MONITOR_DELTA_DAYS=1,

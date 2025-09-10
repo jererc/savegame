@@ -10,7 +10,7 @@ from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, Report,
-                          get_file_mtime, get_hash, remove_path, validate_path)
+                          coalesce, get_file_mtime, get_hash, remove_path, validate_path)
 
 
 SAVE_DURATION_THRESHOLD = 30
@@ -36,7 +36,9 @@ class BaseSaver:
     dst_type = 'local'
     in_place = False
     enable_purge = True
+    purge_delta = 15 * 24 * 3600
     retry_delta = 2 * 3600
+    file_compare_method = 'hash'
 
     def __init__(self, config, save_item, src, inclusions, exclusions):
         self.config = config
@@ -95,7 +97,7 @@ class BaseSaver:
         return get_hash(json.dumps(self._get_key_data(), sort_keys=True))
 
     def _get_retry_delta(self):
-        return self.save_item.run_delta if self.success else (self.save_item.retry_delta or self.retry_delta)
+        return self.save_item.run_delta if self.success else coalesce(self.save_item.retry_delta, self.retry_delta)
 
     def _get_next_ts(self):
         return time.time() + self._get_retry_delta()
@@ -117,14 +119,14 @@ class BaseSaver:
     def register_dst_file(self, path):
         self.dst_paths.add(path)
 
-    def _requires_purge(self, path):
+    def _requires_purge(self, path, cutoff_ts):
         if os.path.isfile(path):
             if path in self.dst_paths:
                 return False
             name = os.path.basename(path)
             if name == REF_FILENAME:
                 return False
-            if not name.startswith(REF_FILENAME) and get_file_mtime(path) > time.time() - self.save_item.purge_delta:
+            if not name.startswith(REF_FILENAME) and get_file_mtime(path) > cutoff_ts:
                 return False
         elif os.listdir(path):
             return False
@@ -135,8 +137,9 @@ class BaseSaver:
             remove_path(self.dst)
             logger.warning(f'purged {self.dst} because no paths were saved')
             return
+        cufoff_ts = time.time() - coalesce(self.save_item.purge_delta, self.purge_delta)
         for path in walk_paths(self.dst):
-            if self._requires_purge(path):
+            if self._requires_purge(path, cufoff_ts):
                 remove_path(path)
                 self.report.add('removed', self.src, path)
 

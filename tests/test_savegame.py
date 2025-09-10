@@ -14,7 +14,7 @@ from unittest.mock import patch
 from svcutils.service import Config
 
 from tests import WORK_DIR, module
-from savegame import load, save, savers
+from savegame import load, save, savers, lib
 
 
 GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
@@ -221,7 +221,6 @@ class BaseTestCase(unittest.TestCase):
         args = {
             'DST_ROOT_DIRNAME': 'saves',
             'SAVE_RUN_DELTA': 0,
-            'PURGE_DELTA': 7 * 24 * 3600,
             'MONITOR_DELTA_DAYS': 1,
             'ALWAYS_UPDATE_REF': False,
         }
@@ -684,8 +683,7 @@ class SavegameTestCase(BaseTestCase):
         os.makedirs(dst_path, exist_ok=True)
         saves = [
             {
-                'saver_id': 'filesystem_in_place',
-                'enable_purge': False,
+                'saver_id': 'filesystem_copy',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'not_found',
@@ -711,8 +709,7 @@ class SavegameTestCase(BaseTestCase):
             fd.write('data')
         saves = [
             {
-                'saver_id': 'filesystem_in_place',
-                'enable_purge': False,
+                'saver_id': 'filesystem_copy',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
@@ -733,9 +730,7 @@ class SavegameTestCase(BaseTestCase):
 
         saves = [
             {
-                'saver_id': 'filesystem_in_place',
-                'enable_purge': True,
-                'purge_delta': 0,
+                'saver_id': 'filesystem_mirror',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
@@ -763,14 +758,14 @@ class SavegameTestCase(BaseTestCase):
 
         saves = [
             {
-                'saver_id': 'filesystem_in_place',
+                'saver_id': 'filesystem_copy',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
                 'dst_volume_label': 'volume2',
             },
             {
-                'saver_id': 'filesystem_in_place',
+                'saver_id': 'filesystem_copy',
                 'src_paths': ['src2'],
                 'dst_path': 'src2',
                 'src_volume_label': 'volume2',
@@ -1102,3 +1097,10 @@ class LoadgameTestCase(BaseTestCase):
         src_paths2 = self._list_src_root_paths()
         print('src data:')
         pprint(src_paths2)
+
+
+class CoalesceTestCase(unittest.TestCase):
+    def test_1(self):
+        self.assertEqual(lib.coalesce(0, None, 1), 0)
+        self.assertEqual(lib.coalesce(1, 2, None), 1)
+        self.assertEqual(lib.coalesce(None, 1, None), 1)

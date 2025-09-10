@@ -10,7 +10,7 @@ from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
 from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, Reference, Report, InvalidPath,
-                          UnhandledPath, get_file_hash, get_file_mtime, get_file_size,
+                          UnhandledPath, coalesce, get_file_hash, get_file_mtime, get_file_size,
                           list_label_mountpoints, to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
@@ -33,7 +33,7 @@ class SaveItem:
                  dst_path=None, run_delta=None, purge_delta=None,
                  enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None,
-                 trigger_volume_labels=None, retry_delta=None,
+                 trigger_volume_labels=None, retry_delta=None, file_compare_method=None,
                  due_warning_delta=7 * 24 * 3600):
         self.config = config
         self.src_volume_label = src_volume_label
@@ -43,14 +43,15 @@ class SaveItem:
         self.dst_volume_path = self._get_dst_volume_path()
         self.item_dst_path = dst_path or self.config.DST_PATH
         self.dst_path = self._get_dst_path(self.item_dst_path)
-        self.run_delta = self.config.SAVE_RUN_DELTA if run_delta is None else run_delta
-        self.purge_delta = self.config.PURGE_DELTA if purge_delta is None else purge_delta
+        self.run_delta = coalesce(run_delta, self.config.SAVE_RUN_DELTA)
+        self.purge_delta = purge_delta
         self.enable_purge = enable_purge
         self.loadable = loadable
         self.platform = platform
         self.hostname = hostname
         self.trigger_volume_labels = trigger_volume_labels or []
         self.retry_delta = retry_delta
+        self.file_compare_method = file_compare_method
         self.due_warning_delta = due_warning_delta
 
     def _get_src_paths(self, src_paths):
