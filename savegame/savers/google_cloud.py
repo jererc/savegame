@@ -16,7 +16,7 @@ def get_file_mtime_dt(x):
 
 
 def get_google_cloud(config, headless=True):
-    return GoogleCloud(=os.path.expanduser(config.GOOGLE_CREDS), headless=headless)
+    return GoogleCloud(oauth_secrets_file=os.path.expanduser(config.GOOGLE_CREDS), headless=headless)
 
 
 class GoogleDriveSaver(BaseSaver):
