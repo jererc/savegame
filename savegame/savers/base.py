@@ -94,9 +94,6 @@ class BaseSaver:
     def _get_key(self):
         return get_hash(json.dumps(self._get_key_data(), sort_keys=True))
 
-    def must_run(self):
-        return time.time() > self.meta.get(self.key).get('next_ts', 0)
-
     def _get_retry_delta(self):
         return self.save_item.run_delta if self.success else (self.save_item.retry_delta or self.retry_delta)
 
@@ -113,6 +110,9 @@ class BaseSaver:
             'next_ts': self._get_next_ts(),
             'success_ts': self._get_success_ts(),
         })
+
+    def must_run(self):
+        return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
     def register_dst_file(self, path):
         self.dst_paths.add(path)
