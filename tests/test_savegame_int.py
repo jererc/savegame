@@ -61,12 +61,12 @@ class LoadgameTestCase(BaseTestCase):
         pprint(self._list_src_root_paths())
 
 
-class GoogleDriveExportTestCase(BaseTestCase):
+class GoogleDriveSaverTestCase(BaseTestCase):
     def test_1(self):
         module.save.google_oauth(self.config)
         saves = [
             {
-                'saver_id': 'google_drive_export',
+                'saver_id': 'google_drive',
                 'dst_path': self.dst_root,
             },
         ]
@@ -75,12 +75,12 @@ class GoogleDriveExportTestCase(BaseTestCase):
             pprint(self._list_dst_root_paths())
 
 
-class GoogleContactsExportTestCase(BaseTestCase):
+class GoogleContactsSaverTestCase(BaseTestCase):
     def test_1(self):
         module.save.google_oauth(self.config)
         saves = [
             {
-                'saver_id': 'google_contacts_export',
+                'saver_id': 'google_contacts',
                 'dst_path': self.dst_root,
             },
         ]

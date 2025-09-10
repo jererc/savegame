@@ -14,7 +14,7 @@ from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, Reference, Repor
                           list_label_mountpoints, to_json, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
-from savegame.savers.local import LocalSaver
+from savegame.savers.filesystem import FilesystemSaver
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def get_local_path(path):
 
 
 class SaveItem:
-    def __init__(self, config, src_paths=None, saver_id=LocalSaver.id,
+    def __init__(self, config, src_paths=None, saver_id=FilesystemSaver.id,
                  dst_path=None, run_delta=None, purge_delta=None,
                  enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None,
@@ -121,7 +121,7 @@ class SaveItem:
             yield saver
 
     def is_loadable(self):
-        return self.saver_cls == LocalSaver and self.loadable
+        return self.saver_cls == FilesystemSaver and self.loadable
 
 
 def iterate_save_items(config, log_unhandled=False, log_invalid=True):

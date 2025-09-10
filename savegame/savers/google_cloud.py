@@ -16,14 +16,11 @@ def get_file_mtime_dt(x):
 
 
 def get_google_cloud(config, headless=True):
-    return GoogleCloud(
-        oauth_secrets_file=os.path.expanduser(config.GOOGLE_CREDS),
-        headless=headless,
-    )
+    return GoogleCloud(=os.path.expanduser(config.GOOGLE_CREDS), headless=headless)
 
 
-class GoogleDriveExportSaver(BaseSaver):
-    id = 'google_drive_export'
+class GoogleDriveSaver(BaseSaver):
+    id = 'google_drive'
     hostname = 'google_cloud'
 
     def do_run(self):
@@ -50,8 +47,8 @@ class GoogleDriveExportSaver(BaseSaver):
         self.ref.files = {os.path.relpath(p, self.dst): get_file_hash(p) for p in self.dst_paths}
 
 
-class GoogleContactsExportSaver(BaseSaver):
-    id = 'google_contacts_export'
+class GoogleContactsSaver(BaseSaver):
+    id = 'google_contacts'
     hostname = 'google_cloud'
 
     def do_run(self):

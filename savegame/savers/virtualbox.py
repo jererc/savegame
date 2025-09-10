@@ -61,8 +61,8 @@ class Virtualbox:
         self._run_cmd('export', vm, '--output', file)
 
 
-class VirtualboxExportSaver(BaseSaver):
-    id = 'virtualbox_export'
+class VirtualboxSaver(BaseSaver):
+    id = 'virtualbox'
     in_place = True
     enable_purge = False
     retry_delta = 30

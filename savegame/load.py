@@ -6,9 +6,8 @@ import shutil
 import sys
 
 from savegame import NAME
-from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath,
-                          check_patterns, get_file_hash, get_file_mtime,
-                          to_json, validate_path)
+from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath, check_patterns,
+                          get_file_hash, get_file_mtime, to_json, validate_path)
 from savegame.save import iterate_save_items
 
 
@@ -20,7 +19,7 @@ SHARED_USERNAMES = {'win32': {'Public'},
 logger = logging.getLogger(__name__)
 
 
-class LocalLoader:
+class FilesystemLoader:
     def __init__(self, dst_path, hostname=None, username=None,
                  include=None, exclude=None, overwrite=False, dry_run=False):
         self.dst_path = dst_path
@@ -141,7 +140,7 @@ class LoadHandler:
         if not dst_paths:
             logger.info('nothing to load')
         for dst_path in dst_paths:
-            yield LocalLoader(dst_path=dst_path, **self.loader_args)
+            yield FilesystemLoader(dst_path=dst_path, **self.loader_args)
 
     def run(self):
         report = Report()

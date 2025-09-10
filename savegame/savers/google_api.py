@@ -39,8 +39,7 @@ def get_file(path):
 
 
 class GoogleCloud:
-    def __init__(self, oauth_secrets_file=None, service_secrets_file=None,
-                 **browser_args):
+    def __init__(self, oauth_secrets_file=None, service_secrets_file=None, **browser_args):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
         self.service_secrets_file = get_file(service_secrets_file)
         self.browser_args = browser_args

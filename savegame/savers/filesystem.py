@@ -20,8 +20,8 @@ def walk_files(path):
             yield os.path.join(root, file)
 
 
-class LocalSaver(BaseSaver):
-    id = 'local'
+class FilesystemSaver(BaseSaver):
+    id = 'filesystem'
 
     def _is_file_valid(self, file):
         return os.path.basename(file) != REF_FILENAME and check_patterns(file, self.inclusions, self.exclusions)
@@ -78,8 +78,8 @@ class LocalSaver(BaseSaver):
                 logger.exception(f'failed to save {src_file}')
 
 
-class LocalInPlaceSaver(LocalSaver):
-    id = 'local_in_place'
+class FilesystemInPlaceSaver(FilesystemSaver):
+    id = 'filesystem_in_place'
     in_place = True
 
     def compare_files_and_get_ref_value(self, src_file, dst_file):

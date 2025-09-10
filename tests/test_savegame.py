@@ -67,7 +67,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = load.LocalLoader(self.dst_path)
+        obj = load.FilesystemLoader(self.dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -81,7 +81,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = load.LocalLoader(self.dst_path)
+        obj = load.FilesystemLoader(self.dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -94,7 +94,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = load.LocalLoader(self.dst_path, username=self.username2)
+        obj = load.FilesystemLoader(self.dst_path, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -110,7 +110,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = load.LocalLoader(self.dst_path, username=self.username2)
+        obj = load.FilesystemLoader(self.dst_path, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -471,7 +471,7 @@ class SavegameTestCase(BaseTestCase):
         def side_copy(*args, **kwargs):
             raise Exception('copy failed')
 
-        with patch.object(module.savers.local.shutil, 'copy2',
+        with patch.object(module.savers.filesystem.shutil, 'copy2',
                           side_effect=side_copy):
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
@@ -543,7 +543,7 @@ class SavegameTestCase(BaseTestCase):
             raise Exception('do_run failed')
 
         with patch.object(module.savers.base, 'notify'), \
-                patch.object(module.savers.local.LocalSaver, 'do_run', side_effect=side_do_run):
+                patch.object(module.savers.filesystem.FilesystemSaver, 'do_run', side_effect=side_do_run):
             self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(sorted(r['src'] for r in self.meta.data.values()),
@@ -684,7 +684,7 @@ class SavegameTestCase(BaseTestCase):
         os.makedirs(dst_path, exist_ok=True)
         saves = [
             {
-                'saver_id': 'local_in_place',
+                'saver_id': 'filesystem_in_place',
                 'enable_purge': False,
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
@@ -711,7 +711,7 @@ class SavegameTestCase(BaseTestCase):
             fd.write('data')
         saves = [
             {
-                'saver_id': 'local_in_place',
+                'saver_id': 'filesystem_in_place',
                 'enable_purge': False,
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
@@ -733,7 +733,7 @@ class SavegameTestCase(BaseTestCase):
 
         saves = [
             {
-                'saver_id': 'local_in_place',
+                'saver_id': 'filesystem_in_place',
                 'enable_purge': True,
                 'purge_delta': 0,
                 'src_paths': ['src1'],
@@ -763,14 +763,14 @@ class SavegameTestCase(BaseTestCase):
 
         saves = [
             {
-                'saver_id': 'local_in_place',
+                'saver_id': 'filesystem_in_place',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
                 'dst_volume_label': 'volume2',
             },
             {
-                'saver_id': 'local_in_place',
+                'saver_id': 'filesystem_in_place',
                 'src_paths': ['src2'],
                 'dst_path': 'src2',
                 'src_volume_label': 'volume2',
