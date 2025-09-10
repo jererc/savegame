@@ -82,13 +82,17 @@ class BaseSaver:
         label_prefix = f'{label}:' if label else ''
         return f'{label_prefix}{getattr(self, key)}'
 
-    def _get_key(self):
-        return get_hash(json.dumps({
+    def _get_key_data(self):
+        return {
+            'saver_id': self.id,
             'src': self._get_key_src_dst('src'),
             'dst': self._get_key_src_dst('dst'),
             'inclusions': self.inclusions,
             'exclusions': self.exclusions,
-        }, sort_keys=True))
+        }
+
+    def _get_key(self):
+        return get_hash(json.dumps(self._get_key_data(), sort_keys=True))
 
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
@@ -103,9 +107,7 @@ class BaseSaver:
         return self.end_ts if self.success else self.meta.get(self.key).get('success_ts', 0)
 
     def _update_meta(self):
-        self.meta.set(self.key, {
-            'src': self._get_key_src_dst('src'),
-            'dst': self._get_key_src_dst('dst'),
+        self.meta.set(self.key, self._get_key_data() | {
             'start_ts': self.start_ts,
             'end_ts': self.end_ts,
             'next_ts': self._get_next_ts(),
