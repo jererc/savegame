@@ -59,7 +59,7 @@ class FilesystemSaver(BaseSaver):
     def _get_file_compare_callable(self):
         return {
             'hash': self._compare_files_using_hash,
-            'filecmp': self._compare_files_using_filecmp,
+            'shallow': self._compare_files_using_filecmp,
         }[coalesce(self.save_item.file_compare_method, self.file_compare_method)]
 
     def do_run(self):
@@ -96,11 +96,11 @@ class FilesystemMirrorSaver(FilesystemSaver):
     in_place = True
     enable_purge = True
     purge_delta = 0
-    file_compare_method = 'filecmp'
+    file_compare_method = 'shallow'
 
 
 class FilesystemCopySaver(FilesystemSaver):
     id = 'filesystem_copy'
     in_place = True
     enable_purge = False
-    file_compare_method = 'filecmp'
+    file_compare_method = 'shallow'
