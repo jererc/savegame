@@ -10,7 +10,6 @@ from savegame.lib import (HOSTNAME, Reference, Report, UnhandledPath, check_patt
                           get_file_hash, get_file_mtime, to_json, validate_path)
 from savegame.save import iterate_save_items
 
-
 HOME_DIR = os.path.expanduser('~')
 USERNAME = os.getlogin()
 SHARED_USERNAMES = {'win32': {'Public'},

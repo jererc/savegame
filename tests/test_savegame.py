@@ -16,7 +16,6 @@ from svcutils.service import Config
 from tests import WORK_DIR, module
 from savegame import load, save, savers, lib
 
-
 GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
 HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()

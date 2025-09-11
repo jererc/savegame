@@ -14,7 +14,6 @@ from svcutils.service import list_mountpoint_labels
 
 from savegame import NAME, WORK_DIR
 
-
 HOSTNAME = socket.gethostname()
 REF_FILENAME = f'.{NAME}'
 METADATA_MAX_AGE = 3600 * 24 * 90

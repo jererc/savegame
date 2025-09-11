@@ -6,7 +6,6 @@ from savegame.lib import get_file_hash, get_file_mtime, get_hash, to_json
 from savegame.savers.base import BaseSaver
 from savegame.savers.google_api import GoogleCloud
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -16,7 +16,6 @@ from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.filesystem import FilesystemSaver
 
-
 logger = logging.getLogger(__name__)
 
 

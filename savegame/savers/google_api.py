@@ -13,7 +13,6 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from goth.autoauth import Autoauth
 
-
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/drive.readonly',

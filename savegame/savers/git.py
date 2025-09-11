@@ -6,7 +6,6 @@ import subprocess
 from savegame.lib import remove_path
 from savegame.savers.base import BaseSaver
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -12,7 +12,6 @@ from savegame import NAME
 from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, Report,
                           coalesce, get_file_mtime, get_hash, remove_path, validate_path)
 
-
 SAVE_DURATION_THRESHOLD = 30
 
 logger = logging.getLogger(__name__)
