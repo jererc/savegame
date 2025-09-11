@@ -32,6 +32,8 @@ class Git:
 
 class GitSaver(BaseSaver):
     id = 'git'
+    in_place = False
+    enable_purge = True
 
     def do_run(self):
         for src_path in sorted(glob(os.path.join(self.src, '*'))):

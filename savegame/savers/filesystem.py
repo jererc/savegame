@@ -22,7 +22,9 @@ def walk_files(path):
 
 class FilesystemSaver(BaseSaver):
     id = 'filesystem'
+    in_place = False
     enable_purge = True
+    file_compare_method = 'hash'
 
     def _is_file_valid(self, file):
         return os.path.basename(file) != REF_FILENAME and check_patterns(file, self.inclusions, self.exclusions)
