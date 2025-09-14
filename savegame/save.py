@@ -258,7 +258,7 @@ class SaveMonitor:
                 error = self._check_file(hostname, ref, rel_path, ref_hash)
                 if error:
                     desynced.append(rel_path)
-                    logger.error(f'inconsistency detected: {error}')
+                    logger.error(f'inconsistency detected in {ref.dst}: {error}')
             saves.append({
                 'hostname': hostname,
                 'src': ref.save_src,
