@@ -37,7 +37,7 @@ class GitSaver(BaseSaver):
 
     def _clean_dst_files(self, name):
         files = sorted(glob(os.path.join(self.dst, f'{name}-*.bundle')))
-        max_files = self.save_item.max_versions - 1
+        max_files = (self.save_item.max_versions or 2) - 1
         if len(files) >= max_files:
             list(map(remove_path, files[:-max_files]))
 
