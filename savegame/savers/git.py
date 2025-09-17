@@ -4,9 +4,9 @@ import hashlib
 import logging
 import os
 import subprocess
-import time
+import shutil
 
-from savegame.lib import remove_path
+from savegame.lib import get_file_hash, remove_path
 from savegame.savers.base import BaseSaver
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,16 @@ class Git:
         except subprocess.CalledProcessError as e:
             raise Exception(e.stderr)
 
+    def list_non_committed_files(self):
+        def git(*args):
+            res = subprocess.run(['git', *args], cwd=self.path, capture_output=True, text=True, check=True)
+            return res.stdout.strip().splitlines()
+
+        staged = git('diff', '--cached', '--name-only')
+        unstaged = git('diff', '--name-only')
+        untracked = git('ls-files', '--others', '--exclude-standard')
+        return {os.path.join(self.path, f) for f in staged + unstaged + untracked}
+
 
 class GitSaver(BaseSaver):
     id = 'git'
@@ -66,20 +76,29 @@ class GitSaver(BaseSaver):
             self.register_dst_file(dst_file)
 
             state_hash = git.get_state_hash()
+            if state_hash != ref_files.get(rel_path):
+                tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
+                remove_path(tmp_file)
+                os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
+                try:
+                    git.bundle(tmp_file)
+                except Exception as e:
+                    logger.error(f'failed to create bundle for {src_path}: {e}')
+                    continue
+                remove_path(dst_file)
+                os.rename(tmp_file, dst_file)
+                logger.debug(f'created bundle for {src_path} to {dst_file}')
+                self.report.add('saved', self.src, src_path)
             self.ref.files[rel_path] = state_hash
-            if state_hash == ref_files.get(rel_path):
-                logger.debug(f'skipping {src_path} because it has not changed')
-                continue
 
-            tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
-            remove_path(tmp_file)
-            os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
-            try:
-                git.bundle(tmp_file)
-            except Exception as e:
-                logger.error(f'failed to create bundle for {src_path}: {e}')
-                continue
-            remove_path(dst_file)
-            os.rename(tmp_file, dst_file)
-            logger.debug(f'created bundle for {src_path} to {dst_file}')
-            self.report.add('saved', self.src, src_path)
+            for src_file in sorted(git.list_non_committed_files()):
+                src_hash = get_file_hash(src_file)
+                rel_path = os.path.relpath(src_file, self.src)
+                dst_file = os.path.join(self.dst, rel_path)
+                self.register_dst_file(dst_file)
+                dst_hash = get_file_hash(dst_file)
+                if dst_hash != src_hash:
+                    os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                    shutil.copy2(src_file, dst_file)
+                    self.report.add('saved', self.src, src_file)
+                self.ref.files[rel_path] = dst_hash

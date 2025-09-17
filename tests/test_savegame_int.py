@@ -1,6 +1,5 @@
 from pprint import pprint
 import sys
-import time
 import unittest
 
 from tests import WORK_DIR
