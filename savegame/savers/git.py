@@ -62,8 +62,7 @@ class GitSaver(BaseSaver):
             except Exception as e:
                 logger.error(f'failed to create bundle for {src_path}: {e}')
                 continue
-            if os.path.exists(dst_file):
-                remove_path(dst_file)
+            remove_path(dst_file)
             os.rename(tmp_file, dst_file)
             logger.debug(f'created bundle for {src_path} to {dst_file}')
             self.report.add('saved', self.src, src_path)
