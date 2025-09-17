@@ -220,6 +220,8 @@ class SaveMonitor:
             return -1
 
     def _check_file(self, hostname, ref, rel_path, ref_hash):
+        if not isinstance(ref_hash, str):
+            return
         rel_path = get_local_path(rel_path)
         dst_file = os.path.join(ref.dst, rel_path)
         if not os.path.exists(dst_file):
@@ -233,7 +235,6 @@ class SaveMonitor:
                 return f'missing src file {src_file}'
             if get_file_hash(src_file) != ref_hash:
                 return f'conflicting src file {src_file}'
-        return None
 
     def _generate_savers(self):
         for si in iterate_save_items(self.config):
