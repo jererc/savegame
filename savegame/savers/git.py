@@ -32,17 +32,15 @@ class Git:
             raise Exception(e.stderr)
 
     def get_state_hash(self):
-        try:
-            result = subprocess.run(
-                ['git', '-C', self.path, 'for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/tags'],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            normalized = '\n'.join(sorted(result.stdout.strip().splitlines()))
-            return hashlib.md5(normalized.encode("utf-8")).hexdigest()
-        except subprocess.CalledProcessError as e:
-            raise Exception(e.stderr)
+        res = subprocess.run(['git', '-C', self.path, 'for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/tags'],
+                             check=True, capture_output=True, text=True)
+        normalized = '\n'.join(sorted(res.stdout.strip().splitlines()))
+        return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+    def get_last_update_ts(self):
+        res = subprocess.run(['git', '-C', self.path, 'for-each-ref', '--sort=-committerdate', '--count=1', '--format=%(committerdate:unix)'],
+                             capture_output=True, text=True, check=True)
+        return int(res.stdout.strip())
 
     def list_non_committed_files(self):
         def git(*args):
@@ -75,28 +73,28 @@ class GitSaver(BaseSaver):
             dst_file = os.path.join(self.dst, rel_path)
             self.register_dst_file(dst_file)
 
-            state_hash = git.get_state_hash()
-            if state_hash != ref_files.get(rel_path):
-                tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
-                remove_path(tmp_file)
-                os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
-                try:
+            ref_val = git.get_last_update_ts()
+            try:
+                if ref_val > ref_files.get(rel_path, 0):   # avoids overwriting after a vm restore
+                    tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
+                    remove_path(tmp_file)
+                    os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
                     git.bundle(tmp_file)
-                except Exception as e:
-                    logger.error(f'failed to create bundle for {src_path}: {e}')
-                    continue
-                remove_path(dst_file)
-                os.rename(tmp_file, dst_file)
-                self.report.add('saved', self.src, src_path)
-            self.ref.files[rel_path] = state_hash
+                    self.report.add('saved', self.src, src_path)
+                    remove_path(dst_file)
+                    os.rename(tmp_file, dst_file)
+            except Exception as e:
+                logger.error(f'failed to create bundle for {src_path}: {e}')
+                self.report.add('failed', self.src, src_path)
+            else:
+                self.ref.files[rel_path] = ref_val
 
             for src_file in sorted(git.list_non_committed_files()):
-                src_hash = get_file_hash(src_file)
                 rel_path = os.path.relpath(src_file, self.src)
                 dst_file = os.path.join(self.dst, rel_path)
                 self.register_dst_file(dst_file)
                 dst_hash = get_file_hash(dst_file)
-                if dst_hash != src_hash:
+                if dst_hash != get_file_hash(src_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)

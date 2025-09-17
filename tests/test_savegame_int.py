@@ -1,3 +1,4 @@
+import os
 from pprint import pprint
 import sys
 import unittest
@@ -44,13 +45,13 @@ class SavegameTestCase(BaseTestCase):
         ]
         for i in range(2):
             self._savegame(saves, force=True)
-            pprint(self._list_dst_root_paths())
+            self._list_dst_root_paths()
 
     def test_1(self):
         saves = [LINUX_SAVE, WIN_SAVE]
         for i in range(2):
             self._savegame(saves, force=True)
-            pprint(self._list_dst_root_paths())
+            self._list_dst_root_paths()
 
 
 class LoadgameTestCase(BaseTestCase):
@@ -58,7 +59,7 @@ class LoadgameTestCase(BaseTestCase):
         saves = [LINUX_SAVE, WIN_SAVE]
         self._savegame(saves, force=True)
         self._loadgame(dry_run=True)
-        pprint(self._list_src_root_paths())
+        self._list_src_root_paths()
 
 
 class GoogleDriveSaverTestCase(BaseTestCase):
@@ -72,7 +73,7 @@ class GoogleDriveSaverTestCase(BaseTestCase):
         ]
         for i in range(2):
             self._savegame(saves, force=True)
-            pprint(self._list_dst_root_paths())
+            self._list_dst_root_paths()
 
 
 class GoogleContactsSaverTestCase(BaseTestCase):
@@ -86,7 +87,7 @@ class GoogleContactsSaverTestCase(BaseTestCase):
         ]
         for i in range(2):
             self._savegame(saves, force=True)
-            pprint(self._list_dst_root_paths())
+            self._list_dst_root_paths()
 
 
 class GitSaverTestCase(BaseTestCase):
@@ -102,4 +103,7 @@ class GitSaverTestCase(BaseTestCase):
         ]
         for i in range(2):
             self._savegame(saves, force=True)
-            pprint(self._list_dst_root_paths())
+            dst_paths = self._list_dst_root_paths()
+        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
+        ref = module.lib.Reference(os.path.dirname(ref_file))
+        pprint(ref.data)
