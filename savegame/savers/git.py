@@ -1,4 +1,6 @@
+from copy import deepcopy
 from glob import glob
+import hashlib
 import logging
 import os
 import subprocess
@@ -29,22 +31,29 @@ class Git:
         except subprocess.CalledProcessError as e:
             raise Exception(e.stderr)
 
+    def get_state_hash(self):
+        try:
+            result = subprocess.run(
+                ['git', '-C', self.path, 'for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/tags'],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            normalized = '\n'.join(sorted(result.stdout.strip().splitlines()))
+            return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+        except subprocess.CalledProcessError as e:
+            raise Exception(e.stderr)
+
 
 class GitSaver(BaseSaver):
     id = 'git'
     in_place = False
     enable_purge = True
 
-    def _get_dst_file(self, name):
-        return os.path.join(self.dst, f'{name}-{int(time.time())}.bundle')
-
-    def _clean_dst_files(self, name):
-        files = sorted(glob(os.path.join(self.dst, f'{name}-*.bundle')))
-        max_versions = self.save_item.max_versions or 1
-        if len(files) >= max_versions:
-            list(map(remove_path, files[:-max_versions]))
-
     def do_run(self):
+        self.ref.src = self.src
+        ref_files = deepcopy(self.ref.files)
+        self.ref.files = {}
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
                 continue
@@ -52,8 +61,16 @@ class GitSaver(BaseSaver):
             if not git.is_repo():
                 continue
             name = os.path.basename(src_path)
-            dst_file = self._get_dst_file(name)
+            rel_path = f'{name}.bundle'
+            dst_file = os.path.join(self.dst, rel_path)
             self.register_dst_file(dst_file)
+
+            state_hash = git.get_state_hash()
+            self.ref.files[rel_path] = state_hash
+            if state_hash == ref_files.get(rel_path):
+                logger.debug(f'skipping {src_path} because it has not changed')
+                continue
+
             tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
             remove_path(tmp_file)
             os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
@@ -66,4 +83,3 @@ class GitSaver(BaseSaver):
             os.rename(tmp_file, dst_file)
             logger.debug(f'created bundle for {src_path} to {dst_file}')
             self.report.add('saved', self.src, src_path)
-            self._clean_dst_files(name)

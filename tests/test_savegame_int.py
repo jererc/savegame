@@ -99,10 +99,8 @@ class GitSaverTestCase(BaseTestCase):
                     '~/data/code',
                 ],
                 'dst_path': self.dst_root,
-                'max_versions': 2,
             },
         ]
-        for i in range(4):
+        for i in range(2):
             self._savegame(saves, force=True)
             pprint(self._list_dst_root_paths())
-            time.sleep(1)
