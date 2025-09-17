@@ -33,7 +33,7 @@ class SaveItem:
                  enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None,
                  trigger_volume_labels=None, retry_delta=None, file_compare_method=None,
-                 due_warning_delta=7 * 24 * 3600):
+                 max_versions=None, due_warning_delta=7 * 24 * 3600):
         self.config = config
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label
@@ -51,6 +51,7 @@ class SaveItem:
         self.trigger_volume_labels = trigger_volume_labels or []
         self.retry_delta = retry_delta
         self.file_compare_method = file_compare_method
+        self.max_versions = max_versions
         self.due_warning_delta = due_warning_delta
 
     def _get_src_paths(self, src_paths):

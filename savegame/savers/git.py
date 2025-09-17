@@ -2,6 +2,7 @@ from glob import glob
 import logging
 import os
 import subprocess
+import time
 
 from savegame.lib import remove_path
 from savegame.savers.base import BaseSaver
@@ -34,6 +35,12 @@ class GitSaver(BaseSaver):
     in_place = False
     enable_purge = True
 
+    def _clean_dst_files(self, name):
+        files = sorted(glob(os.path.join(self.dst, f'{name}-*.bundle')))
+        max_files = self.save_item.max_versions - 1
+        if len(files) >= max_files:
+            list(map(remove_path, files[:-max_files]))
+
     def do_run(self):
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
@@ -52,7 +59,10 @@ class GitSaver(BaseSaver):
             except Exception as e:
                 logger.error(f'failed to create bundle for {src_path}: {e}')
                 continue
-            remove_path(dst_file)
+            if os.path.exists(dst_file):
+                dst_file = os.path.join(self.dst, f'{name}-{int(time.time())}.bundle')
+                remove_path(dst_file)
             os.rename(tmp_file, dst_file)
             logger.debug(f'created bundle for {src_path} to {dst_file}')
             self.report.add('saved', self.src, src_path)
+            self._clean_dst_files(name)
