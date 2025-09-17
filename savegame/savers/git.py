@@ -35,11 +35,14 @@ class GitSaver(BaseSaver):
     in_place = False
     enable_purge = True
 
+    def _get_dst_file(self, name):
+        return os.path.join(self.dst, f'{name}-{int(time.time())}.bundle')
+
     def _clean_dst_files(self, name):
         files = sorted(glob(os.path.join(self.dst, f'{name}-*.bundle')))
-        max_files = (self.save_item.max_versions or 2) - 1
-        if len(files) >= max_files:
-            list(map(remove_path, files[:-max_files]))
+        max_versions = self.save_item.max_versions or 1
+        if len(files) >= max_versions:
+            list(map(remove_path, files[:-max_versions]))
 
     def do_run(self):
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
@@ -49,7 +52,7 @@ class GitSaver(BaseSaver):
             if not git.is_repo():
                 continue
             name = os.path.basename(src_path)
-            dst_file = os.path.join(self.dst, f'{name}.bundle')
+            dst_file = self._get_dst_file(name)
             self.register_dst_file(dst_file)
             tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
             remove_path(tmp_file)
@@ -60,7 +63,6 @@ class GitSaver(BaseSaver):
                 logger.error(f'failed to create bundle for {src_path}: {e}')
                 continue
             if os.path.exists(dst_file):
-                dst_file = os.path.join(self.dst, f'{name}-{int(time.time())}.bundle')
                 remove_path(dst_file)
             os.rename(tmp_file, dst_file)
             logger.debug(f'created bundle for {src_path} to {dst_file}')
