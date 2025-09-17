@@ -87,7 +87,6 @@ class GitSaver(BaseSaver):
                     continue
                 remove_path(dst_file)
                 os.rename(tmp_file, dst_file)
-                logger.debug(f'created bundle for {src_path} to {dst_file}')
                 self.report.add('saved', self.src, src_path)
             self.ref.files[rel_path] = state_hash
 
