@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 
-from savegame.lib import REF_FILENAME, check_patterns, coalesce, get_file_hash, get_file_mtime, get_file_size
+from savegame.lib import REF_FILENAME, check_patterns, coalesce, get_file_hash, get_file_size
 from savegame.savers.base import BaseSaver
 
 LIST_DURATION_THRESHOLD = 30

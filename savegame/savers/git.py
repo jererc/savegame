@@ -6,7 +6,7 @@ import os
 import subprocess
 import shutil
 
-from savegame.lib import get_file_hash, get_file_mtime, remove_path
+from savegame.lib import get_file_hash, remove_path
 from savegame.savers.base import BaseSaver
 
 logger = logging.getLogger(__name__)
