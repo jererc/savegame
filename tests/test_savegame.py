@@ -1150,6 +1150,7 @@ class GitTestCase(BaseTestCase):
 
         self._loadgame()
         src_paths = self._list_src_root_paths()
+        self.assertTrue(any_str_matches(src_paths, '*repo*.git/*'))
         self.assertTrue(any_str_matches(src_paths, '*repo*dir1*file1*'))
         self.assertTrue(any_str_matches(src_paths, '*repo*dir2*file2*'))
         self.assertTrue(any_str_matches(src_paths, '*repo*dir3*file3*'))

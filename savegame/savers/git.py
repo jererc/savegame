@@ -24,13 +24,6 @@ class Git:
         except subprocess.CalledProcessError:
             return False
 
-    def bundle(self, dst_file):
-        try:
-            subprocess.run(['git', '-C', self.path, 'bundle', 'create', dst_file, '--branches'],
-                           check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            raise Exception(e.stderr)
-
     def get_state_hash(self):
         res = subprocess.run(['git', '-C', self.path, 'for-each-ref', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/tags'],
                              check=True, capture_output=True, text=True)
@@ -41,6 +34,19 @@ class Git:
         res = subprocess.run(['git', '-C', self.path, 'for-each-ref', '--sort=-committerdate', '--count=1', '--format=%(committerdate:unix)'],
                              capture_output=True, text=True, check=True)
         return int(res.stdout.strip())
+
+    def create_bundle(self, bundle_file):
+        try:
+            subprocess.run(['git', '-C', self.path, 'bundle', 'create', bundle_file, '--branches'],
+                           check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception(e.stderr)
+
+    def clone_bundle(self, bundle_file):
+        try:
+            subprocess.run(['git', '-C', os.path.dirname(self.path), 'clone', bundle_file], check=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception(e.stderr)
 
     def list_non_committed_files(self):
         def git(*args):
@@ -79,7 +85,7 @@ class GitSaver(BaseSaver):
                     tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
                     remove_path(tmp_file)
                     os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
-                    git.bundle(tmp_file)
+                    git.create_bundle(tmp_file)
                     self.report.add('saved', self.src, src_path)
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
