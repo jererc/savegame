@@ -6,8 +6,7 @@ import shutil
 import sys
 
 from savegame import NAME
-from savegame.lib import (HOSTNAME, USERNAME, Reference, Report, UnhandledPath, check_patterns,
-                          get_file_hash, get_file_mtime, validate_path)
+from savegame.lib import Reference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, validate_path
 from savegame.loaders.base import BaseLoader
 
 HOME_DIR = os.path.expanduser('~')
@@ -18,18 +17,6 @@ logger = logging.getLogger(__name__)
 
 class FilesystemLoader(BaseLoader):
     id = 'filesystem'
-
-    def __init__(self, dst_path, hostname=None, username=None,
-                 include=None, exclude=None, overwrite=False, dry_run=False):
-        self.dst_path = dst_path
-        self.hostname = hostname or HOSTNAME
-        self.username = username or USERNAME
-        self.include = include
-        self.exclude = exclude
-        self.overwrite = overwrite
-        self.dry_run = dry_run
-        self.hostnames = sorted(os.listdir(self.dst_path))
-        self.report = Report()
 
     def _get_src_file_for_user(self, path):
         pp = PurePath(path)
@@ -50,7 +37,7 @@ class FilesystemLoader(BaseLoader):
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
-            for dst in glob(os.path.join(self.dst_path, hostname, '*')):
+            for dst in glob(os.path.join(self.save_item.dst_path, hostname, '*')):
                 ref = Reference(dst)
                 if ref.src:
                     yield ref
@@ -61,7 +48,7 @@ class FilesystemLoader(BaseLoader):
         if not os.path.exists(src_file):
             return True
         if get_file_hash(src_file) == get_file_hash(dst_file):
-            self.report.add('identical', src, src_file)
+            self.report.add('match', src, src_file)
             return False
         if not self.overwrite:
             if get_file_mtime(src_file) > get_file_mtime(dst_file):
@@ -100,13 +87,16 @@ class FilesystemLoader(BaseLoader):
             try:
                 validate_path(ref.src)
             except UnhandledPath:
-                self.report.add('skipped_unhandled', ref.src, ref.src)
+                self.report.add('unhandled', ref.src, ref.src)
                 continue
             rel_paths = set()
             invalid_files = set()
-            for rel_path, ref_hash in ref.files.items():
+            for rel_path, ref_val in ref.files.items():
                 dst_file = os.path.join(ref.dst, rel_path)
-                if get_file_hash(dst_file) != ref_hash:
+                if isinstance(ref_val, int):
+                    self.report.add('no_hash', ref.src, dst_file)
+                    continue
+                if get_file_hash(dst_file) != ref_val:
                     invalid_files.add(dst_file)
                 else:
                     rel_paths.add(rel_path)

@@ -6,7 +6,7 @@ import os
 import subprocess
 import shutil
 
-from savegame.lib import get_file_hash, remove_path
+from savegame.lib import get_file_hash, get_file_mtime, remove_path
 from savegame.savers.base import BaseSaver
 
 logger = logging.getLogger(__name__)
@@ -93,9 +93,10 @@ class GitSaver(BaseSaver):
                 rel_path = os.path.relpath(src_file, self.src)
                 dst_file = os.path.join(self.dst, rel_path)
                 self.register_dst_file(dst_file)
+                src_hash = get_file_hash(src_file)
                 dst_hash = get_file_hash(dst_file)
-                if dst_hash != get_file_hash(src_file):
+                if dst_hash != src_hash and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
                     self.report.add('saved', self.src, src_file)
-                self.ref.files[rel_path] = dst_hash
+                self.ref.files[rel_path] = src_hash

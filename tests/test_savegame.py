@@ -6,6 +6,7 @@ import os
 from pprint import pformat, pprint
 import shutil
 import socket
+import subprocess
 import sys
 import time
 import unittest
@@ -58,68 +59,11 @@ def count_matches(strings, pattern):
     return res
 
 
-class LoadgamePathUsernameTestCase(unittest.TestCase):
-    def setUp(self):
-        self.own_username = os.getlogin()
-        self.username2 = f'not{self.own_username}2'
-        self.username3 = f'not{self.own_username}3'
-        self.dst_path = os.path.dirname(__file__)
-
-    @unittest.skipIf(sys.platform != 'win32', 'not windows')
-    def test_win(self):
-        obj = FilesystemLoader(self.dst_path)
-
-        path = 'C:\\Program Files\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = 'C:\\Users\\Public\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = f'C:\\Users\\{self.username2}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'C:\\Users\\{self.own_username}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), f'C:\\Users\\{self.own_username}\\name')
-
-    @unittest.skipIf(sys.platform != 'linux', 'not linux')
-    def test_linux(self):
-        obj = FilesystemLoader(self.dst_path)
-
-        path = '/var/name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = '/home/shared/name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = f'/home/{self.username2}/name'
-        self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'/home/{self.own_username}/name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-
-    @unittest.skipIf(sys.platform != 'win32', 'not windows')
-    def test_win_other_username(self):
-        obj = FilesystemLoader(self.dst_path, username=self.username2)
-
-        path = 'C:\\Program Files\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = 'C:\\Users\\Public\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = f'C:\\Users\\{self.own_username}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'C:\\Users\\{self.username3}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'C:\\Users\\{self.username2}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path), f'C:\\Users\\{self.own_username}\\name')
-
-    @unittest.skipIf(sys.platform != 'linux', 'not linux')
-    def test_linux_other_username(self):
-        obj = FilesystemLoader(self.dst_path, username=self.username2)
-
-        path = '/var/name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = '/home/shared/name'
-        self.assertEqual(obj._get_src_file_for_user(path), path)
-        path = f'/home/{self.own_username}/name'
-        self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'/home/{self.username3}/name'
-        self.assertEqual(obj._get_src_file_for_user(path), None)
-        path = f'/home/{self.username2}/name'
-        self.assertEqual(obj._get_src_file_for_user(path), f'/home/{self.own_username}/name')
+class CoalesceTestCase(unittest.TestCase):
+    def test_1(self):
+        self.assertEqual(lib.coalesce(0, None, 1), 0)
+        self.assertEqual(lib.coalesce(1, 2, None), 1)
+        self.assertEqual(lib.coalesce(None, 1, None), 1)
 
 
 class PatternTestCase(unittest.TestCase):
@@ -321,6 +265,72 @@ class SaveItemTestCase(BaseTestCase):
         else:
             dst_path = r'C:\Users\jerer\data'
         self.assertRaises(module.lib.UnhandledPath, save.SaveItem, self.config, src_paths=src_paths, dst_path=dst_path)
+
+
+class LoadgamePathUsernameTestCase(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.own_username = os.getlogin()
+        self.username2 = f'not{self.own_username}2'
+        self.username3 = f'not{self.own_username}3'
+        self.save_item = save.SaveItem(self.config, src_paths=[self.src_root], dst_path=self.dst_root)
+        os.makedirs(self.save_item.dst_path, exist_ok=True)
+
+    @unittest.skipIf(sys.platform != 'win32', 'not windows')
+    def test_win(self):
+        obj = FilesystemLoader(self.save_item)
+
+        path = 'C:\\Program Files\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = 'C:\\Users\\Public\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\{self.username2}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.own_username}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), f'C:\\Users\\{self.own_username}\\name')
+
+    @unittest.skipIf(sys.platform != 'linux', 'not linux')
+    def test_linux(self):
+        obj = FilesystemLoader(self.save_item)
+
+        path = '/var/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = '/home/shared/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'/home/{self.username2}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.own_username}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+
+    @unittest.skipIf(sys.platform != 'win32', 'not windows')
+    def test_win_other_username(self):
+        obj = FilesystemLoader(self.save_item, username=self.username2)
+
+        path = 'C:\\Program Files\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = 'C:\\Users\\Public\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'C:\\Users\\{self.own_username}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.username3}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'C:\\Users\\{self.username2}\\name'
+        self.assertEqual(obj._get_src_file_for_user(path), f'C:\\Users\\{self.own_username}\\name')
+
+    @unittest.skipIf(sys.platform != 'linux', 'not linux')
+    def test_linux_other_username(self):
+        obj = FilesystemLoader(self.save_item, username=self.username2)
+
+        path = '/var/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = '/home/shared/name'
+        self.assertEqual(obj._get_src_file_for_user(path), path)
+        path = f'/home/{self.own_username}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.username3}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), None)
+        path = f'/home/{self.username2}/name'
+        self.assertEqual(obj._get_src_file_for_user(path), f'/home/{self.own_username}/name')
 
 
 class DstDirTestCase(unittest.TestCase):
@@ -618,7 +628,8 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': dst_path,
             },
         ]
-        with patch.object(savers.base, 'get_file_mtime', return_value=time.time() - 365 * 24 * 3600) as mock_get_file_mtime:
+        with patch.object(savers.base, 'get_file_mtime', return_value=time.time() - 365 * 24 * 3600) as mock_get_file_mtime, \
+                patch.object(savers.base.BaseSaver, '_check_src_file', return_value=True):
             self._savegame(saves=saves)
         self.assertFalse(mock_get_file_mtime.call_args_list)
         dst_paths = self._list_dst_root_paths()
@@ -641,7 +652,8 @@ class SavegameTestCase(BaseTestCase):
                 'dst_path': dst_path,
             },
         ]
-        with patch.object(savers.base, 'get_file_mtime', return_value=time.time() - 1) as mock_get_file_mtime:
+        with patch.object(savers.base, 'get_file_mtime', return_value=time.time() - 1) as mock_get_file_mtime, \
+                patch.object(savers.base.BaseSaver, '_check_src_file', return_value=True):
             self._savegame(saves=saves)
         self.assertTrue(mock_get_file_mtime.call_args_list)
         dst_paths = self._list_dst_root_paths()
@@ -1100,8 +1112,40 @@ class LoadgameTestCase(BaseTestCase):
         src_paths2 = self._list_src_root_paths()
 
 
-class CoalesceTestCase(unittest.TestCase):
+class GitTestCase(BaseTestCase):
+    def _create_file(self, file, content):
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+        with open(file, 'w') as fd:
+            fd.write(content)
+
     def test_1(self):
-        self.assertEqual(lib.coalesce(0, None, 1), 0)
-        self.assertEqual(lib.coalesce(1, 2, None), 1)
-        self.assertEqual(lib.coalesce(None, 1, None), 1)
+        repo_dir = os.path.join(self.src_root, 'repo')
+        subprocess.run(['git', 'init', repo_dir], check=True)
+        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
+        subprocess.run(['git', 'add', 'dir1'], cwd=repo_dir, check=True)
+        subprocess.run(['git', 'commit', '-m', 'initial commit'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir2', 'file2.txt'), 'data2')
+        subprocess.run(['git', 'add', 'dir2'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir3', 'file3.txt'), 'data3')
+
+        saves = [
+            {
+                'saver_id': 'git',
+                'src_paths': [
+                    self.src_root,
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        self._savegame(saves, force=True)
+        dst_paths = self._list_dst_root_paths()
+        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
+        ref = module.lib.Reference(os.path.dirname(ref_file))
+        pprint(ref.data)
+        shutil.rmtree(repo_dir)
+
+        self._loadgame()
+        src_paths = self._list_src_root_paths()
+        self.assertTrue(any_str_matches(src_paths, '*repo*dir2*file2*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo*dir3*file3*'))
+        self._loadgame()

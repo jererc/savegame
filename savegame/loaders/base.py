@@ -3,6 +3,8 @@ import inspect
 import logging
 import os
 
+from savegame.lib import HOSTNAME, USERNAME, Report
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,6 +14,18 @@ class NotFound(Exception):
 
 class BaseLoader:
     id = None
+
+    def __init__(self, save_item, hostname=None, username=None, include=None, exclude=None,
+                 overwrite=False, dry_run=False):
+        self.save_item = save_item
+        self.hostname = hostname or HOSTNAME
+        self.username = username or USERNAME
+        self.include = include
+        self.exclude = exclude
+        self.overwrite = overwrite
+        self.dry_run = dry_run
+        self.hostnames = sorted(os.listdir(self.save_item.dst_path))
+        self.report = Report()
 
 
 def iterate_loader_classes(package='savegame.loaders'):

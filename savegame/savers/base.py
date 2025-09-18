@@ -122,6 +122,18 @@ class BaseSaver:
     def register_dst_file(self, path):
         self.dst_paths.add(path)
 
+    def _check_src_file(self, src_file, dst_file, margin_seconds=60):
+        """
+        Makes sure we do not overwrite a more recent file, useful after a vm is restored.
+        """
+        src_mtime = get_file_mtime(src_file)
+        dst_mtime = get_file_mtime(dst_file)
+        if src_mtime and dst_mtime and src_mtime < dst_mtime - margin_seconds:
+            logger.warning(f'{src_file=} is older than {dst_file=}')
+            self.report.add('failed', self.src, src_file)
+            return False
+        return True
+
     def _requires_purge(self, path, cutoff_ts):
         if os.path.isfile(path):
             if path in self.dst_paths:
