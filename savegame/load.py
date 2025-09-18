@@ -14,13 +14,12 @@ class LoadHandler:
 
     def run(self):
         report = Report()
-        for si in iterate_save_items(self.config, log_unhandled=True):
-            if not si.is_loadable():
-                continue
+        saver_id_dst_paths = {(s.saver_cls.id, s.dst_path) for s in iterate_save_items(self.config, log_unhandled=True) if s.is_loadable()}
+        for saver_id, dst_path in sorted(saver_id_dst_paths):
             try:
-                loader = get_loader_class(si.saver_cls.id)(self.config, si, **self.loader_args)
+                loader = get_loader_class(saver_id)(self.config, dst_path, **self.loader_args)
             except NotFound:
-                logger.debug(f'no available loader for saver_id {si.saver_cls.id}')
+                logger.debug(f'no available loader for {saver_id=}')
                 continue
             try:
                 loader.run()

@@ -281,7 +281,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = FilesystemLoader(self.config, self.save_item)
+        obj = FilesystemLoader(self.config, self.save_item.dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -294,7 +294,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = FilesystemLoader(self.config, self.save_item)
+        obj = FilesystemLoader(self.config, self.save_item.dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -307,7 +307,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item.dst_path, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -322,7 +322,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item.dst_path, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -1127,6 +1127,7 @@ class GitTestCase(BaseTestCase):
         self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
         subprocess.run(['git', 'add', 'dir1'], cwd=repo_dir, check=True)
         subprocess.run(['git', 'commit', '-m', 'initial commit'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'new data1')
         self._create_file(os.path.join(repo_dir, 'dir2', 'file2.txt'), 'data2')
         subprocess.run(['git', 'add', 'dir2'], cwd=repo_dir, check=True)
         self._create_file(os.path.join(repo_dir, 'dir3', 'file3.txt'), 'data3')
@@ -1149,6 +1150,7 @@ class GitTestCase(BaseTestCase):
 
         self._loadgame()
         src_paths = self._list_src_root_paths()
+        self.assertTrue(any_str_matches(src_paths, '*repo*dir1*file1*'))
         self.assertTrue(any_str_matches(src_paths, '*repo*dir2*file2*'))
         self.assertTrue(any_str_matches(src_paths, '*repo*dir3*file3*'))
         self._loadgame()

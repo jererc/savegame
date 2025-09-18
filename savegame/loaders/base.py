@@ -15,17 +15,17 @@ class NotFound(Exception):
 class BaseLoader:
     id = None
 
-    def __init__(self, config, save_item, hostname=None, username=None, include=None, exclude=None,
+    def __init__(self, config, dst_path, hostname=None, username=None, include=None, exclude=None,
                  overwrite=False, dry_run=False):
         self.config = config
-        self.save_item = save_item
+        self.dst_path = dst_path
         self.hostname = hostname or HOSTNAME
         self.username = username or USERNAME
         self.include = include
         self.exclude = exclude
         self.overwrite = overwrite
         self.dry_run = dry_run
-        self.hostnames = sorted(os.listdir(self.save_item.dst_path))
+        self.hostnames = sorted(os.listdir(self.dst_path))
         self.report = Report()
 
 
