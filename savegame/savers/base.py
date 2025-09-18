@@ -29,6 +29,10 @@ def walk_paths(path):
             yield os.path.join(root, item)
 
 
+class NotFound(Exception):
+    pass
+
+
 class BaseSaver:
     id = None
     hostname = HOSTNAME
@@ -186,4 +190,4 @@ def get_saver_class(saver_id, package='savegame.savers'):
     for saver_class in iterate_saver_classes(package):
         if saver_class.id == saver_id:
             return saver_class
-    raise Exception(f'invalid saver_id {saver_id}')
+    raise NotFound(f'saver_id {saver_id} not found')

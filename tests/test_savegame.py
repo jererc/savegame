@@ -15,6 +15,7 @@ from svcutils.service import Config
 
 from tests import WORK_DIR, module
 from savegame import load, save, savers, lib
+from savegame.loaders.filesystem import FilesystemLoader
 
 GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
 HOSTNAME = socket.gethostname()
@@ -66,7 +67,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = load.FilesystemLoader(self.dst_path)
+        obj = FilesystemLoader(self.dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -75,12 +76,11 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         path = f'C:\\Users\\{self.username2}\\name'
         self.assertEqual(obj._get_src_file_for_user(path), None)
         path = f'C:\\Users\\{self.own_username}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path),
-                         f'C:\\Users\\{self.own_username}\\name')
+        self.assertEqual(obj._get_src_file_for_user(path), f'C:\\Users\\{self.own_username}\\name')
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = load.FilesystemLoader(self.dst_path)
+        obj = FilesystemLoader(self.dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -93,7 +93,7 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = load.FilesystemLoader(self.dst_path, username=self.username2)
+        obj = FilesystemLoader(self.dst_path, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -104,12 +104,11 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         path = f'C:\\Users\\{self.username3}\\name'
         self.assertEqual(obj._get_src_file_for_user(path), None)
         path = f'C:\\Users\\{self.username2}\\name'
-        self.assertEqual(obj._get_src_file_for_user(path),
-                         f'C:\\Users\\{self.own_username}\\name')
+        self.assertEqual(obj._get_src_file_for_user(path), f'C:\\Users\\{self.own_username}\\name')
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = load.FilesystemLoader(self.dst_path, username=self.username2)
+        obj = FilesystemLoader(self.dst_path, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -120,14 +119,12 @@ class LoadgamePathUsernameTestCase(unittest.TestCase):
         path = f'/home/{self.username3}/name'
         self.assertEqual(obj._get_src_file_for_user(path), None)
         path = f'/home/{self.username2}/name'
-        self.assertEqual(obj._get_src_file_for_user(path),
-                         f'/home/{self.own_username}/name')
+        self.assertEqual(obj._get_src_file_for_user(path), f'/home/{self.own_username}/name')
 
 
 class PatternTestCase(unittest.TestCase):
     def setUp(self):
-        self.file = os.path.join(os.path.expanduser('~'),
-                                 'first_dir', 'second_dir', 'savegame.py')
+        self.file = os.path.join(os.path.expanduser('~'), 'first_dir', 'second_dir', 'savegame.py')
 
     def test_ko(self):
         self.assertFalse(module.lib.check_patterns(self.file, inclusions=['*third_dir*']))
@@ -187,8 +184,7 @@ class BaseTestCase(unittest.TestCase):
         return res
 
     def _list_src_root_src_paths(self):
-        return {r for r in self._list_src_root_paths()
-                if os.path.basename(r).startswith('src')}
+        return {r for r in self._list_src_root_paths() if os.path.basename(r).startswith('src')}
 
     def _list_dst_root_paths(self):
         res = set(walk_paths(self.dst_root))
@@ -324,17 +320,12 @@ class SaveItemTestCase(BaseTestCase):
             dst_path = '/home/jererc/data'
         else:
             dst_path = r'C:\Users\jerer\data'
-        self.assertRaises(module.lib.UnhandledPath,
-                          save.SaveItem,
-                          self.config,
-                          src_paths=src_paths,
-                          dst_path=dst_path)
+        self.assertRaises(module.lib.UnhandledPath, save.SaveItem, self.config, src_paths=src_paths, dst_path=dst_path)
 
 
 class DstDirTestCase(unittest.TestCase):
     def test_1(self):
-        res = savers.base.path_to_dirname(
-            r'C:\Users\jerer\AppData\Roaming\Sublime Text 3')
+        res = savers.base.path_to_dirname(r'C:\Users\jerer\AppData\Roaming\Sublime Text 3')
         self.assertEqual(res, 'C_-Users-jerer-AppData-Roaming-Sublime_Text_3')
 
     def test_2(self):
@@ -435,8 +426,7 @@ class SavegameTestCase(BaseTestCase):
     def _get_ref(self):
         print('*' * 80)
         pprint(self.meta.data)
-        return {d['src']: module.lib.Reference(d['dst'])
-                for s, d in self.meta.data.items()}
+        return {d['src']: module.lib.Reference(d['dst']) for s, d in self.meta.data.items()}
 
     def test_ref(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
@@ -465,8 +455,7 @@ class SavegameTestCase(BaseTestCase):
         def side_copy(*args, **kwargs):
             raise Exception('copy failed')
 
-        with patch.object(module.savers.filesystem.shutil, 'copy2',
-                          side_effect=side_copy):
+        with patch.object(module.savers.filesystem.shutil, 'copy2', side_effect=side_copy):
             self._savegame(saves=saves)
         ref_files = self._get_ref()[src1].files
         pprint(ref_files)
@@ -526,8 +515,7 @@ class SavegameTestCase(BaseTestCase):
         for i in range(2):
             self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual(sorted(r['src'] for r in self.meta.data.values()),
-                         sorted([src1, src2, src3]))
+        self.assertEqual(sorted(r['src'] for r in self.meta.data.values()), sorted([src1, src2, src3]))
 
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
@@ -536,8 +524,7 @@ class SavegameTestCase(BaseTestCase):
                 patch.object(module.savers.filesystem.FilesystemSaver, 'do_run', side_effect=side_do_run):
             self._savegame(saves=saves)
         pprint(self.meta.data)
-        self.assertEqual(sorted(r['src'] for r in self.meta.data.values()),
-                         sorted([src1, src2, src3]))
+        self.assertEqual(sorted(r['src'] for r in self.meta.data.values()), sorted([src1, src2, src3]))
 
     def test_stats(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=3)
@@ -575,8 +562,7 @@ class SavegameTestCase(BaseTestCase):
         self._savegame(saves=saves)
         self.assertFalse(save.SaveMonitor(self.config)._must_run())
 
-        with patch.object(save.SaveMonitor, '_must_run',
-                          return_value=True), \
+        with patch.object(save.SaveMonitor, '_must_run', return_value=True), \
                 patch.object(save, 'notify') as mock_notify:
             sc = save.SaveMonitor(self.config)
             sc.run()
@@ -903,8 +889,7 @@ class SavegameTestCase(BaseTestCase):
         home_path = os.path.expanduser('~')
         self.assertTrue(glob(os.path.join(WORK_DIR, '*')))
         path = ['~'] + os.path.relpath(WORK_DIR, home_path).split(os.sep) + ['*']
-        src_path = {'win32': '/'.join(path),
-                    'linux': '\\'.join(path)}[sys.platform]
+        src_path = {'linux': '\\'.join(path), 'win32': '/'.join(path)}[sys.platform]
         print(f'{src_path=}')
         saves = [
             {
@@ -978,8 +963,7 @@ class LoadgameTestCase(BaseTestCase):
         src_paths4 = self._list_src_root_paths()
         diff = src_paths4 - src_paths
         self.assertTrue(diff)
-        self.assertTrue(all(os.path.splitext(f)[-1] == '.savegamebak'
-                            for f in diff))
+        self.assertTrue(all(os.path.splitext(f)[-1] == '.savegamebak' for f in diff))
 
     def test_load_hostname(self):
         hostname2 = 'hostname2'

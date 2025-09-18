@@ -79,12 +79,12 @@ class FilesystemSaver(BaseSaver):
                 if not equal:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
-                    logger.info(f'copying {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB)')
+                    logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     duration = time.time() - start_ts
                     if duration > COPY_DURATION_THRESHOLD:
-                        logger.warning(f'copied {src_file} to {dst_file} ({file_size/1024/1024:.02f} MB) in {duration:.02f} seconds')
+                        logger.warning(f'copied {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB) in {duration:.02f} seconds')
                     self.report.add('saved', self.src, src_file)
                 self.ref.files[rel_path] = ref_val
             except Exception:
