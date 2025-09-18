@@ -82,34 +82,37 @@ class FilesystemLoader(BaseLoader):
             self.report.add('failed', src, src_file)
             logger.error(f'failed to load {src_file} from {dst_file}: {exc}')
 
+    def _load_from_ref(self, ref):
+        try:
+            validate_path(ref.src)
+        except UnhandledPath:
+            self.report.add('unhandled', ref.src, ref.src)
+            return
+        rel_paths = set()
+        invalid_files = set()
+        for rel_path, ref_val in ref.files.items():
+            dst_file = os.path.join(ref.dst, rel_path)
+            if isinstance(ref_val, int):
+                self.report.add('no_hash', ref.src, dst_file)
+                continue
+            if get_file_hash(dst_file) != ref_val:
+                invalid_files.add(dst_file)
+            else:
+                rel_paths.add(rel_path)
+        if invalid_files:
+            self.report.add('invalid_files', ref.src, invalid_files)
+            return
+        if not rel_paths:
+            self.report.add('no_files', ref.src, ref.dst)
+            return
+        for rel_path in rel_paths:
+            src_file_raw = os.path.join(ref.src, rel_path)
+            src_file = self._get_src_file_for_user(src_file_raw)
+            if not src_file:
+                self.report.add('skipped_other_username', ref.src, src_file_raw)
+                continue
+            self._load_file(os.path.join(ref.dst, rel_path), src_file, ref.src)
+
     def run(self):
         for ref in self._iterate_refs():
-            try:
-                validate_path(ref.src)
-            except UnhandledPath:
-                self.report.add('unhandled', ref.src, ref.src)
-                continue
-            rel_paths = set()
-            invalid_files = set()
-            for rel_path, ref_val in ref.files.items():
-                dst_file = os.path.join(ref.dst, rel_path)
-                if isinstance(ref_val, int):
-                    self.report.add('no_hash', ref.src, dst_file)
-                    continue
-                if get_file_hash(dst_file) != ref_val:
-                    invalid_files.add(dst_file)
-                else:
-                    rel_paths.add(rel_path)
-            if invalid_files:
-                self.report.add('invalid_files', ref.src, invalid_files)
-                continue
-            if not rel_paths:
-                self.report.add('no_files', ref.src, ref.dst)
-                continue
-            for rel_path in rel_paths:
-                src_file_raw = os.path.join(ref.src, rel_path)
-                src_file = self._get_src_file_for_user(src_file_raw)
-                if not src_file:
-                    self.report.add('skipped_other_username', ref.src, src_file_raw)
-                    continue
-                self._load_file(os.path.join(ref.dst, rel_path), src_file, ref.src)
+            self._load_from_ref(ref)

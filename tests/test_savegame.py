@@ -1122,7 +1122,8 @@ class GitTestCase(BaseTestCase):
             fd.write(content)
 
     def test_1(self):
-        repo_dir = os.path.join(self.src_root, 'repo')
+        repo_dirname = 'repo'
+        repo_dir = os.path.join(self.src_root, repo_dirname)
         subprocess.run(['git', 'init', repo_dir], check=True)
         self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
         subprocess.run(['git', 'add', 'dir1'], cwd=repo_dir, check=True)
@@ -1150,8 +1151,8 @@ class GitTestCase(BaseTestCase):
 
         self._loadgame()
         src_paths = self._list_src_root_paths()
-        self.assertTrue(any_str_matches(src_paths, '*repo*.git/*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo*dir1*file1*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo*dir2*file2*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo*dir3*file3*'))
+        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*.git/*'))
+        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*dir1*file1*'))
+        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*dir2*file2*'))
+        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*dir3*file3*'))
         self._loadgame()
