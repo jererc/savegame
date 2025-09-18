@@ -89,7 +89,7 @@ class SaveItem:
 
     def _generate_src_and_patterns(self):
         if self.src_paths:
-            for src_path, inclusions, exclusions in self.src_paths:
+            for src_path, include, exclude in self.src_paths:
                 if self.src_volume_label:
                     volume_path = self._list_label_mountpoints().get(self.src_volume_label)
                     if not volume_path:
@@ -100,7 +100,7 @@ class SaveItem:
                 except UnhandledPath:
                     continue
                 for src in glob(os.path.expanduser(src_path)):
-                    yield src, inclusions, exclusions
+                    yield src, include, exclude
         else:
             yield self.saver_cls.id, None, None
 

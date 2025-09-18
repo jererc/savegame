@@ -79,14 +79,14 @@ def get_file_size(file, default=None):
     return os.path.getsize(file) if os.path.exists(file) else default
 
 
-def check_patterns(path, inclusions=None, exclusions=None):
-    if exclusions:
-        for pattern in exclusions:
+def check_patterns(path, include=None, exclude=None):
+    if exclude:
+        for pattern in exclude:
             if fnmatch(path, pattern):
                 return False
         return True
-    if inclusions:
-        for pattern in inclusions:
+    if include:
+        for pattern in include:
             if fnmatch(path, pattern):
                 return True
         return False

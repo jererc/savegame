@@ -44,12 +44,12 @@ class BaseSaver:
     retry_delta = 2 * 3600
     file_compare_method = 'hash'
 
-    def __init__(self, config, save_item, src, inclusions, exclusions):
+    def __init__(self, config, save_item, src, include, exclude):
         self.config = config
         self.save_item = save_item
         self.src = src
-        self.inclusions = inclusions
-        self.exclusions = exclusions
+        self.include = include
+        self.exclude = exclude
         self.dst = self.get_dst(self.save_item.dst_path)
         self.dst_paths = set()
         self.ref = Reference(self.dst)
@@ -93,8 +93,8 @@ class BaseSaver:
             'saver_id': self.id,
             'src': self._get_key_src_dst('src'),
             'dst': self._get_key_src_dst('dst'),
-            'inclusions': self.inclusions,
-            'exclusions': self.exclusions,
+            'include': self.include,
+            'exclude': self.exclude,
         }
 
     def _get_key(self):

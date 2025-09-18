@@ -74,16 +74,16 @@ class PatternTestCase(unittest.TestCase):
         self.file = os.path.join(os.path.expanduser('~'), 'first_dir', 'second_dir', 'savegame.py')
 
     def test_ko(self):
-        self.assertFalse(module.lib.check_patterns(self.file, inclusions=['*third_dir*']))
-        self.assertFalse(module.lib.check_patterns(self.file, inclusions=['*.bin']))
-        self.assertFalse(module.lib.check_patterns(self.file, exclusions=['*dir*']))
-        self.assertFalse(module.lib.check_patterns(self.file, exclusions=['*.py']))
+        self.assertFalse(module.lib.check_patterns(self.file, include=['*third_dir*']))
+        self.assertFalse(module.lib.check_patterns(self.file, include=['*.bin']))
+        self.assertFalse(module.lib.check_patterns(self.file, exclude=['*dir*']))
+        self.assertFalse(module.lib.check_patterns(self.file, exclude=['*.py']))
 
     def test_ok(self):
-        self.assertTrue(module.lib.check_patterns(self.file, inclusions=['*game*']))
-        self.assertTrue(module.lib.check_patterns(self.file, inclusions=['*.py']))
-        self.assertTrue(module.lib.check_patterns(self.file, exclusions=['*third*']))
-        self.assertTrue(module.lib.check_patterns(self.file, exclusions=['*.bin']))
+        self.assertTrue(module.lib.check_patterns(self.file, include=['*game*']))
+        self.assertTrue(module.lib.check_patterns(self.file, include=['*.py']))
+        self.assertTrue(module.lib.check_patterns(self.file, exclude=['*third*']))
+        self.assertTrue(module.lib.check_patterns(self.file, exclude=['*.bin']))
 
 
 class BaseTestCase(unittest.TestCase):
@@ -281,7 +281,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = FilesystemLoader(self.save_item)
+        obj = FilesystemLoader(self.config, self.save_item)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -294,7 +294,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = FilesystemLoader(self.save_item)
+        obj = FilesystemLoader(self.config, self.save_item)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -307,7 +307,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = FilesystemLoader(self.save_item, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -322,7 +322,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = FilesystemLoader(self.save_item, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -347,7 +347,7 @@ class DstDirTestCase(unittest.TestCase):
 
 
 class SavegameTestCase(BaseTestCase):
-    def test_save_glob_and_exclusions(self):
+    def test_save_glob_and_exclude(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=3)
         saves = [
             {
@@ -373,7 +373,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*file3*'))
 
-    def test_save_glob_and_exclusions_file(self):
+    def test_save_glob_and_exclude_file(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=3)
         file = os.path.join(self.src_root, 'excluded_file')
         with open(file, 'w') as fd:

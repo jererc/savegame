@@ -18,7 +18,7 @@ class LoadHandler:
             if not si.is_loadable():
                 continue
             try:
-                loader = get_loader_class(si.saver_cls.id)(si, **self.loader_args)
+                loader = get_loader_class(si.saver_cls.id)(self.config, si, **self.loader_args)
             except NotFound:
                 logger.debug(f'no available loader for saver_id {si.saver_cls.id}')
                 continue
