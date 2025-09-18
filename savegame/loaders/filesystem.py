@@ -73,8 +73,7 @@ class FilesystemLoader(BaseLoader):
                     os.remove(src_file)
                 else:
                     os.rename(src_file, src_file_bak)
-                    logger.warning(f'renamed existing src file '
-                                   f'{src_file} to {src_file_bak}')
+                    logger.warning(f'renamed existing src file {src_file} to {src_file_bak}')
                 self.report.add('loaded_overwritten', src, src_file)
             else:
                 self.report.add('loaded', src, src_file)
@@ -83,8 +82,7 @@ class FilesystemLoader(BaseLoader):
             logger.info(f'loaded {src_file} from {dst_file}')
         except Exception as exc:
             self.report.add('failed', src, src_file)
-            logger.error(f'failed to load {src_file} '
-                         f'from {dst_file}: {exc}')
+            logger.error(f'failed to load {src_file} from {dst_file}: {exc}')
 
     def run(self):
         for ref in self._iterate_refs():
