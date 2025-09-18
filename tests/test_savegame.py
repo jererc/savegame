@@ -915,6 +915,39 @@ class SavegameTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
 
+    def test_src_older_than_dst(self):
+        self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
+        old_filenames = [f'old_file{i}' for i in range(3)]
+        for old_filename in old_filenames:
+            shutil.copy2(os.path.expanduser('~/.bashrc'), os.path.join(self.src_root, old_filename))
+        saves = [
+            {
+                'src_paths': [
+                    self.src_root,
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        dst_content = 'dst content data'
+        dst_old_files = [f for f in dst_paths if os.path.basename(f) in old_filenames]
+        self.assertEqual(len(dst_old_files), len(old_filenames))
+        for f in dst_old_files:
+            with open(f, 'w') as fd:
+                fd.write(dst_content)
+
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        dst_old_files = [f for f in dst_paths if os.path.basename(f) in old_filenames]
+        self.assertEqual(len(dst_old_files), len(old_filenames))
+        contents = []
+        for f in dst_old_files:
+            with open(f) as fd:
+                contents.append(fd.read())
+        self.assertTrue(all(c == dst_content for c in contents))
+
 
 class LoadgameTestCase(BaseTestCase):
     def _savegame_with_data(self, run_delta=0, **kwargs):

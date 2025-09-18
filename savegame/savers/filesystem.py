@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 
-from savegame.lib import REF_FILENAME, check_patterns, coalesce, get_file_hash, get_file_size
+from savegame.lib import REF_FILENAME, check_patterns, coalesce, get_file_hash, get_file_mtime, get_file_size
 from savegame.savers.base import BaseSaver
 
 LIST_DURATION_THRESHOLD = 30
@@ -63,6 +63,18 @@ class FilesystemSaver(BaseSaver):
             'shallow': self._compare_files_using_filecmp,
         }[coalesce(self.save_item.file_compare_method, self.file_compare_method)]
 
+    def _check_src_file(self, src_file, dst_file, margin_seconds=60):
+        """
+        Makes sure we do not overwrite a more recent file, useful after a vm is restored.
+        """
+        src_mtime = get_file_mtime(src_file)
+        dst_mtime = get_file_mtime(dst_file)
+        if src_mtime and dst_mtime and src_mtime < dst_mtime - margin_seconds:
+            logger.warning(f'{src_file=} is older than {dst_file=}')
+            self.report.add('failed', self.src, src_file)
+            return False
+        return True
+
     def do_run(self):
         src, src_files = self._get_src_and_files()
         self.report.add('files', self.src, src_files)
@@ -76,7 +88,7 @@ class FilesystemSaver(BaseSaver):
             self.register_dst_file(dst_file)
             try:
                 equal, ref_val = file_compare_callable(src_file, dst_file)
-                if not equal:
+                if not equal and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
                     logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')

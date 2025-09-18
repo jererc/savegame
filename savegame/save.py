@@ -172,9 +172,15 @@ class SaveHandler:
                    app_name=NAME,
                    replace_key='failed-savers')
         Metadata().save()
-        report_dict = report.clean(keys={'saved', 'removed'})
+        report_dict = report.clean(keys={'saved', 'removed', 'failed'})
         if report_dict:
             logger.info(f'report:\n{to_json(report_dict)}')
+        failed_files = report_dict.get('failed')
+        if failed_files:
+            notify(title='failed files',
+                   body=f'{sum(len(r) for r in failed_files.values())} failed files',
+                   app_name=NAME,
+                   replace_key='failed-files')
         if volume_labels:
             notify(title='saved volumes',
                    body=', '.join(sorted(volume_labels)),

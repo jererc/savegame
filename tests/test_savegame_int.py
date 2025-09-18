@@ -1,5 +1,7 @@
 import os
 from pprint import pprint
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -107,3 +109,42 @@ class GitSaverTestCase(BaseTestCase):
         ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
         ref = module.lib.Reference(os.path.dirname(ref_file))
         pprint(ref.data)
+
+
+class GitLoaderTestCase(BaseTestCase):
+    def _create_file(self, file, content):
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+        with open(file, 'w') as f:
+            f.write(content)
+
+    def test_1(self):
+        print(f'{self.src_root=}')
+        repo_dir = os.path.join(self.src_root, 'repo')
+        subprocess.run(['git', 'init', repo_dir], check=True)
+        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
+        subprocess.run(['git', 'add', 'dir1'], cwd=repo_dir, check=True)
+        subprocess.run(['git', 'commit', '-m', 'initial commit'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir2', 'file2.txt'), 'data2')
+        subprocess.run(['git', 'add', 'dir2'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir3', 'file3.txt'), 'data3')
+        print(f'{repo_dir=}')
+
+        saves = [
+            {
+                'saver_id': 'git',
+                'src_paths': [
+                    self.src_root,
+                ],
+                'dst_path': self.dst_root,
+            },
+        ]
+        for i in range(2):
+            self._savegame(saves, force=True)
+            dst_paths = self._list_dst_root_paths()
+        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
+        ref = module.lib.Reference(os.path.dirname(ref_file))
+        pprint(ref.data)
+        shutil.rmtree(repo_dir)
+
+        self._loadgame()
+        self._list_src_root_paths()
