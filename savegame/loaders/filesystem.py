@@ -104,7 +104,7 @@ class FilesystemLoader(BaseLoader):
                 self.report.add('invalid_files', ref.src, invalid_files)
                 continue
             if not rel_paths:
-                self.report.add('empty_dst', ref.src, ref.dst)
+                self.report.add('no_files', ref.src, ref.dst)
                 continue
             for rel_path in rel_paths:
                 src_file_raw = os.path.join(ref.src, rel_path)
