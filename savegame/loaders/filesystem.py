@@ -52,9 +52,9 @@ class FilesystemLoader(BaseLoader):
             return False
         if not self.overwrite:
             if get_file_mtime(src_file) > get_file_mtime(dst_file):
-                self.report.add('conflict_src_more_recent', src, src_file)
+                self.report.add('mismatch_src_newer', src, src_file)
             else:
-                self.report.add('conflict_dst_more_recent', src, src_file)
+                self.report.add('mismatch_dst_newer', src, src_file)
             return False
         return True
 

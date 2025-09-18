@@ -32,7 +32,10 @@ class InvalidPath(Exception):
 
 
 def get_file_mtime(path, default=None):
-    return os.stat(path).st_mtime if os.path.exists(path) else default
+    try:
+        return os.path.getmtime(path)
+    except FileNotFoundError:
+        return default
 
 
 def validate_path(path):
@@ -45,11 +48,13 @@ def to_json(path):
 
 
 def remove_path(path):
-    if os.path.exists(path):
+    try:
         if os.path.isdir(path):
             shutil.rmtree(path)
         else:
             os.remove(path)
+    except FileNotFoundError:
+        pass
 
 
 def get_file_hash(file, chunk_size=8192):

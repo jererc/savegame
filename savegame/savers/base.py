@@ -13,6 +13,7 @@ from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, Report,
                           coalesce, get_file_mtime, get_hash, remove_path, validate_path)
 
 SAVE_DURATION_THRESHOLD = 30
+MTIME_DRIFT_TOLERANCE = 10
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +123,14 @@ class BaseSaver:
     def register_dst_file(self, path):
         self.dst_paths.add(path)
 
-    def _check_src_file(self, src_file, dst_file, margin_seconds=60):
+    def _check_src_file(self, src_file, dst_file):
         """
-        Makes sure we do not overwrite a more recent file, useful after a vm is restored.
+        Makes sure we do not overwrite a newer file, useful after a vm restore.
         """
         src_mtime = get_file_mtime(src_file)
         dst_mtime = get_file_mtime(dst_file)
-        if src_mtime and dst_mtime and src_mtime < dst_mtime - margin_seconds:
-            logger.warning(f'{src_file=} is older than {dst_file=}')
+        if src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:
+            logger.warning(f'{dst_file=} is newer than {src_file=}')
             self.report.add('failed', self.src, src_file)
             return False
         return True

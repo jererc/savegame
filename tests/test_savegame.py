@@ -26,10 +26,13 @@ DST_DIR = 'dst_root'
 
 
 def remove_path(path):
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    elif os.path.isfile(path):
-        os.remove(path)
+    try:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+    except FileNotFoundError:
+        pass
 
 
 def walk_paths(path):
@@ -238,7 +241,7 @@ class ReferenceTestCase(BaseTestCase):
         ts2 = ref2.ts
         time.sleep(.1)
         ref2.save(self.force_update)
-        mtime2 = os.stat(ref2.file).st_mtime
+        mtime2 = os.path.getmtime(ref2.file)
         self.assertTrue(ref2.ts > ts2)
 
         ts3 = ref2.ts
@@ -246,10 +249,10 @@ class ReferenceTestCase(BaseTestCase):
         ref2.save(force=self.force_update)
         if self.force_update:
             self.assertTrue(ref2.ts > ts3)
-            self.assertTrue(os.stat(ref2.file).st_mtime > mtime2)
+            self.assertTrue(os.path.getmtime(ref2.file) > mtime2)
         else:
             self.assertEqual(ref2.ts, ts3)
-            self.assertEqual(os.stat(ref2.file).st_mtime, mtime2)
+            self.assertEqual(os.path.getmtime(ref2.file), mtime2)
 
 
 class SaveItemTestCase(BaseTestCase):
