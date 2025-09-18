@@ -18,7 +18,7 @@ HOSTNAME = socket.gethostname()
 USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
 METADATA_MAX_AGE = 3600 * 24 * 90
-INVALID_PATH_SEP = {'win32': '/', 'linux': '\\'}[sys.platform]
+INVALID_PATH_SEP = {'linux': '\\', 'win32': '/'}[sys.platform]
 
 logger = logging.getLogger(__name__)
 

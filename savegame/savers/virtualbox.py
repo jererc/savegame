@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class Virtualbox:
-    bin_file = {'win32': r'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe',
-                'linux': '/usr/bin/VBoxManage'}[sys.platform]
+    bin_file = {'linux': '/usr/bin/VBoxManage',
+                'win32': r'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe'}[sys.platform]
     creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
 
     def _list(self, command):
