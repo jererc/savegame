@@ -6,12 +6,11 @@ import shutil
 import sys
 
 from savegame import NAME
-from savegame.lib import (Reference, UnhandledPath, check_patterns, get_file_hash,
-                          get_file_mtime, validate_path)
+from savegame.lib import (HOSTNAME, USERNAME, Reference, Report, UnhandledPath, check_patterns,
+                          get_file_hash, get_file_mtime, validate_path)
 from savegame.loaders.base import BaseLoader
 
 HOME_DIR = os.path.expanduser('~')
-USERNAME = os.getlogin()
 SHARED_USERNAMES = {'linux': {'shared'}, 'win32': {'Public'}}.get(sys.platform, set())
 
 logger = logging.getLogger(__name__)
@@ -19,6 +18,18 @@ logger = logging.getLogger(__name__)
 
 class FilesystemLoader(BaseLoader):
     id = 'filesystem'
+
+    def __init__(self, dst_path, hostname=None, username=None,
+                 include=None, exclude=None, overwrite=False, dry_run=False):
+        self.dst_path = dst_path
+        self.hostname = hostname or HOSTNAME
+        self.username = username or USERNAME
+        self.include = include
+        self.exclude = exclude
+        self.overwrite = overwrite
+        self.dry_run = dry_run
+        self.hostnames = sorted(os.listdir(self.dst_path))
+        self.report = Report()
 
     def _get_src_file_for_user(self, path):
         pp = PurePath(path)
