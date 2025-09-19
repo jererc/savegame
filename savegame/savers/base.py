@@ -50,7 +50,7 @@ class BaseSaver:
         self.src = src
         self.include = include
         self.exclude = exclude
-        self.dst = self.get_dst(self.save_item.dst_path)
+        self.dst = self._get_dst()
         self.existing_dst_paths = set()
         self.ref = Reference(self.dst)
         self.key = self._get_key()
@@ -61,7 +61,7 @@ class BaseSaver:
         self.success = None
 
     @classmethod
-    def get_base_dst_path(cls, dst_path, volume_path, root_dirname):
+    def get_root_dst_path(cls, dst_path, volume_path, root_dirname):
         if not dst_path:
             raise Exception('missing dst_path')
         if cls.dst_type != 'local':
@@ -76,12 +76,11 @@ class BaseSaver:
             return dst_path
         return os.path.join(dst_path, root_dirname, cls.id)
 
-    def get_dst(self, dst_path):
-        if self.dst_type != 'local':
-            return dst_path
-        if self.in_place:
-            return dst_path
-        return os.path.join(dst_path, self.hostname, path_to_dirname(self.src))
+    def _get_dst(self):
+        dst = self.save_item.root_dst_path
+        if self.dst_type != 'local' or self.in_place:
+            return dst
+        return os.path.join(dst, self.hostname, path_to_dirname(self.src))
 
     def _get_key_src_dst(self, key):
         label = getattr(self.save_item, f'{key}_volume_label', None)
@@ -119,9 +118,6 @@ class BaseSaver:
 
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
-
-    def add_existing_dst_path(self, path):
-        self.existing_dst_paths.add(path)
 
     def _check_src_file(self, src_file, dst_file):
         """

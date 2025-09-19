@@ -40,8 +40,8 @@ class SaveItem:
         self.src_paths = self._get_src_paths(src_paths)
         self.saver_cls = get_saver_class(saver_id)
         self.dst_volume_path = self._get_dst_volume_path()
-        self.item_dst_path = dst_path or self.config.DST_PATH
-        self.dst_path = self._get_dst_path(self.item_dst_path)
+        self.dst_path = dst_path or self.config.DST_PATH
+        self.root_dst_path = self._get_root_dst_path(self.dst_path)
         self.run_delta = coalesce(run_delta, self.config.SAVE_RUN_DELTA)
         self.purge_delta = purge_delta
         self.enable_purge = enable_purge
@@ -69,8 +69,8 @@ class SaveItem:
             raise UnhandledPath(f'volume {self.dst_volume_label} not found')
         return volume_path
 
-    def _get_dst_path(self, dst_path):
-        return self.saver_cls.get_base_dst_path(
+    def _get_root_dst_path(self, dst_path):
+        return self.saver_cls.get_root_dst_path(
             dst_path,
             volume_path=self.dst_volume_path,
             root_dirname=self.config.DST_ROOT_DIRNAME,
@@ -109,8 +109,8 @@ class SaveItem:
             return
         if self.hostname and HOSTNAME != self.hostname:
             return
-        if not self.dst_path:
-            logger.debug(f'invalid dst_path {self.item_dst_path} for {self.saver_cls.id}')
+        if not self.root_dst_path:
+            logger.debug(f'invalid dst_path {self.dst_path} for {self.saver_cls.id}')
             return
         is_ready = not self.trigger_volume_labels or self._check_trigger_volume_labels()
         for src_and_patterns in self._generate_src_and_patterns():
@@ -121,7 +121,7 @@ class SaveItem:
             yield saver
 
     def is_loadable(self):
-        return self.loadable and self.dst_path
+        return self.loadable and self.root_dst_path
 
 
 def iterate_save_items(config, log_unhandled=False, log_invalid=True):
@@ -200,14 +200,14 @@ class SaveMonitor:
         return date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS)
 
     def _iterate_hostname_refs(self):
-        dst_paths = {s.dst_path for s in iterate_save_items(self.config)
-                     if s.saver_cls.dst_type == 'local' and not s.saver_cls.in_place and s.dst_path and os.path.exists(s.dst_path)}
-        for dst_path in dst_paths:
-            if not os.path.exists(dst_path):
-                logger.warning(f'missing dst path {dst_path}')
+        root_dst_paths = {s.root_dst_path for s in iterate_save_items(self.config)
+                          if s.saver_cls.dst_type == 'local' and not s.saver_cls.in_place and s.root_dst_path and os.path.exists(s.root_dst_path)}
+        for root_dst_path in root_dst_paths:
+            if not os.path.exists(root_dst_path):
+                logger.warning(f'missing dst path {root_dst_path}')
                 continue
-            for hostname in sorted(os.listdir(dst_path)):
-                for dst in glob(os.path.join(dst_path, hostname, '*')):
+            for hostname in sorted(os.listdir(root_dst_path)):
+                for dst in glob(os.path.join(root_dst_path, hostname, '*')):
                     ref = Reference(dst)
                     if not os.path.exists(ref.file):
                         logger.error(f'missing ref file {ref.file}')

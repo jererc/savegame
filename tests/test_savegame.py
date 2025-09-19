@@ -277,11 +277,11 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
         self.username2 = f'not{self.own_username}2'
         self.username3 = f'not{self.own_username}3'
         self.save_item = save.SaveItem(self.config, src_paths=[self.src_root], dst_path=self.dst_root)
-        os.makedirs(self.save_item.dst_path, exist_ok=True)
+        os.makedirs(self.save_item.root_dst_path, exist_ok=True)
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = FilesystemLoader(self.config, self.save_item.dst_path)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -294,7 +294,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = FilesystemLoader(self.config, self.save_item.dst_path)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -307,7 +307,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item.dst_path, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -322,7 +322,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item.dst_path, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)

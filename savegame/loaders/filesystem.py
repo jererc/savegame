@@ -37,7 +37,7 @@ class FilesystemLoader(BaseLoader):
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
-            for dst in glob(os.path.join(self.dst_path, hostname, '*')):
+            for dst in glob(os.path.join(self.root_dst_path, hostname, '*')):
                 ref = Reference(dst)
                 if ref.src:
                     yield ref

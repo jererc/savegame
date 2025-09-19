@@ -29,7 +29,7 @@ class GoogleDriveSaver(BaseSaver):
                 self.report.add('skipped', self.src, file_meta['path'])
                 continue
             dst_file = os.path.join(self.dst, file_meta['path'])
-            self.add_existing_dst_path(dst_file)
+            self.existing_dst_paths.add(dst_file)
             dt = get_file_mtime_dt(dst_file)
             if dt and dt > file_meta['modified_time']:
                 self.report.add('skipped', self.src, dst_file)
@@ -56,7 +56,7 @@ class GoogleContactsSaver(BaseSaver):
         data = to_json(contacts)
         rel_path = 'contacts.json'
         dst_file = os.path.join(self.dst, rel_path)
-        self.add_existing_dst_path(dst_file)
+        self.existing_dst_paths.add(dst_file)
         dst_hash = get_hash(data)
         if os.path.exists(dst_file) and dst_hash == self.ref.files.get(rel_path):
             self.report.add('skipped', self.src, dst_file)
