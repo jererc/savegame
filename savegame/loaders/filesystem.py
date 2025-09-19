@@ -34,6 +34,9 @@ class FilesystemLoader(BaseLoader):
         return None
 
     def _iterate_refs(self):
+        if self.saver_cls.in_place:
+            yield Reference(self.root_dst_path)
+            return
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
@@ -92,13 +95,14 @@ class FilesystemLoader(BaseLoader):
         invalid_files = set()
         for rel_path, ref_val in ref.files.items():
             dst_file = os.path.join(ref.dst, rel_path)
-            if isinstance(ref_val, int):
-                self.report.add('no_hash', ref.src, dst_file)
-                continue
-            if get_file_hash(dst_file) != ref_val:
-                invalid_files.add(dst_file)
+            if isinstance(ref_val, str):
+                is_valid = get_file_hash(dst_file) == ref_val
             else:
+                is_valid = True
+            if is_valid:
                 rel_paths.add(rel_path)
+            else:
+                invalid_files.add(dst_file)
         if invalid_files:
             self.report.add('invalid_files', ref.src, invalid_files)
             return
@@ -116,3 +120,11 @@ class FilesystemLoader(BaseLoader):
     def run(self):
         for ref in self._iterate_refs():
             self._load_from_ref(ref)
+
+
+class FilesystemMirrorLoader(FilesystemLoader):
+    id = 'filesystem_mirror'
+
+
+class FilesystemCopyLoader(FilesystemLoader):
+    id = 'filesystem_copy'

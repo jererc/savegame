@@ -54,7 +54,7 @@ class FilesystemSaver(BaseSaver):
 
     def _compare_files_using_filecmp(self, src_file, dst_file):
         match = filecmp.cmp(src_file, dst_file, shallow=True) if os.path.exists(dst_file) else False
-        return match, None
+        return match, os.path.getmtime(src_file)
 
     def _get_file_compare_callable(self):
         return {

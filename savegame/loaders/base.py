@@ -15,10 +15,11 @@ class NotFound(Exception):
 class BaseLoader:
     id = None
 
-    def __init__(self, config, root_dst_path, hostname=None, username=None, include=None, exclude=None,
-                 force=False, dry_run=False):
+    def __init__(self, config, root_dst_path, saver_cls, hostname=None, username=None,
+                 include=None, exclude=None, force=False, dry_run=False):
         self.config = config
         self.root_dst_path = root_dst_path
+        self.saver_cls = saver_cls
         self.hostname = hostname or HOSTNAME
         self.username = username or USERNAME
         self.include = include

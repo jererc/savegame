@@ -281,7 +281,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -294,7 +294,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -307,7 +307,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -322,7 +322,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, username=self.username2)
+        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -920,9 +920,7 @@ class SavegameTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         saves = [
             {
-                'src_paths': [
-                    os.path.join(WORK_DIR, SRC_DIR),
-                ],
+                'src_paths': [os.path.join(WORK_DIR, SRC_DIR)],
                 'dst_path': os.path.join(WORK_DIR, DST_DIR),
             },
         ]
@@ -937,9 +935,7 @@ class SavegameTestCase(BaseTestCase):
             shutil.copy2(os.path.expanduser('~/.bashrc'), os.path.join(self.src_root, old_filename))
         saves = [
             {
-                'src_paths': [
-                    self.src_root,
-                ],
+                'src_paths': [self.src_root],
                 'dst_path': self.dst_root,
             },
         ]
@@ -976,7 +972,7 @@ class LoadgameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
 
-    def test_load_skipped_identical(self):
+    def test_match(self):
         self._savegame_with_data(index_start=1, nb_files=2)
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
@@ -989,7 +985,7 @@ class LoadgameTestCase(BaseTestCase):
         src_paths3 = self._list_src_root_paths()
         self.assertEqual(src_paths3, src_paths)
 
-    def test_load_skipped_conflict(self):
+    def test_mismatch(self):
         self._savegame_with_data(index_start=1, nb_files=2)
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
@@ -1013,7 +1009,7 @@ class LoadgameTestCase(BaseTestCase):
         self.assertTrue(diff)
         self.assertTrue(all(os.path.splitext(f)[-1] == '.savegamebak' for f in diff))
 
-    def test_load_hostname(self):
+    def test_hostname(self):
         hostname2 = 'hostname2'
         hostname3 = 'hostname3'
 
@@ -1045,7 +1041,7 @@ class LoadgameTestCase(BaseTestCase):
         remove_path(self.src_root)
         self.assertEqual(src_paths, set())
 
-    def test_load_username(self):
+    def test_username(self):
         username2 = 'username2'
         username3 = 'username3'
 
@@ -1078,7 +1074,7 @@ class LoadgameTestCase(BaseTestCase):
         remove_path(self.src_root)
         self.assertFalse(src_paths)
 
-    def test_load_invalid_files(self):
+    def test_invalid_files(self):
         self._savegame_with_data(index_start=1, nb_files=2, file_version=1)
         remove_path(self.src_root)
         self._savegame_with_data(index_start=1, nb_files=2, file_version=1)
@@ -1097,7 +1093,7 @@ class LoadgameTestCase(BaseTestCase):
         src_paths2 = self._list_src_root_paths()
         self.assertFalse(src_paths2)
 
-    def test_load(self):
+    def test_filesystem(self):
         self._savegame_with_data(index_start=1, nb_files=2)
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
@@ -1113,6 +1109,30 @@ class LoadgameTestCase(BaseTestCase):
 
         self._loadgame(exclude=['*dir1*'])
         src_paths2 = self._list_src_root_paths()
+
+    def test_filesystem_mirror(self):
+        self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
+        src_path = os.path.join(self.src_root, 'src1')
+        dst_path = os.path.join(self.dst_root, 'src1')
+        os.makedirs(dst_path, exist_ok=True)
+        saves = [
+            {
+                'saver_id': 'filesystem_mirror',
+                'src_paths': [src_path],
+                'dst_path': dst_path,
+            },
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
+        ref = module.lib.Reference(os.path.dirname(ref_file))
+        pprint(ref.data)
+
+        shutil.rmtree(src_path)
+        self._loadgame()
+        src_paths = self._list_src_root_paths()
+        self.assertTrue(any_str_matches(src_paths, '*src1*dir*file*'))
+        self._loadgame()
 
 
 class GitTestCase(BaseTestCase):
@@ -1136,9 +1156,7 @@ class GitTestCase(BaseTestCase):
         saves = [
             {
                 'saver_id': 'git',
-                'src_paths': [
-                    self.src_root,
-                ],
+                'src_paths': [self.src_root],
                 'dst_path': self.dst_root,
             },
         ]
@@ -1147,8 +1165,8 @@ class GitTestCase(BaseTestCase):
         ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
         ref = module.lib.Reference(os.path.dirname(ref_file))
         pprint(ref.data)
-        shutil.rmtree(repo_dir)
 
+        shutil.rmtree(repo_dir)
         self._loadgame()
         src_paths = self._list_src_root_paths()
         self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*.git/*'))

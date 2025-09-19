@@ -23,12 +23,12 @@ class LoadHandler:
 
     def run(self):
         report = Report()
-        saver_id_root_dst_paths = {(s.saver_cls.id, s.root_dst_path) for s in self._iterate_save_items()}
-        for saver_id, root_dst_path in sorted(saver_id_root_dst_paths):
+        saver_cls_root_dst_paths = {(s.saver_cls, s.root_dst_path) for s in self._iterate_save_items()}
+        for saver_cls, root_dst_path in sorted(saver_cls_root_dst_paths, key=lambda x: x[0].id):
             try:
-                loader = get_loader_class(saver_id)(self.config, root_dst_path, **self.loader_args)
+                loader = get_loader_class(saver_cls.id)(self.config, root_dst_path, saver_cls, **self.loader_args)
             except NotFound:
-                logger.debug(f'no available loader for {saver_id=}')
+                logger.debug(f'no available loader for {saver_cls.id=}')
                 continue
             try:
                 loader.run()
