@@ -72,7 +72,7 @@ class FilesystemSaver(BaseSaver):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
-            self.target_dst_files.add(dst_file)
+            self.dst_files.add(dst_file)
             try:
                 match, ref_val = file_compare_callable(src_file, dst_file)
                 if not match and self._check_src_file(src_file, dst_file):

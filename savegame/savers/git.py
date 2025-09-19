@@ -77,7 +77,7 @@ class GitSaver(BaseSaver):
             name = os.path.basename(src_path)
             rel_path = f'{name}.bundle'
             dst_file = os.path.join(self.dst, rel_path)
-            self.target_dst_files.add(dst_file)
+            self.dst_files.add(dst_file)
 
             ref_val = git.get_last_update_ts()
             try:
@@ -98,7 +98,7 @@ class GitSaver(BaseSaver):
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
                 dst_file = os.path.join(self.dst, rel_path)
-                self.target_dst_files.add(dst_file)
+                self.dst_files.add(dst_file)
                 src_hash = get_file_hash(src_file)
                 dst_hash = get_file_hash(dst_file)
                 if dst_hash != src_hash and self._check_src_file(src_file, dst_file):
