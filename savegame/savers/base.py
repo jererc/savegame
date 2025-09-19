@@ -51,7 +51,7 @@ class BaseSaver:
         self.include = include
         self.exclude = exclude
         self.dst = self.get_dst(self.save_item.dst_path)
-        self.dst_paths = set()
+        self.existing_dst_paths = set()
         self.ref = Reference(self.dst)
         self.key = self._get_key()
         self.meta = Metadata()
@@ -120,8 +120,8 @@ class BaseSaver:
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
-    def register_dst_file(self, path):
-        self.dst_paths.add(path)
+    def add_existing_dst_path(self, path):
+        self.existing_dst_paths.add(path)
 
     def _check_src_file(self, src_file, dst_file):
         """
@@ -137,7 +137,7 @@ class BaseSaver:
 
     def _requires_purge(self, path, cutoff_ts):
         if os.path.isfile(path):
-            if path in self.dst_paths:
+            if path in self.existing_dst_paths:
                 return False
             name = os.path.basename(path)
             if name == REF_FILENAME:
@@ -149,7 +149,7 @@ class BaseSaver:
         return True
 
     def _purge_dst(self):
-        if not self.dst_paths:
+        if not self.existing_dst_paths:
             remove_path(self.dst)
             logger.warning(f'purged {self.dst} because no paths were saved')
             return
