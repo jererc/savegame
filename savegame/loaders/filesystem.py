@@ -50,7 +50,7 @@ class FilesystemLoader(BaseLoader):
         if get_file_hash(src_file) == get_file_hash(dst_file):
             self.report.add('match', src, src_file)
             return False
-        if not self.overwrite:
+        if not self.force:
             if get_file_mtime(src_file) > get_file_mtime(dst_file):
                 self.report.add('mismatch_src_newer', src, src_file)
             else:

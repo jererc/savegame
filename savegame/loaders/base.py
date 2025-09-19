@@ -16,14 +16,14 @@ class BaseLoader:
     id = None
 
     def __init__(self, config, dst_path, hostname=None, username=None, include=None, exclude=None,
-                 overwrite=False, dry_run=False):
+                 force=False, dry_run=False):
         self.config = config
         self.dst_path = dst_path
         self.hostname = hostname or HOSTNAME
         self.username = username or USERNAME
         self.include = include
         self.exclude = exclude
-        self.overwrite = overwrite
+        self.force = force
         self.dry_run = dry_run
         self.hostnames = sorted(os.listdir(self.dst_path))
         self.report = Report()

@@ -14,6 +14,9 @@ class GitLoader(FilesystemLoader):
             repo_dir = os.path.join(ref.src, os.path.splitext(rel_path)[0])
             if os.path.exists(repo_dir):
                 continue
+            if self.dry_run:
+                self.report.add('loadable', ref.src, repo_dir)
+                continue
             Git(repo_dir).clone_bundle(os.path.join(ref.dst, rel_path))
 
         super()._load_from_ref(ref)

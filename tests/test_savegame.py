@@ -981,11 +981,11 @@ class LoadgameTestCase(BaseTestCase):
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
 
-        self._loadgame(overwrite=False)
+        self._loadgame(force=False)
         src_paths2 = self._list_src_root_paths()
         self.assertEqual(src_paths2, src_paths)
 
-        self._loadgame(overwrite=False)
+        self._loadgame(force=False)
         src_paths3 = self._list_src_root_paths()
         self.assertEqual(src_paths3, src_paths)
 
@@ -994,7 +994,7 @@ class LoadgameTestCase(BaseTestCase):
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
 
-        self._loadgame(overwrite=False)
+        self._loadgame(force=False)
         src_paths2 = self._list_src_root_paths()
         self.assertEqual(src_paths2, src_paths)
         for file in walk_files(self.src_root):
@@ -1003,11 +1003,11 @@ class LoadgameTestCase(BaseTestCase):
             with open(file, 'w') as fd:
                 fd.write(content + file)
 
-        self._loadgame(overwrite=False)
+        self._loadgame(force=False)
         src_paths3 = self._list_src_root_paths()
         self.assertEqual(src_paths3, src_paths)
 
-        self._loadgame(overwrite=True)
+        self._loadgame(force=True)
         src_paths4 = self._list_src_root_paths()
         diff = src_paths4 - src_paths
         self.assertTrue(diff)
