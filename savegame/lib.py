@@ -187,38 +187,24 @@ class BaseReport:
     def update(self, report):
         self.data.extend(report.data)
 
-    def get_table(self):
+    def print_table(self):
         raise NotImplementedError()
 
     def print_summary_table(self):
-        res = defaultdict(lambda: defaultdict(int))
+        agg = defaultdict(lambda: defaultdict(int))
         for item in self.data:
-            res[item['code']][item['id']] += 1
+            agg[item['code']][item['id']] += 1
 
         def get_row(row):
-            cols = [
-                f'{row["code"]:20}',
-                f'{row["id"]:25}',
-                f'{row["count"]:6}',
-            ]
-            return ' '.join(cols)
+            return ' '.join([f'{row["code"]:20}', f'{row["id"]:25}', f'{row["count"]:6}'])
 
         rows = []
-        for code, v in res.items():
+        for code, v in agg.items():
             for id, count in v.items():
-                rows.append(get_row({
-                    'code': code,
-                    'id': id,
-                    'count': count,
-                }))
-        if not rows:
-            return
-        data = '\n'.join([get_row({
-            'code': 'code',
-            'id': 'id',
-            'count': 'count',
-        })] + rows)
-        logger.info(f'summary:\n{data}')
+                rows.append(get_row({'code': code, 'id': id, 'count': count}))
+        if rows:
+            data = '\n'.join([get_row({'code': 'code', 'id': 'id', 'count': 'count'})] + rows)
+            logger.info(f'summary:\n{data}')
 
 
 class SaveReport(BaseReport):
@@ -237,30 +223,16 @@ class SaveReport(BaseReport):
             return os.path.relpath(file, dir) if file and dir else (file or '')
 
         def get_row(row):
-            cols = [
-                f'{row["code"]:20}',
-                f'{row["id"]:25}',
-                f'{row["src"]:60}',
-                f'{row["rel_path"]:40}',
-                f'{row["dst"]:60}',
-            ]
-            return ' '.join(cols)
+            return ' '.join([f'{row["code"]:20}', f'{row["id"]:25}', f'{row["src"]:60}', f'{row["rel_path"]:40}', f'{row["dst"]:60}'])
 
         rows = []
         for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src_file'] or x['src'])):
             if codes and item['code'] not in codes:
                 continue
             rows.append(get_row(item | {'rel_path': get_relpath(item["src_file"], item["src"])}))
-        if not rows:
-            return
-        data = '\n'.join([get_row({
-            'code': 'code',
-            'id': 'id',
-            'src': 'src',
-            'rel_path': 'rel_path',
-            'dst': 'dst',
-        })] + rows)
-        logger.info(f'report:\n{data}')
+        if rows:
+            data = '\n'.join([get_row({k: k for k in ('code', 'id', 'src', 'rel_path', 'dst')})] + rows)
+            logger.info(f'report:\n{data}')
 
 
 class LoadReport(BaseReport):
@@ -275,27 +247,13 @@ class LoadReport(BaseReport):
 
     def print_table(self, codes=None):
         def get_row(row):
-            cols = [
-                f'{row["code"]:20}',
-                f'{row["id"]:25}',
-                f'{row["src"]:60}',
-                f'{row["rel_path"]:40}',
-                f'{row["dst"]:60}',
-            ]
-            return ' '.join(cols)
+            return ' '.join([f'{row["code"]:20}', f'{row["id"]:25}', f'{row["src"]:60}', f'{row["rel_path"]:40}', f'{row["dst"]:60}'])
 
         rows = []
-        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['rel_path'])):
+        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'])):
             if codes and item['code'] not in codes:
                 continue
             rows.append(get_row(item))
-        if not rows:
-            return
-        data = '\n'.join([get_row({
-            'code': 'code',
-            'id': 'id',
-            'src': 'src',
-            'rel_path': 'rel_path',
-            'dst': 'dst',
-        })] + rows)
-        logger.info(f'report:\n{data}')
+        if rows:
+            data = '\n'.join([get_row({k: k for k in ('code', 'id', 'src', 'rel_path', 'dst')})] + rows)
+            logger.info(f'report:\n{data}')

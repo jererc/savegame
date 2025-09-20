@@ -45,46 +45,6 @@ class FilesystemLoader(BaseLoader):
                 if ref.src:
                     yield ref
 
-    # def _requires_load(self, dst_file, src_file, src):
-    #     if not check_patterns(src_file, self.include, self.exclude):
-    #         return False
-    #     if not os.path.exists(src_file):
-    #         return True
-    #     if get_file_hash(src_file) == get_file_hash(dst_file):
-    #         self.report.add('match', src, src_file)
-    #         return False
-    #     if not self.force:
-    #         if get_file_mtime(src_file) > get_file_mtime(dst_file):
-    #             self.report.add('mismatch_src_newer', src, src_file)
-    #         else:
-    #             self.report.add('mismatch_dst_newer', src, src_file)
-    #         return False
-    #     return True
-
-    # def _load_file(self, dst_file, src_file, src):
-    #     if not self._requires_load(dst_file, src_file, src):
-    #         return
-    #     if self.dry_run:
-    #         self.report.add('loadable', src, src_file)
-    #         return
-    #     try:
-    #         if os.path.exists(src_file):
-    #             src_file_bak = f'{src_file}.{NAME}bak'
-    #             if os.path.exists(src_file_bak):
-    #                 os.remove(src_file)
-    #             else:
-    #                 os.rename(src_file, src_file_bak)
-    #                 logger.warning(f'renamed existing src file {src_file} to {src_file_bak}')
-    #             self.report.add('loaded_overwritten', src, src_file)
-    #         else:
-    #             self.report.add('loaded', src, src_file)
-    #         os.makedirs(os.path.dirname(src_file), exist_ok=True)
-    #         shutil.copy2(dst_file, src_file)
-    #         logger.info(f'loaded {src_file} from {dst_file}')
-    #     except Exception as exc:
-    #         self.report.add('failed', src, src_file)
-    #         logger.error(f'failed to load {src_file} from {dst_file}: {exc}')
-
     def _is_file_loadable(self, dst_file, src_file):
         if not check_patterns(src_file, self.include, self.exclude):
             return False, None
@@ -112,7 +72,6 @@ class FilesystemLoader(BaseLoader):
             if isinstance(ref_val, str):
                 is_valid = get_file_hash(dst_file) == ref_val
             else:
-                # TODO: handle git bundle ts
                 is_valid = True
             if is_valid:
                 rel_paths.add(rel_path)
@@ -130,10 +89,7 @@ class FilesystemLoader(BaseLoader):
             if not src_file:
                 self.report.add(self, ref=ref, rel_path=rel_path, code='mismatch_username')
                 continue
-            # self._load_file(os.path.join(ref.dst, rel_path), src_file, ref.src)
             dst_file = os.path.join(ref.dst, rel_path)
-            # if not self._requires_load(dst_file, src_file, ref.src):
-            #     continue
             loadable, message = self._is_file_loadable(dst_file, src_file)
             if not loadable:
                 if message:
