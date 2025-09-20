@@ -58,9 +58,7 @@ class GoogleContactsSaver(BaseSaver):
         dst_file = os.path.join(self.dst, rel_path)
         self.dst_files.add(dst_file)
         dst_hash = get_hash(data)
-        if os.path.exists(dst_file) and dst_hash == self.ref.files.get(rel_path):
-            self.report.add(self, src_file=rel_path, dst_file=dst_file, code='skipped')
-        else:
+        if not os.path.exists(dst_file) or dst_hash != self.ref.files.get(rel_path):
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
