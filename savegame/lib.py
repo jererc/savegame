@@ -177,37 +177,125 @@ class Reference:
         return self.data.get('ts', 0)
 
 
-class Report:
+class BaseReport:
     def __init__(self):
-        self.data = defaultdict(lambda: defaultdict(set))
+        self.data = []
 
-    def add(self, k1, k2, v):
-        if isinstance(v, set):
-            self.data[k1][k2].update(v)
-        else:
-            self.data[k1][k2].add(v)
+    def add(self, obj, **kwargs):
+        raise NotImplementedError()
 
-    def get(self, k1, k2=None):
-        data = self.data.get(k1, {})
-        return data.get(k2) if k2 else data
+    def update(self, report):
+        self.data.extend(report.data)
 
-    def merge(self, report):
-        for k, v in report.data.items():
-            for k2, v2 in v.items():
-                self.data[k][k2].update(v2)
+    def get_table(self):
+        raise NotImplementedError()
 
-    def clean(self, keys=None):
-        res = defaultdict(dict)
-        for k, v in self.data.items():
-            if keys and k not in keys:
+    def print_summary_table(self):
+        res = defaultdict(lambda: defaultdict(int))
+        for item in self.data:
+            res[item['code']][item['id']] += 1
+
+        def get_row(row):
+            cols = [
+                f'{row["code"]:20}',
+                f'{row["id"]:25}',
+                f'{row["count"]:6}',
+            ]
+            return ' '.join(cols)
+
+        rows = []
+        for code, v in res.items():
+            for id, count in v.items():
+                rows.append(get_row({
+                    'code': code,
+                    'id': id,
+                    'count': count,
+                }))
+        if not rows:
+            return
+        data = '\n'.join([get_row({
+            'code': 'code',
+            'id': 'id',
+            'count': 'count',
+        })] + rows)
+        logger.info(f'summary:\n{data}')
+
+
+class SaveReport(BaseReport):
+    def add(self, saver, src_file, dst_file, code):
+        self.data.append({
+            'id': saver.id,
+            'src': saver.src,
+            'dst': saver.dst,
+            'src_file': src_file,
+            'dst_file': dst_file,
+            'code': code,
+        })
+
+    def print_table(self, codes=None):
+        def get_relpath(file, dir):
+            return os.path.relpath(file, dir) if file and dir else (file or '')
+
+        def get_row(row):
+            cols = [
+                f'{row["code"]:20}',
+                f'{row["id"]:25}',
+                f'{row["src"]:60}',
+                f'{row["rel_path"]:40}',
+                f'{row["dst"]:60}',
+            ]
+            return ' '.join(cols)
+
+        rows = []
+        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src_file'] or x['src'])):
+            if codes and item['code'] not in codes:
                 continue
-            for k2, v2 in v.items():
-                res[k][k2] = sorted(v2)
-        return res
+            rows.append(get_row(item | {'rel_path': get_relpath(item["src_file"], item["src"])}))
+        if not rows:
+            return
+        data = '\n'.join([get_row({
+            'code': 'code',
+            'id': 'id',
+            'src': 'src',
+            'rel_path': 'rel_path',
+            'dst': 'dst',
+        })] + rows)
+        logger.info(f'report:\n{data}')
 
-    def get_summary(self):
-        res = defaultdict(dict)
-        for k, v in self.data.items():
-            for k2, v2 in v.items():
-                res[k][k2] = len(v2)
-        return res
+
+class LoadReport(BaseReport):
+    def add(self, loader, ref, rel_path, code):
+        self.data.append({
+            'id': loader.id,
+            'src': ref.src,
+            'dst': ref.dst,
+            'rel_path': rel_path,
+            'code': code,
+        })
+
+    def print_table(self, codes=None):
+        def get_row(row):
+            cols = [
+                f'{row["code"]:20}',
+                f'{row["id"]:25}',
+                f'{row["src"]:60}',
+                f'{row["rel_path"]:40}',
+                f'{row["dst"]:60}',
+            ]
+            return ' '.join(cols)
+
+        rows = []
+        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['rel_path'])):
+            if codes and item['code'] not in codes:
+                continue
+            rows.append(get_row(item))
+        if not rows:
+            return
+        data = '\n'.join([get_row({
+            'code': 'code',
+            'id': 'id',
+            'src': 'src',
+            'rel_path': 'rel_path',
+            'dst': 'dst',
+        })] + rows)
+        logger.info(f'report:\n{data}')

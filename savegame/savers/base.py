@@ -9,7 +9,7 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, Report,
+from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, SaveReport,
                           coalesce, get_file_mtime, get_hash, remove_path, validate_path)
 
 SAVE_DURATION_THRESHOLD = 30
@@ -55,7 +55,7 @@ class BaseSaver:
         self.ref = Reference(self.dst)
         self.key = self._get_key()
         self.meta = Metadata()
-        self.report = Report()
+        self.report = SaveReport()
         self.start_ts = None
         self.end_ts = None
         self.success = None
@@ -127,7 +127,7 @@ class BaseSaver:
         dst_mtime = get_file_mtime(dst_file)
         if src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:
             logger.warning(f'{dst_file=} is newer than {src_file=}')
-            self.report.add('failed', self.src, src_file)
+            self.report.add(self, src_file=src_file, dst_file=dst_file, code='failed')
             return False
         return True
 
@@ -153,7 +153,7 @@ class BaseSaver:
         for path in walk_paths(self.dst):
             if self._requires_purge(path, cufoff_ts):
                 remove_path(path)
-                self.report.add('removed', self.src, path)
+                self.report.add(self, src_file=None, dst_file=path, code='removed')
 
     def do_run(self):
         raise NotImplementedError()
@@ -162,7 +162,7 @@ class BaseSaver:
         self.start_ts = time.time()
         self.ref.save_src = self.src
         self.ref.src = self.src
-        logger.info(f'saving {self.src} to {self.dst}')
+        logger.info(f'running {self.id=} {self.src=} {self.dst=}')
         try:
             self.do_run()
             if self.enable_purge and self.save_item.enable_purge:

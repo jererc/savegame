@@ -26,22 +26,22 @@ class GoogleDriveSaver(BaseSaver):
         gc = get_google_cloud(self.config)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
-                self.report.add('skipped', self.src, file_meta['path'])
+                self.report.add(self, src_file=file_meta['path'], dst_file=None, code='skipped')
                 continue
             dst_file = os.path.join(self.dst, file_meta['path'])
             self.dst_files.add(dst_file)
             dt = get_file_mtime_dt(dst_file)
             if dt and dt > file_meta['modified_time']:
-                self.report.add('skipped', self.src, dst_file)
+                self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='skipped')
                 continue
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             try:
                 gc.export_file(file_id=file_meta['id'],
                                path=dst_file,
                                mime_type=file_meta['mime_type'])
-                self.report.add('saved', self.src, dst_file)
+                self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='saved')
             except Exception as exc:
-                self.report.add('failed', self.src, dst_file)
+                self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='failed')
                 logger.error(f'failed to save google drive file {file_meta["name"]}: {exc}')
         self.ref.files = {os.path.relpath(f, self.dst): get_file_hash(f) for f in self.dst_files}
 
@@ -59,11 +59,11 @@ class GoogleContactsSaver(BaseSaver):
         self.dst_files.add(dst_file)
         dst_hash = get_hash(data)
         if os.path.exists(dst_file) and dst_hash == self.ref.files.get(rel_path):
-            self.report.add('skipped', self.src, dst_file)
+            self.report.add(self, src_file=rel_path, dst_file=dst_file, code='skipped')
         else:
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
-            self.report.add('saved', self.src, dst_file)
+            self.report.add(self, src_file=rel_path, dst_file=dst_file, code='saved')
             logger.info(f'saved {len(contacts)} google contacts')
         self.ref.files = {rel_path: dst_hash}

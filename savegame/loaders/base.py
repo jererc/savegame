@@ -3,7 +3,7 @@ import inspect
 import logging
 import os
 
-from savegame.lib import HOSTNAME, USERNAME, Report
+from savegame.lib import HOSTNAME, USERNAME, LoadReport
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class BaseLoader:
         self.force = force
         self.dry_run = dry_run
         self.hostnames = sorted(os.listdir(self.root_dst_path))
-        self.report = Report()
+        self.report = LoadReport()
 
 
 def iterate_loader_classes(package='savegame.loaders'):

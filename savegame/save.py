@@ -9,9 +9,9 @@ from svcutils.notifier import notify
 from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
-from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, Reference, Report, InvalidPath,
+from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, Reference, SaveReport, InvalidPath,
                           UnhandledPath, coalesce, get_file_hash, get_file_mtime, get_file_size,
-                          list_label_mountpoints, to_json, validate_path)
+                          list_label_mountpoints, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.filesystem import FilesystemSaver
@@ -152,7 +152,7 @@ class SaveHandler:
         start_ts = time.time()
         savers = list(self._generate_savers())
         runnable_savers = [s for s in savers if self.force or s.must_run()]
-        report = Report()
+        report = SaveReport()
         failed_savers = []
         volume_labels = set()
         for saver in runnable_savers:
@@ -161,7 +161,7 @@ class SaveHandler:
             except Exception:
                 logger.exception(f'failed to save {saver.src}')
                 failed_savers.append(saver)
-            report.merge(saver.report)
+            report.update(saver.report)
             for attr in ('src_volume_label', 'dst_volume_label'):
                 volume_label = getattr(saver.save_item, attr)
                 if volume_label:
@@ -172,13 +172,13 @@ class SaveHandler:
                    app_name=NAME,
                    replace_key='failed-savers')
         Metadata().save()
-        report_dict = report.clean(keys={'saved', 'removed', 'failed'})
-        if report_dict:
-            logger.info(f'report:\n{to_json(report_dict)}')
-        failed_files = report_dict.get('failed')
+
+        report.print_table(codes={'saved', 'removed', 'failed'})
+        report.print_summary_table()
+        failed_files = [r for r in report.data if r['code'] == 'failed']
         if failed_files:
             notify(title='failed files',
-                   body=f'{sum(len(r) for r in failed_files.values())} failed files',
+                   body=f'{len(failed_files)} failed files',
                    app_name=NAME,
                    replace_key='failed-files')
         if volume_labels:

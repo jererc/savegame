@@ -1135,6 +1135,38 @@ class LoadgameTestCase(BaseTestCase):
         self._loadgame()
 
 
+class ReportTestCase(BaseTestCase):
+    def test_1(self):
+        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
+        for dirname in ['dst1', 'dst2', 'dst3']:
+            os.makedirs(os.path.join(self.dst_root, dirname), exist_ok=True)
+        saves = [
+            {
+                'saver_id': 'filesystem',
+                'src_paths': [os.path.join(self.src_root, 'src1')],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'filesystem_mirror',
+                'src_paths': [os.path.join(self.src_root, 'src2')],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+            },
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [os.path.join(self.src_root, 'src3')],
+                'dst_path': os.path.join(self.dst_root, 'dst3'),
+            },
+        ]
+        self._savegame(saves=saves)
+        self._list_dst_root_paths()
+        self._savegame(saves=saves)
+
+        shutil.rmtree(self.src_root)
+        self._loadgame()
+        self._list_src_root_paths()
+        self._loadgame()
+
+
 class GitTestCase(BaseTestCase):
     def _create_file(self, file, content):
         os.makedirs(os.path.dirname(file), exist_ok=True)

@@ -86,12 +86,12 @@ class GitSaver(BaseSaver):
                     remove_path(tmp_file)
                     os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
                     git.create_bundle(tmp_file)
-                    self.report.add('saved', self.src, src_path)
+                    self.report.add(self, src_file=src_path, dst_file=dst_file, code='saved')
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
             except Exception as e:
                 logger.error(f'failed to create bundle for {src_path}: {e}')
-                self.report.add('failed', self.src, src_path)
+                self.report.add(self, src_file=src_path, dst_file=dst_file, code='failed')
             else:
                 self.ref.files[rel_path] = ref_val
 
@@ -104,5 +104,5 @@ class GitSaver(BaseSaver):
                 if dst_hash != src_hash and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
-                    self.report.add('saved', self.src, src_file)
+                    self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved')
                 self.ref.files[rel_path] = src_hash

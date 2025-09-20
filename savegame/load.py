@@ -1,6 +1,6 @@
 import logging
 
-from savegame.lib import Report, to_json
+from savegame.lib import LoadReport
 from savegame.loaders.base import NotFound, get_loader_class
 from savegame.save import iterate_save_items
 
@@ -22,7 +22,7 @@ class LoadHandler:
             yield si
 
     def run(self):
-        report = Report()
+        report = LoadReport()
         saver_cls_root_dst_paths = {(s.saver_cls, s.root_dst_path) for s in self._iterate_save_items()}
         for saver_cls, root_dst_path in sorted(saver_cls_root_dst_paths, key=lambda x: x[0].id):
             try:
@@ -34,9 +34,9 @@ class LoadHandler:
                 loader.run()
             except Exception:
                 logger.exception(f'failed to load {loader.id=} {loader.root_dst_path=}')
-            report.merge(loader.report)
-        logger.info(f'report:\n{to_json(report.clean())}')
-        logger.info(f'summary:\n{to_json(report.get_summary())}')
+            report.update(loader.report)
+        report.print_table()
+        report.print_summary_table()
 
 
 def loadgame(config, **kwargs):
