@@ -26,13 +26,12 @@ class GoogleDriveSaver(BaseSaver):
         gc = get_google_cloud(self.config)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
-                self.report.add(self, src_file=file_meta['path'], dst_file=None, code='skipped')
+                logger.debug(f'skipping not exportable file {file_meta["path"]}')
                 continue
             dst_file = os.path.join(self.dst, file_meta['path'])
             self.dst_files.add(dst_file)
             dt = get_file_mtime_dt(dst_file)
             if dt and dt > file_meta['modified_time']:
-                self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='skipped')
                 continue
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             try:
