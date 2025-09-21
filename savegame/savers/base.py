@@ -159,7 +159,6 @@ class BaseSaver:
 
     def run(self):
         self.start_ts = time.time()
-        self.save_ref.init_files(self.src)
         logger.info(f'running {self.id=} {self.src=} {self.dst=}')
         try:
             self.do_run()
