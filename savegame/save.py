@@ -281,7 +281,6 @@ class SaveMonitor:
             'desynced': [r for r in saves if r['desynced']],
             'orphans': orphan_dsts,
         }
-        logger.debug(f'monitor report:\n{pformat(report)}')
         report['message'] = ', '.join([f'{k}: {len(report[k])}' for k in ('saves', 'desynced', 'orphans')])
         return report
 
