@@ -200,6 +200,13 @@ class SaveReference:
         return self.data.get('ts', 0)
 
 
+def truncate_middle(s: str, width: int) -> str:
+    if len(s) <= width:
+        return s.ljust(width)  # pad if shorter
+    half = (width - 3) // 2
+    return s[:half] + "..." + s[-(width - half - 3):]
+
+
 class BaseReport:
     def __init__(self):
         self.data = []
@@ -210,6 +217,16 @@ class BaseReport:
     def update(self, report):
         self.data.extend(report.data)
 
+    def _get_row(self, row):
+        return ' '.join([
+            f'{row["code"]:20}',
+            f'{row["id"]:20}',
+            truncate_middle(row["src"], 50),
+            truncate_middle(row["rel_path"], 40),
+            truncate_middle(row["dst"], 50),
+            f'{row["duration"]:>8}',
+        ])
+
     def print_table(self):
         raise NotImplementedError()
 
@@ -219,7 +236,11 @@ class BaseReport:
             agg[item['code']][item['id']] += 1
 
         def get_row(row):
-            return ' '.join([f'{row["code"]:20}', f'{row["id"]:25}', f'{row["count"]:6}'])
+            return ' '.join([
+                f'{row["code"]:20}',
+                f'{row["id"]:20}',
+                f'{row["count"]:>6}',
+            ])
 
         rows = []
         for code, v in agg.items():
@@ -231,7 +252,7 @@ class BaseReport:
 
 
 class SaveReport(BaseReport):
-    def add(self, saver, src_file, dst_file, code):
+    def add(self, saver, src_file, dst_file, code, start_ts=None):
         self.data.append({
             'id': saver.id,
             'src': saver.src,
@@ -239,60 +260,40 @@ class SaveReport(BaseReport):
             'src_file': src_file,
             'dst_file': dst_file,
             'code': code,
+            'duration': f'{time.time() - start_ts:.1f}' if start_ts else '',
         })
 
     def print_table(self, codes=None):
         def get_relpath(file, dir):
             return os.path.relpath(file, dir) if file and dir else (file or '')
 
-        def get_row(row):
-            return ' '.join([
-                f'{row["code"]:20}',
-                f'{row["id"]:25}',
-                f'{row["src"]:60}',
-                f'{row["src_rel_path"]:40}',
-                f'{row["dst"]:60}',
-                f'{row["dst_rel_path"]:40}',
-            ])
-
         rows = []
         for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src_file'] or x['dst_file'])):
             if codes and item['code'] not in codes:
                 continue
-            rows.append(get_row(item | {
-                'src_rel_path': get_relpath(item["src_file"], item["src"]),
-                'dst_rel_path': get_relpath(item["dst_file"], item["dst"]),
-            }))
+            rows.append(self._get_row(item | {'rel_path': get_relpath(item['src_file'], item['src']) or get_relpath(item['dst_file'], item['dst'])}))
         if rows:
-            data = '\n'.join([get_row({k: k for k in ('code', 'id', 'src', 'src_rel_path', 'dst_rel_path', 'dst')})] + rows)
+            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration')})] + rows)
             logger.info(f'report:\n{data}')
 
 
 class LoadReport(BaseReport):
-    def add(self, loader, save_ref, src, rel_path, code):
+    def add(self, loader, save_ref, src, rel_path, code, start_ts=None):
         self.data.append({
             'id': loader.id,
             'src': src,
             'dst': save_ref.dst,
             'rel_path': rel_path,
             'code': code,
+            'duration': float(f'{time.time() - start_ts:.1f}') if start_ts else '',
         })
 
     def print_table(self, codes=None):
-        def get_row(row):
-            return ' '.join([
-                f'{row["code"]:20}',
-                f'{row["id"]:25}',
-                f'{row["src"]:60}',
-                f'{row["rel_path"]:40}',
-                f'{row["dst"]:60}',
-            ])
-
         rows = []
         for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'])):
             if codes and item['code'] not in codes:
                 continue
-            rows.append(get_row(item))
+            rows.append(self._get_row(item))
         if rows:
-            data = '\n'.join([get_row({k: k for k in ('code', 'id', 'src', 'rel_path', 'dst')})] + rows)
+            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'rel_path', 'dst', 'duration')})] + rows)
             logger.info(f'report:\n{data}')

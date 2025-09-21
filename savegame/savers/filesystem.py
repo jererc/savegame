@@ -8,7 +8,6 @@ from savegame.lib import REF_FILENAME, check_patterns, coalesce, get_file_hash, 
 from savegame.savers.base import BaseSaver
 
 LIST_DURATION_THRESHOLD = 30
-COPY_DURATION_THRESHOLD = 30
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +77,7 @@ class FilesystemSaver(BaseSaver):
                     logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
-                    duration = time.time() - start_ts
-                    if duration > COPY_DURATION_THRESHOLD:
-                        logger.warning(f'copied {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB) in {duration:.02f} seconds')
-                    self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved')
+                    self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved', start_ts=start_ts)
                 self.save_ref.set_file(src, rel_path, ref_val)
             except Exception:
                 self.report.add(self, src_file=src_file, dst_file=dst_file, code='failed')

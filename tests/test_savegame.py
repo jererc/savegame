@@ -1388,7 +1388,7 @@ class GitTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         self._list_ref_files(dst_paths)
 
-        [shutil.rmtree(r) for r in [repo_dir1, repo_dir2]]
+        shutil.rmtree(repo_dir1)
         self._loadgame()
         src_paths = self._list_src_root_paths()
         self.assertTrue(any_str_matches(src_paths, '*repo1*.git/*'))

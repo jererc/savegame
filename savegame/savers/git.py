@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import shutil
+import time
 
 from savegame.lib import get_file_hash, remove_path
 from savegame.savers.base import BaseSaver
@@ -82,15 +83,15 @@ class GitSaver(BaseSaver):
                     tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
                     remove_path(tmp_file)
                     os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
+                    start_ts = time.time()
                     git.create_bundle(tmp_file)
-                    self.report.add(self, src_file=src_path, dst_file=dst_file, code='saved')
+                    self.report.add(self, src_file=src_path, dst_file=dst_file, code='saved', start_ts=start_ts)
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
-            except Exception as e:
-                logger.error(f'failed to create bundle for {src_path}: {e}')
-                self.report.add(self, src_file=src_path, dst_file=dst_file, code='failed')
-            else:
                 self.save_ref.set_file(self.src, rel_path, ref_val)
+            except Exception:
+                logger.exception(f'failed to create bundle for {src_path}')
+                self.report.add(self, src_file=src_path, dst_file=dst_file, code='failed')
 
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)

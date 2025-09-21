@@ -4,9 +4,10 @@ import os
 from pathlib import PurePath
 import shutil
 import sys
+import time
 
 from savegame import NAME
-from savegame.lib import SaveReference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, validate_path
+from savegame.lib import SaveReference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, get_file_size, validate_path
 from savegame.loaders.base import BaseLoader
 
 HOME_DIR = os.path.expanduser('~')
@@ -59,7 +60,7 @@ class FilesystemLoader(BaseLoader):
                 return False, 'mismatch_dst_newer'
         return True, None
 
-    def _load_from_save_ref(self, save_ref):
+    def _get_src_rel_paths(self, save_ref):
         src_rel_paths = set()
         invalid_files = set()
         for src, files in save_ref.files.items():
@@ -83,13 +84,15 @@ class FilesystemLoader(BaseLoader):
                     invalid_files.add(rel_path)
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='invalid')
         if invalid_files:
-            return
+            return set()
         if not src_rel_paths:
             self.report.add(self, save_ref=save_ref, src=None, rel_path=None, code='no_files')
-            return
-        for src, rel_path in src_rel_paths:
-            src_file_raw = os.path.join(src, rel_path)
-            src_file = self._get_src_file_for_user(src_file_raw)
+        return src_rel_paths
+
+    def _load_from_save_ref(self, save_ref):
+        for src, rel_path in self._get_src_rel_paths(save_ref):
+            raw_src_file = os.path.join(src, rel_path)
+            src_file = self._get_src_file_for_user(raw_src_file)
             if not src_file:
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='mismatch_username')
                 continue
@@ -105,20 +108,20 @@ class FilesystemLoader(BaseLoader):
             try:
                 if os.path.exists(src_file):
                     src_file_bak = f'{src_file}.{NAME}bak'
-                    if os.path.exists(src_file_bak):
-                        os.remove(src_file)
-                    else:
+                    if not os.path.exists(src_file_bak):
                         os.rename(src_file, src_file_bak)
                         logger.warning(f'renamed existing src file {src_file} to {src_file_bak}')
-                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded_overwritten')
+                    message = 'loaded_overwritten'
                 else:
-                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded')
+                    message = 'loaded'
                 os.makedirs(os.path.dirname(src_file), exist_ok=True)
+                start_ts = time.time()
+                logger.info(f'copying {dst_file} to {src_file} ({get_file_size(dst_file) / 1024 / 1024:.02f} MB)')
                 shutil.copy2(dst_file, src_file)
-                logger.info(f'loaded {src_file} from {dst_file}')
-            except Exception as exc:
+                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code=message, start_ts=start_ts)
+            except Exception:
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')
-                logger.error(f'failed to load {src_file} from {dst_file}: {exc}')
+                logger.exception(f'failed to load {src_file} from {dst_file}')
 
     def run(self):
         for save_ref in self._iterate_save_refs():
