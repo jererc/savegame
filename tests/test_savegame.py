@@ -98,9 +98,9 @@ class BaseTestCase(unittest.TestCase):
         self.dst_root = os.path.join(module.WORK_DIR, DST_DIR)
         os.makedirs(self.dst_root, exist_ok=True)
 
+        module.lib.SaveReference._instances = {}
         self.meta = module.lib.Metadata()
         self.meta.data = {}
-
         self.config = self._get_config(
             SAVES=[],
             GOOGLE_CREDS=GOOGLE_CREDS,
@@ -138,6 +138,12 @@ class BaseTestCase(unittest.TestCase):
         print(f'files at {self.dst_root}:\n{pformat(res)}')
         return res
 
+    def _print_ref_files(self, dst_paths):
+        ref_files = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME]
+        for ref_file in sorted(ref_files):
+            ref = module.lib.SaveReference(os.path.dirname(ref_file))
+            print(f'{ref_file=}:\n{pformat(dict(ref.files))}')
+
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
             for saver_id in os.listdir(os.path.join(self.dst_root, base_dir)):
@@ -150,11 +156,13 @@ class BaseTestCase(unittest.TestCase):
     def _switch_dst_data_username(self, from_username, to_username):
 
         def switch_ref_path(file):
-            ref = module.lib.Reference(os.path.dirname(file))
+            ref = module.lib.SaveReference(os.path.dirname(file))
             username_str = f'{os.sep}{from_username}{os.sep}'
-            if username_str not in ref.src:
+            src = list(ref.files.keys())[0]
+            if username_str not in src:
                 return
-            ref.src = ref.src.replace(username_str, f'{os.sep}{to_username}{os.sep}')
+            new_src = src.replace(username_str, f'{os.sep}{to_username}{os.sep}')
+            ref.files = {new_src: ref.files[src]}
             ref.save()
 
         for path in walk_paths(self.dst_root):
@@ -187,72 +195,64 @@ class BaseTestCase(unittest.TestCase):
 
 class MetadataTestCase(BaseTestCase):
     def test_1(self):
-        meta = module.lib.Metadata()
+        m1 = module.lib.Metadata()
+        m2 = module.lib.Metadata()
+        self.assertEqual(m1, m2)
+
         now = time.time()
         old_ts = now - 3600 * 24 * 91
-        meta.set('key1', {'next_ts': now})
-        meta.set('key2', {'next_ts': now})
-        meta.save()
+        m1.set('key1', {'next_ts': now})
+        m1.set('key2', {'next_ts': now})
+        m1.save()
 
-        self.assertEqual(meta.get('key1')['next_ts'], now)
-        self.assertEqual(meta.get('key2')['next_ts'], now)
+        self.assertEqual(m1.get('key1')['next_ts'], now)
+        self.assertEqual(m1.get('key2')['next_ts'], now)
 
-        with open(meta.file, 'r', encoding='utf-8') as fd:
+        with open(m1.file, 'r', encoding='utf-8') as fd:
             data = json.load(fd)
         data['key2']['next_ts'] = old_ts
-        with open(meta.file, 'w', encoding='utf-8') as fd:
+        with open(m1.file, 'w', encoding='utf-8') as fd:
             json.dump(data, fd, sort_keys=True, indent=4)
 
-        meta.load()
-        self.assertEqual(meta.get('key1')['next_ts'], now)
-        self.assertEqual(meta.get('key2')['next_ts'], old_ts)
-        meta.save()
+        m1._load()
+        self.assertEqual(m1.get('key1')['next_ts'], now)
+        self.assertEqual(m1.get('key2')['next_ts'], old_ts)
+        m1.save()
 
-        meta = module.lib.Metadata()
-        pprint(meta.data)
-        self.assertFalse('key2' in meta.data)
-        self.assertEqual(meta.get('key1')['next_ts'], now)
-        self.assertEqual(meta.get('key2'), {})
+        pprint(m2.data)
+        self.assertFalse('key2' in m2.data)
+        self.assertEqual(m2.get('key1')['next_ts'], now)
+        self.assertEqual(m2.get('key2'), {})
 
 
-class ReferenceTestCase(BaseTestCase):
-    def setUp(self):
-        super().setUp()
-        self.force_update = True
-
+class SaveReferenceTestCase(BaseTestCase):
     def test_1(self):
-        ref1 = module.lib.Reference(self.dst_root)
-        ref1.src = self.src_root
-        ref1.files = {}
-        ref1.files['file1'] = 'hash1'
-        ref1.files['file2'] = 'hash2'
-        self.assertFalse(ref1.data)
-        ref1.save(self.force_update)
-        ts1 = ref1.ts
+        src1 = os.path.join(self.src_root, 'src1')
+        src2 = os.path.join(self.src_root, 'src2')
+        dst1 = os.path.join(self.dst_root, 'dst1')
+        dst2 = os.path.join(self.dst_root, 'dst2')
+        os.makedirs(dst1, exist_ok=True)
+        os.makedirs(dst2, exist_ok=True)
+        s1 = module.lib.SaveReference(dst1)
+        s2 = module.lib.SaveReference(dst1)
+        s3 = module.lib.SaveReference(dst2)
+        self.assertEqual(s1, s2)
+        self.assertNotEqual(s1, s3)
 
-        ref2 = module.lib.Reference(self.dst_root)
-        self.assertEqual(ref2.data, ref1.data)
-        self.assertEqual(ref2.src, ref1.src)
-        self.assertEqual(ref2.files, ref1.files)
-        self.assertEqual(ref2.ts, ts1)
-
-        ref2.files['file3'] = 'hash3'
-        self.assertTrue('file3' not in ref2.data)
-        ts2 = ref2.ts
-        time.sleep(.1)
-        ref2.save(self.force_update)
-        mtime2 = os.path.getmtime(ref2.file)
-        self.assertTrue(ref2.ts > ts2)
-
-        ts3 = ref2.ts
-        time.sleep(.1)
-        ref2.save(force=self.force_update)
-        if self.force_update:
-            self.assertTrue(ref2.ts > ts3)
-            self.assertTrue(os.path.getmtime(ref2.file) > mtime2)
-        else:
-            self.assertEqual(ref2.ts, ts3)
-            self.assertEqual(os.path.getmtime(ref2.file), mtime2)
+        s1.init_files(src1)
+        s1.set_file(src1, 'file1', 'hash1')
+        s1.save()
+        s2.init_files(src2)
+        s2.set_file(src2, 'file2', 'hash2')
+        s2.save()
+        s3.init_files(src1)
+        s3.set_file(src1, 'file3', 'hash3')
+        s3.save()
+        self.assertTrue(src1 in s1.files)
+        self.assertTrue(src2 in s2.files)
+        self.assertTrue(src1 in s3.files)
+        self.assertEqual(s1.files, s2.files)
+        self.assertNotEqual(s1.files, s3.files)
 
 
 class SaveItemTestCase(BaseTestCase):
@@ -439,7 +439,7 @@ class SavegameTestCase(BaseTestCase):
     def _get_ref(self):
         print('*' * 80)
         pprint(self.meta.data)
-        return {d['src']: module.lib.Reference(d['dst']) for s, d in self.meta.data.items()}
+        return {d['src']: module.lib.SaveReference(d['dst']) for s, d in self.meta.data.items()}
 
     def test_ref(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
@@ -452,7 +452,7 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].files
+        ref_files = self._get_ref()[src1].get_src_files(src1)
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
         self.assertTrue(ref_files.get('dir1/file2'))
@@ -470,7 +470,7 @@ class SavegameTestCase(BaseTestCase):
 
         with patch.object(module.savers.filesystem.shutil, 'copy2', side_effect=side_copy):
             self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].files
+        ref_files = self._get_ref()[src1].get_src_files(src1)
         pprint(ref_files)
         self.assertFalse('dir1/file1' in ref_files)
         self.assertTrue(ref_files.get('dir1/file2'))
@@ -478,7 +478,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(ref_files.get('dir2/file2'))
 
         self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].files
+        ref_files = self._get_ref()[src1].get_src_files(src1)
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
         self.assertTrue(ref_files.get('dir1/file2'))
@@ -493,7 +493,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*file2*'))
 
         self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].files
+        ref_files = self._get_ref()[src1].get_src_files(src1)
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
         self.assertTrue(ref_files.get('dir2/file1'))
@@ -1125,13 +1125,116 @@ class LoadgameTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
-        ref = module.lib.Reference(os.path.dirname(ref_file))
+        ref = module.lib.SaveReference(os.path.dirname(ref_file))
         pprint(ref.data)
 
         shutil.rmtree(src_path)
         self._loadgame()
         src_paths = self._list_src_root_paths()
         self.assertTrue(any_str_matches(src_paths, '*src1*dir*file*'))
+        self._loadgame()
+
+
+class WorkflowTestCase(BaseTestCase):
+    def test_1(self):
+        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=2)
+        saves = [
+            {
+                'saver_id': 'filesystem',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src1'),
+                        ['*/dir1/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'filesystem',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src2'),
+                        ['*/dir2/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src1'),
+                        ['*/dir1/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+            },
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src2'),
+                        ['*/dir3/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+            },
+            {
+                'saver_id': 'filesystem_mirror',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src3'),
+                        ['*/dir1/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst3'),
+            },
+            {
+                'saver_id': 'filesystem_mirror',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src3'),
+                        ['*/dir2/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst3'),
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self._print_ref_files(dst_paths)
+
+        saves[0]['src_paths'] = [
+            [
+                os.path.join(self.src_root, 'src1'),
+                ['*/dir3/*'],
+                [],
+            ],
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self._print_ref_files(dst_paths)
+
+        shutil.rmtree(self.src_root)
+        self._loadgame()
+        src_paths = self._list_src_root_paths()
+        self.assertTrue(any_str_matches(src_paths, '*src1*dir1*file*'))
+        self.assertFalse(any_str_matches(src_paths, '*src1*dir2*file*'))
+        self.assertTrue(any_str_matches(src_paths, '*src1*dir3*file*'))
+        self.assertFalse(any_str_matches(src_paths, '*src2*dir1*file*'))
+        self.assertTrue(any_str_matches(src_paths, '*src2*dir2*file*'))
+        self.assertTrue(any_str_matches(src_paths, '*src2*dir3*file*'))
+        self.assertFalse(any_str_matches(src_paths, '*src3*dir1*file*'))
+        self.assertTrue(any_str_matches(src_paths, '*src3*dir2*file*'))
+        self.assertFalse(any_str_matches(src_paths, '*src3*dir3*file*'))
+
         self._loadgame()
 
 
@@ -1173,8 +1276,7 @@ class GitTestCase(BaseTestCase):
         with open(file, 'w') as fd:
             fd.write(content)
 
-    def test_1(self):
-        repo_dirname = 'repo'
+    def _create_repo(self, repo_dirname):
         repo_dir = os.path.join(self.src_root, repo_dirname)
         subprocess.run(['git', 'init', repo_dir], check=True)
         self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
@@ -1184,7 +1286,11 @@ class GitTestCase(BaseTestCase):
         self._create_file(os.path.join(repo_dir, 'dir2', 'file2.txt'), 'data2')
         subprocess.run(['git', 'add', 'dir2'], cwd=repo_dir, check=True)
         self._create_file(os.path.join(repo_dir, 'dir3', 'file3.txt'), 'data3')
+        return repo_dir
 
+    def test_1(self):
+        repo_dir1 = self._create_repo('repo1')
+        repo_dir2 = self._create_repo('repo2')
         saves = [
             {
                 'saver_id': 'git',
@@ -1192,17 +1298,19 @@ class GitTestCase(BaseTestCase):
                 'dst_path': self.dst_root,
             },
         ]
-        self._savegame(saves, force=True)
+        self._savegame(saves)
         dst_paths = self._list_dst_root_paths()
-        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
-        ref = module.lib.Reference(os.path.dirname(ref_file))
-        pprint(ref.data)
+        self._print_ref_files(dst_paths)
 
-        shutil.rmtree(repo_dir)
+        [shutil.rmtree(r) for r in [repo_dir1, repo_dir2]]
         self._loadgame()
         src_paths = self._list_src_root_paths()
-        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*.git/*'))
-        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*dir1*file1*'))
-        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*dir2*file2*'))
-        self.assertTrue(any_str_matches(src_paths, f'*{repo_dirname}*dir3*file3*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*.git/*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*dir1*file1*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*dir2*file2*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*dir3*file3*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*.git/*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*dir1*file1*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*dir2*file2*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*dir3*file3*'))
         self._loadgame()

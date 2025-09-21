@@ -1,4 +1,3 @@
-from copy import deepcopy
 from glob import glob
 import hashlib
 import logging
@@ -65,9 +64,8 @@ class GitSaver(BaseSaver):
     enable_purge = True
 
     def do_run(self):
-        self.ref.src = self.src
-        ref_files = deepcopy(self.ref.files)
-        self.ref.files = {}
+        ref_files = self.save_ref.get_src_files(self.src)
+        self.save_ref.init_files(self.src)
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
                 continue
@@ -77,7 +75,6 @@ class GitSaver(BaseSaver):
             name = os.path.basename(src_path)
             rel_path = f'{name}.bundle'
             dst_file = os.path.join(self.dst, rel_path)
-            self.dst_files.add(dst_file)
 
             ref_val = git.get_last_update_ts()
             try:
@@ -93,16 +90,15 @@ class GitSaver(BaseSaver):
                 logger.error(f'failed to create bundle for {src_path}: {e}')
                 self.report.add(self, src_file=src_path, dst_file=dst_file, code='failed')
             else:
-                self.ref.files[rel_path] = ref_val
+                self.save_ref.set_file(self.src, rel_path, ref_val)
 
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
                 dst_file = os.path.join(self.dst, rel_path)
-                self.dst_files.add(dst_file)
                 src_hash = get_file_hash(src_file)
                 dst_hash = get_file_hash(dst_file)
                 if dst_hash != src_hash and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
                     self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved')
-                self.ref.files[rel_path] = src_hash
+                self.save_ref.set_file(self.src, rel_path, src_hash)

@@ -6,7 +6,7 @@ import shutil
 import sys
 
 from savegame import NAME
-from savegame.lib import Reference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, validate_path
+from savegame.lib import SaveReference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, validate_path
 from savegame.loaders.base import BaseLoader
 
 HOME_DIR = os.path.expanduser('~')
@@ -33,17 +33,17 @@ class FilesystemLoader(BaseLoader):
             return path.replace(os.path.join(home_root, username), HOME_DIR, 1)
         return None
 
-    def _iterate_refs(self):
+    def _iterate_save_refs(self):
         if self.saver_cls.in_place:
-            yield Reference(self.root_dst_path)
+            yield SaveReference(self.root_dst_path)
             return
         for hostname in self.hostnames:
             if hostname != self.hostname:
                 continue
             for dst in glob(os.path.join(self.root_dst_path, hostname, '*')):
-                ref = Reference(dst)
-                if ref.src:
-                    yield ref
+                save_ref = SaveReference(dst)
+                if save_ref.files:
+                    yield save_ref
 
     def _is_file_loadable(self, dst_file, src_file):
         if not check_patterns(src_file, self.include, self.exclude):
@@ -53,50 +53,54 @@ class FilesystemLoader(BaseLoader):
         if get_file_hash(src_file) == get_file_hash(dst_file):
             return False, 'match'
         if not self.force:
-            if get_file_mtime(src_file) > get_file_mtime(dst_file):
+            if get_file_mtime(src_file, 0) > get_file_mtime(dst_file, 0):
                 return False, 'mismatch_src_newer'
             else:
                 return False, 'mismatch_dst_newer'
         return True, None
 
-    def _load_from_ref(self, ref):
-        try:
-            validate_path(ref.src)
-        except UnhandledPath:
-            self.report.add(self, ref=ref, rel_path=None, code='unhandled')
-            return
-        rel_paths = set()
+    def _load_from_save_ref(self, save_ref):
+        src_rel_paths = set()
         invalid_files = set()
-        for rel_path, ref_val in ref.files.items():
-            dst_file = os.path.join(ref.dst, rel_path)
-            if isinstance(ref_val, str):
-                is_valid = get_file_hash(dst_file) == ref_val
-            else:
-                is_valid = True
-            if is_valid:
-                rel_paths.add(rel_path)
-            else:
-                invalid_files.add(rel_path)
-                self.report.add(self, ref=ref, rel_path=rel_path, code='invalid')
+        for src, files in save_ref.files.items():
+            try:
+                validate_path(src)
+                is_src_valid = True
+            except UnhandledPath:
+                is_src_valid = False
+            for rel_path, ref_val in files.items():
+                if is_src_valid:
+                    dst_file = os.path.join(save_ref.dst, rel_path)
+                    if isinstance(ref_val, str):
+                        is_valid = get_file_hash(dst_file) == ref_val
+                    else:
+                        is_valid = True
+                else:
+                    is_valid = False
+                if is_valid:
+                    src_rel_paths.add((src, rel_path))
+                else:
+                    invalid_files.add(rel_path)
+                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='invalid')
         if invalid_files:
             return
-        if not rel_paths:
-            self.report.add(self, ref=ref, rel_path=None, code='no_files')
+        if not src_rel_paths:
+            self.report.add(self, save_ref=save_ref, src=None, rel_path=None, code='no_files')
             return
-        for rel_path in rel_paths:
-            src_file_raw = os.path.join(ref.src, rel_path)
+        for src, rel_path in src_rel_paths:
+            src_file_raw = os.path.join(src, rel_path)
             src_file = self._get_src_file_for_user(src_file_raw)
             if not src_file:
-                self.report.add(self, ref=ref, rel_path=rel_path, code='mismatch_username')
+                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='mismatch_username')
                 continue
-            dst_file = os.path.join(ref.dst, rel_path)
+            dst_file = os.path.join(save_ref.dst, rel_path)
             loadable, message = self._is_file_loadable(dst_file, src_file)
             if not loadable:
                 if message:
-                    self.report.add(self, ref=ref, rel_path=rel_path, code=message)
+                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code=message)
                 continue
             if self.dry_run:
-                self.report.add(self, ref=ref, rel_path=rel_path, code='loadable')
+                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loadable')
                 continue
             try:
                 if os.path.exists(src_file):
@@ -106,19 +110,19 @@ class FilesystemLoader(BaseLoader):
                     else:
                         os.rename(src_file, src_file_bak)
                         logger.warning(f'renamed existing src file {src_file} to {src_file_bak}')
-                    self.report.add(self, ref=ref, rel_path=rel_path, code='loaded_overwritten')
+                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded_overwritten')
                 else:
-                    self.report.add(self, ref=ref, rel_path=rel_path, code='loaded')
+                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded')
                 os.makedirs(os.path.dirname(src_file), exist_ok=True)
                 shutil.copy2(dst_file, src_file)
                 logger.info(f'loaded {src_file} from {dst_file}')
             except Exception as exc:
-                self.report.add(self, ref=ref, rel_path=rel_path, code='failed')
+                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')
                 logger.error(f'failed to load {src_file} from {dst_file}: {exc}')
 
     def run(self):
-        for ref in self._iterate_refs():
-            self._load_from_ref(ref)
+        for save_ref in self._iterate_save_refs():
+            self._load_from_save_ref(save_ref)
 
 
 class FilesystemMirrorLoader(FilesystemLoader):

@@ -9,7 +9,7 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, Reference, SaveReport,
+from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, SaveReference, SaveReport,
                           coalesce, get_file_mtime, get_hash, remove_path, validate_path)
 
 SAVE_DURATION_THRESHOLD = 30
@@ -51,8 +51,7 @@ class BaseSaver:
         self.include = include
         self.exclude = exclude
         self.dst = self._get_dst()
-        self.dst_files = set()
-        self.ref = Reference(self.dst)
+        self.save_ref = SaveReference(self.dst)
         self.key = self._get_key()
         self.meta = Metadata()
         self.report = SaveReport()
@@ -131,9 +130,9 @@ class BaseSaver:
             return False
         return True
 
-    def _requires_purge(self, path, cutoff_ts):
+    def _requires_purge(self, path, dst_files, cutoff_ts):
         if os.path.isfile(path):
-            if path in self.dst_files:
+            if path in dst_files:
                 return False
             name = os.path.basename(path)
             if name == REF_FILENAME:
@@ -145,13 +144,13 @@ class BaseSaver:
         return True
 
     def _purge_dst(self):
-        if not self.dst_files:
+        dst_files = self.save_ref.get_dst_files()
+        if not dst_files and not self.in_place:
             remove_path(self.dst)
-            logger.warning(f'purged {self.dst} because no paths were saved')
             return
         cufoff_ts = time.time() - coalesce(self.save_item.purge_delta, self.purge_delta)
         for path in walk_paths(self.dst):
-            if self._requires_purge(path, cufoff_ts):
+            if self._requires_purge(path, dst_files, cufoff_ts):
                 remove_path(path)
                 self.report.add(self, src_file=None, dst_file=path, code='removed')
 
@@ -160,15 +159,14 @@ class BaseSaver:
 
     def run(self):
         self.start_ts = time.time()
-        self.ref.save_src = self.src
-        self.ref.src = self.src
+        self.save_ref.init_files(self.src)
         logger.info(f'running {self.id=} {self.src=} {self.dst=}')
         try:
             self.do_run()
             if self.enable_purge and self.save_item.enable_purge:
                 self._purge_dst()
-            if os.path.exists(self.ref.dst):
-                self.ref.save(force=self.config.ALWAYS_UPDATE_REF)
+            if os.path.exists(self.save_ref.dst):
+                self.save_ref.save(force=self.config.ALWAYS_UPDATE_REF)
             self.success = True
         except Exception as e:
             logger.exception(f'failed to save {self.src}')

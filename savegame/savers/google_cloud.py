@@ -24,25 +24,23 @@ class GoogleDriveSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
+        self.save_ref.init_files(self.src)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 logger.debug(f'skipping not exportable file {file_meta["path"]}')
                 continue
             dst_file = os.path.join(self.dst, file_meta['path'])
-            self.dst_files.add(dst_file)
             dt = get_file_mtime_dt(dst_file)
             if dt and dt > file_meta['modified_time']:
                 continue
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             try:
-                gc.export_file(file_id=file_meta['id'],
-                               path=dst_file,
-                               mime_type=file_meta['mime_type'])
+                gc.export_file(file_id=file_meta['id'], path=dst_file, mime_type=file_meta['mime_type'])
                 self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='saved')
             except Exception as exc:
                 self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='failed')
                 logger.error(f'failed to save google drive file {file_meta["name"]}: {exc}')
-        self.ref.files = {os.path.relpath(f, self.dst): get_file_hash(f) for f in self.dst_files}
+            self.save_ref.set_file(self.src, file_meta['path'], get_file_hash(dst_file))
 
 
 class GoogleContactsSaver(BaseSaver):
@@ -51,16 +49,17 @@ class GoogleContactsSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
+        ref_files = self.save_ref.get_src_files(self.src)
+        self.save_ref.init_files(self.src)
         contacts = gc.list_contacts()
         data = to_json(contacts)
         rel_path = 'contacts.json'
         dst_file = os.path.join(self.dst, rel_path)
-        self.dst_files.add(dst_file)
         dst_hash = get_hash(data)
-        if not os.path.exists(dst_file) or dst_hash != self.ref.files.get(rel_path):
+        if not os.path.exists(dst_file) or dst_hash != ref_files.get(rel_path):
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
             self.report.add(self, src_file=rel_path, dst_file=dst_file, code='saved')
             logger.info(f'saved {len(contacts)} google contacts')
-        self.ref.files = {rel_path: dst_hash}
+        self.save_ref.set_file(self.src, rel_path, dst_hash)

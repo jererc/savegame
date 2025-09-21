@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from glob import glob
 import logging
 import os
+from pprint import pformat
 import sys
 import time
 
@@ -9,7 +10,7 @@ from svcutils.notifier import notify
 from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
-from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, Reference, SaveReport, InvalidPath,
+from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, SaveReference, SaveReport, InvalidPath,
                           UnhandledPath, coalesce, get_file_hash, get_file_mtime, get_file_size,
                           list_label_mountpoints, validate_path)
 from savegame.savers.base import get_saver_class, iterate_saver_classes
@@ -199,7 +200,7 @@ class SaveMonitor:
         dt = datetime.fromtimestamp(self.run_file.get_ts())
         return date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS)
 
-    def _iterate_hostname_refs(self):
+    def _iterate_hostname_save_refs(self):
         root_dst_paths = {s.root_dst_path for s in iterate_save_items(self.config)
                           if s.saver_cls.dst_type == 'local' and not s.saver_cls.in_place and s.root_dst_path and os.path.exists(s.root_dst_path)}
         for root_dst_path in root_dst_paths:
@@ -208,32 +209,32 @@ class SaveMonitor:
                 continue
             for hostname in sorted(os.listdir(root_dst_path)):
                 for dst in glob(os.path.join(root_dst_path, hostname, '*')):
-                    ref = Reference(dst)
-                    if not os.path.exists(ref.file):
-                        logger.error(f'missing ref file {ref.file}')
+                    save_ref = SaveReference(dst)
+                    if not os.path.exists(save_ref.file):
+                        logger.error(f'missing save ref file {save_ref.file}')
                         continue
-                    yield hostname, ref
+                    yield hostname, save_ref
 
-    def _get_size(self, ref):
+    def _get_size(self, save_ref, files):
         try:
-            sizes = [get_file_size(os.path.join(ref.dst, get_local_path(r)), default=0) for r in ref.files.keys()]
+            sizes = [get_file_size(os.path.join(save_ref.dst, get_local_path(r)), default=0) for r in files.keys()]
             return float(f'{sum(sizes) / 1024 / 1024:.02f}')
         except Exception:
-            logger.exception(f'failed to get {ref.dst} size')
+            logger.exception(f'failed to get {save_ref.dst} size')
             return -1
 
-    def _check_file(self, hostname, ref, rel_path, ref_hash):
+    def _check_file(self, hostname, save_ref, src, rel_path, ref_hash):
         if not isinstance(ref_hash, str):
             return
         rel_path = get_local_path(rel_path)
-        dst_file = os.path.join(ref.dst, rel_path)
+        dst_file = os.path.join(save_ref.dst, rel_path)
         if not os.path.exists(dst_file):
             return f'missing dst file {dst_file}'
         dst_hash = get_file_hash(dst_file)
         if dst_hash != ref_hash:
             return f'conflicting dst file {dst_file}'
-        if hostname == HOSTNAME and os.path.exists(ref.src):
-            src_file = os.path.join(ref.src, rel_path)
+        if hostname == HOSTNAME and os.path.exists(src):
+            src_file = os.path.join(src, rel_path)
             if not os.path.exists(src_file):
                 return f'missing src file {src_file}'
             if get_file_hash(src_file) != ref_hash:
@@ -252,25 +253,26 @@ class SaveMonitor:
 
     def _generate_report(self):
         saves = []
-        for hostname, ref in self._iterate_hostname_refs():
+        for hostname, save_ref in self._iterate_hostname_save_refs():
             mtimes = []
             desynced = []
-            for rel_path, ref_hash in ref.files.items():
-                dst_file = os.path.join(ref.dst, get_local_path(rel_path))
-                if os.path.exists(dst_file):
-                    mtimes.append(get_file_mtime(dst_file))
-                error = self._check_file(hostname, ref, rel_path, ref_hash)
-                if error:
-                    desynced.append(rel_path)
-                    logger.error(f'inconsistency in {ref.dst}: {error}')
-            saves.append({
-                'hostname': hostname,
-                'src': ref.save_src,
-                'modified': max(mtimes) if mtimes else 0,
-                'size_MB': self._get_size(ref),
-                'files': len(ref.files),
-                'desynced': len(desynced),
-            })
+            for src, files in save_ref.files.items():
+                for rel_path, ref_hash in files.items():
+                    dst_file = os.path.join(save_ref.dst, get_local_path(rel_path))
+                    if os.path.exists(dst_file):
+                        mtimes.append(get_file_mtime(dst_file))
+                    error = self._check_file(hostname, save_ref, src, rel_path, ref_hash)
+                    if error:
+                        desynced.append(rel_path)
+                        logger.error(f'inconsistency in {save_ref.dst}: {error}')
+                saves.append({
+                    'hostname': hostname,
+                    'src': src,
+                    'modified': max(mtimes) if mtimes else 0,
+                    'size_MB': self._get_size(save_ref, files),
+                    'files': len(files),
+                    'desynced': len(desynced),
+                })
         orphan_dsts = sorted(self._get_orphan_dsts())
         for orphan_dst in orphan_dsts:
             logger.warning(f'no matching save: {orphan_dst}')
@@ -279,6 +281,7 @@ class SaveMonitor:
             'desynced': [r for r in saves if r['desynced']],
             'orphans': orphan_dsts,
         }
+        logger.debug(f'monitor report:\n{pformat(report)}')
         report['message'] = ', '.join([f'{k}: {len(report[k])}' for k in ('saves', 'desynced', 'orphans')])
         return report
 

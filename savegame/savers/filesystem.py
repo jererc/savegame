@@ -64,15 +64,12 @@ class FilesystemSaver(BaseSaver):
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
-        # self.report.add(self, src_file=None, dst_file=None, code='files')
-        self.ref.src = src
-        self.ref.files = {}
+        self.save_ref.init_files(self.src)
         file_compare_callable = self._get_file_compare_callable()
         for src_file in sorted(src_files):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
-            self.dst_files.add(dst_file)
             try:
                 match, ref_val = file_compare_callable(src_file, dst_file)
                 if not match and self._check_src_file(src_file, dst_file):
@@ -85,7 +82,7 @@ class FilesystemSaver(BaseSaver):
                     if duration > COPY_DURATION_THRESHOLD:
                         logger.warning(f'copied {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB) in {duration:.02f} seconds')
                     self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved')
-                self.ref.files[rel_path] = ref_val
+                self.save_ref.set_file(self.src, rel_path, ref_val)
             except Exception:
                 self.report.add(self, src_file=src_file, dst_file=dst_file, code='failed')
                 logger.exception(f'failed to save {src_file}')
