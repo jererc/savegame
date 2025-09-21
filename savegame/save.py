@@ -267,7 +267,7 @@ class SaveMonitor:
                         logger.error(f'inconsistency in {save_ref.dst}: {error}')
                 saves.append({
                     'hostname': hostname,
-                    'src': src,
+                    'src': os.path.join(src, list(files.keys())[0]) if len(files) == 1 else src,
                     'modified': max(mtimes) if mtimes else 0,
                     'size_MB': self._get_size(save_ref, files),
                     'files': len(files),
