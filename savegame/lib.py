@@ -164,7 +164,13 @@ class SaveReference:
                 self.data = {}
         self.files = defaultdict(dict, deepcopy(self.data.get('files', {})))
 
+    def _purge_files(self):
+        for src, files in self.files.items():
+            self.files[src] = {k: v for k, v in files.items() if os.path.exists(os.path.join(self.dst, k))}
+        self.files = {k: v for k, v in self.files.items() if v}
+
     def save(self, force=False):
+        self._purge_files()
         data = {
             'files': dict(self.files),
         }

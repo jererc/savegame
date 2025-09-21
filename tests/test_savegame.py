@@ -138,11 +138,14 @@ class BaseTestCase(unittest.TestCase):
         print(f'files at {self.dst_root}:\n{pformat(res)}')
         return res
 
-    def _print_ref_files(self, dst_paths):
+    def _list_ref_files(self, dst_paths):
+        res = {}
         ref_files = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME]
         for ref_file in sorted(ref_files):
-            ref = module.lib.SaveReference(os.path.dirname(ref_file))
-            print(f'{ref_file=}:\n{pformat(dict(ref.files))}')
+            save_ref = module.lib.SaveReference(os.path.dirname(ref_file))
+            res[save_ref.dst] = dict(save_ref.files)
+        print(f'save ref files:\n{pformat(res)}')
+        return res
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
@@ -226,6 +229,11 @@ class MetadataTestCase(BaseTestCase):
 
 
 class SaveReferenceTestCase(BaseTestCase):
+    def _create_file(self, file, content):
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+        with open(file, 'w') as fd:
+            fd.write(content)
+
     def test_1(self):
         src1 = os.path.join(self.src_root, 'src1')
         src2 = os.path.join(self.src_root, 'src2')
@@ -240,14 +248,18 @@ class SaveReferenceTestCase(BaseTestCase):
         self.assertNotEqual(s1, s3)
 
         s1.init_files(src1)
+        self._create_file(os.path.join(dst1, 'file1'), 'content1')
         s1.set_file(src1, 'file1', 'hash1')
         s1.save()
         s2.init_files(src2)
+        self._create_file(os.path.join(dst1, 'file2'), 'content2')
         s2.set_file(src2, 'file2', 'hash2')
         s2.save()
         s3.init_files(src1)
+        self._create_file(os.path.join(dst2, 'file3'), 'content3')
         s3.set_file(src1, 'file3', 'hash3')
         s3.save()
+        print(s1.files)
         self.assertTrue(src1 in s1.files)
         self.assertTrue(src2 in s2.files)
         self.assertTrue(src1 in s3.files)
@@ -959,6 +971,69 @@ class SavegameTestCase(BaseTestCase):
                 contents.append(fd.read())
         self.assertTrue(all(c == dst_content for c in contents))
 
+    def test_purge_ref_files(self):
+        self._generate_src_data(index_start=1, nb_srcs=4, nb_dirs=3, nb_files=2)
+        src1 = os.path.join(self.src_root, 'src1')
+        src2 = os.path.join(self.src_root, 'src2')
+        saves = [
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [
+                    [
+                        src1,
+                        [],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+                'purge_delta': 0,
+            },
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [
+                    [
+                        src2,
+                        [],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+                'purge_delta': 0,
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        ref_files = self._list_ref_files(dst_paths)
+        self.assertEqual(len(ref_files[os.path.join(self.dst_root, 'dst2')][src1]), 6)
+        self.assertEqual(len(ref_files[os.path.join(self.dst_root, 'dst2')][src2]), 6)
+
+        saves[0]['src_paths'] = [
+            [
+                src1,
+                ['*/dir1/*'],
+                [],
+            ],
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        ref_files = self._list_ref_files(dst_paths)
+        self.assertEqual(len(ref_files[os.path.join(self.dst_root, 'dst2')][src1]), 2)
+        self.assertEqual(len(ref_files[os.path.join(self.dst_root, 'dst2')][src2]), 6)
+
+        saves[0]['src_paths'] = [
+            [
+                src1,
+                ['*/dirx/*'],
+                [],
+            ],
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        ref_files = self._list_ref_files(dst_paths)
+        self.assertFalse(src1 in ref_files[os.path.join(self.dst_root, 'dst2')])
+        self.assertEqual(len(ref_files[os.path.join(self.dst_root, 'dst2')][src2]), 6)
+
 
 class LoadgameTestCase(BaseTestCase):
     def _savegame_with_data(self, run_delta=0, **kwargs):
@@ -1216,7 +1291,7 @@ class WorkflowTestCase(BaseTestCase):
         [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
-        self._print_ref_files(dst_paths)
+        self._list_ref_files(dst_paths)
 
         saves[0]['src_paths'] = [
             [
@@ -1227,7 +1302,7 @@ class WorkflowTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
-        self._print_ref_files(dst_paths)
+        self._list_ref_files(dst_paths)
 
         shutil.rmtree(self.src_root)
         self._loadgame()
@@ -1311,7 +1386,7 @@ class GitTestCase(BaseTestCase):
         ]
         self._savegame(saves)
         dst_paths = self._list_dst_root_paths()
-        self._print_ref_files(dst_paths)
+        self._list_ref_files(dst_paths)
 
         [shutil.rmtree(r) for r in [repo_dir1, repo_dir2]]
         self._loadgame()
