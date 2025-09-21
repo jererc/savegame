@@ -1137,7 +1137,7 @@ class LoadgameTestCase(BaseTestCase):
 
 class WorkflowTestCase(BaseTestCase):
     def test_1(self):
-        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=2)
+        self._generate_src_data(index_start=1, nb_srcs=4, nb_dirs=3, nb_files=2)
         saves = [
             {
                 'saver_id': 'filesystem',
@@ -1158,6 +1158,13 @@ class WorkflowTestCase(BaseTestCase):
                         ['*/dir2/*'],
                         [],
                     ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'filesystem',
+                'src_paths': [
+                    os.path.join(self.src_root, 'src4', 'dir1', 'file1'),
                 ],
                 'dst_path': os.path.join(self.dst_root, 'dst1'),
             },
@@ -1228,9 +1235,13 @@ class WorkflowTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(src_paths, '*src1*dir1*file*'))
         self.assertFalse(any_str_matches(src_paths, '*src1*dir2*file*'))
         self.assertTrue(any_str_matches(src_paths, '*src1*dir3*file*'))
+
+        self.assertTrue(any_str_matches(src_paths, '*src4*dir1*file1*'))
+
         self.assertFalse(any_str_matches(src_paths, '*src2*dir1*file*'))
         self.assertTrue(any_str_matches(src_paths, '*src2*dir2*file*'))
         self.assertTrue(any_str_matches(src_paths, '*src2*dir3*file*'))
+
         self.assertFalse(any_str_matches(src_paths, '*src3*dir1*file*'))
         self.assertTrue(any_str_matches(src_paths, '*src3*dir2*file*'))
         self.assertFalse(any_str_matches(src_paths, '*src3*dir3*file*'))
