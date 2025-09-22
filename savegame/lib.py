@@ -268,7 +268,7 @@ class SaveReport(BaseReport):
             return os.path.relpath(file, dir) if file and dir else (file or '')
 
         rows = []
-        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src_file'] or x['dst_file'])):
+        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['src_file'] or x['dst_file'])):
             if codes and item['code'] not in codes:
                 continue
             rel_path = get_relpath(item['src_file'], item['src']) or get_relpath(item['dst_file'], item['dst'])
