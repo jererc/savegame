@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='savegame',
-    version='2025.09.22.161346',
+    version='2025.09.22.184257',
     author='jererc',
     author_email='jererc@gmail.com',
     url='https://github.com/jererc/savegame',
