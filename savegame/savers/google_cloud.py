@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import logging
 import os
+import time
 
 from savegame.lib import get_file_hash, get_file_mtime, get_hash, to_json
 from savegame.savers.base import BaseSaver
@@ -33,9 +34,10 @@ class GoogleDriveSaver(BaseSaver):
             dt = get_file_mtime_dt(dst_file)
             if not dt or dt < file_meta['modified_time']:
                 os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                start_ts = time.time()
                 try:
                     gc.export_file(file_id=file_meta['id'], path=dst_file, mime_type=file_meta['mime_type'])
-                    self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='saved')
+                    self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='saved', start_ts=start_ts)
                 except Exception as exc:
                     self.report.add(self, src_file=file_meta['path'], dst_file=dst_file, code='failed')
                     logger.error(f'failed to save google drive file {file_meta["name"]}: {exc}')
@@ -50,6 +52,7 @@ class GoogleContactsSaver(BaseSaver):
         gc = get_google_cloud(self.config)
         ref_files = self.save_ref.get_files(self.src)
         self.save_ref.reset_files(self.src)
+        start_ts = time.time()
         contacts = gc.list_contacts()
         data = to_json(contacts)
         rel_path = 'contacts.json'
@@ -59,6 +62,6 @@ class GoogleContactsSaver(BaseSaver):
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
-            self.report.add(self, src_file=rel_path, dst_file=dst_file, code='saved')
+            self.report.add(self, src_file=rel_path, dst_file=dst_file, code='saved', start_ts=start_ts)
             logger.info(f'saved {len(contacts)} google contacts')
         self.save_ref.set_file(self.src, rel_path, dst_hash)

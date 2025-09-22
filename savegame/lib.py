@@ -265,7 +265,9 @@ class SaveReport(BaseReport):
 
     def print_table(self, codes=None):
         def get_relpath(file, dir):
-            return os.path.relpath(file, dir) if file and dir else (file or '')
+            if dir and file and (dir.startswith('/') or dir[1:3] == ':\\'):
+                return os.path.relpath(file, dir)
+            return file or ''
 
         rows = []
         for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['src_file'] or x['dst_file'])):

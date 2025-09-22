@@ -82,12 +82,12 @@ class VirtualboxSaver(BaseSaver):
                 continue
             tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
             remove_path(tmp_file)
-            start_ts = time.time()
             logger.debug(f'exporting {vm=} to {dst_file=}')
             notify(title=f'exporting vm {vm}',
                    body=f'file: {dst_file}',
                    app_name=NAME,
                    replace_key=notif_key)
+            start_ts = time.time()
             try:
                 vb.export_vm(vm, tmp_file)
             except Exception as e:
