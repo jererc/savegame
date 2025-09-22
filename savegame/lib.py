@@ -244,7 +244,7 @@ class BaseReport:
 
         rows = []
         for code, v in agg.items():
-            for id, count in v.items():
+            for id, count in sorted(v.items()):
                 rows.append(get_row({'code': code, 'id': id, 'count': count}))
         if rows:
             data = '\n'.join([get_row({'code': 'code', 'id': 'id', 'count': 'count'})] + rows)
