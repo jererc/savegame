@@ -60,7 +60,7 @@ class FilesystemLoader(BaseLoader):
                 return False, 'mismatch_dst_newer'
         return True, None
 
-    def _get_src_rel_paths(self, save_ref):
+    def _get_src_and_rel_paths(self, save_ref):
         src_rel_paths = set()
         invalid_files = set()
         for src, files in save_ref.files.items():
@@ -90,7 +90,7 @@ class FilesystemLoader(BaseLoader):
         return src_rel_paths
 
     def _load_from_save_ref(self, save_ref):
-        for src, rel_path in self._get_src_rel_paths(save_ref):
+        for src, rel_path in self._get_src_and_rel_paths(save_ref):
             raw_src_file = os.path.join(src, rel_path)
             src_file = self._get_src_file_for_user(raw_src_file)
             if not src_file:
@@ -111,14 +111,11 @@ class FilesystemLoader(BaseLoader):
                     if not os.path.exists(src_file_bak):
                         os.rename(src_file, src_file_bak)
                         logger.warning(f'renamed existing src file {src_file} to {src_file_bak}')
-                    message = 'loaded_overwritten'
-                else:
-                    message = 'loaded'
                 os.makedirs(os.path.dirname(src_file), exist_ok=True)
                 start_ts = time.time()
                 logger.info(f'copying {dst_file} to {src_file} ({get_file_size(dst_file) / 1024 / 1024:.02f} MB)')
                 shutil.copy2(dst_file, src_file)
-                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code=message, start_ts=start_ts)
+                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded', start_ts=start_ts)
             except Exception:
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')
                 logger.exception(f'failed to load {src_file} from {dst_file}')
