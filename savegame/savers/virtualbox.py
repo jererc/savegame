@@ -93,12 +93,13 @@ class VirtualboxSaver(BaseSaver):
             except Exception as e:
                 logger.exception(f'failed to export {vm=}')
                 errors.append(f'{vm}: {e}')
+                self.report.add(self, src_file=rel_path, dst_file=dst_file, code='failed')
                 continue
             remove_path(dst_file)
             os.rename(tmp_file, dst_file)
             self.save_ref.set_file(self.src, rel_path, get_file_mtime(dst_file))
+            self.report.add(self, src_file=rel_path, dst_file=dst_file, code='saved', start_ts=start_ts)
             duration = time.time() - start_ts
-            logger.debug(f'exported {vm=} to {dst_file=} in {duration:.02f} seconds')
             notify(title=f'exported vm {vm}',
                    body=f'file: {dst_file}, size: {os.path.getsize(dst_file) / 1024 / 1024:.02f} MB, duration: {duration:.02f} seconds',
                    app_name=NAME,
