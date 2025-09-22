@@ -7,7 +7,8 @@ import time
 from savegame.lib import REF_FILENAME, check_patterns, coalesce, get_file_hash, get_file_size
 from savegame.savers.base import BaseSaver
 
-LIST_DURATION_THRESHOLD = 30
+LOG_LIST_DURATION_THRESHOLD = 30
+LOG_FILE_SIZE_THRESHOLD = 10 * 1024 * 1024
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class FilesystemSaver(BaseSaver):
             raw_files = list(walk_files(self.src))
         files = {f for f in raw_files if self._is_file_valid(f)}
         duration = time.time() - start_ts
-        if duration > LIST_DURATION_THRESHOLD:
+        if duration > LOG_LIST_DURATION_THRESHOLD:
             logger.warning(f'listed {len(files)} files for {self.src=} {self.include=} {self.exclude=} in {duration:.1f} seconds')
         return src, files
 
@@ -72,7 +73,8 @@ class FilesystemSaver(BaseSaver):
                 if not match and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
-                    logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')
+                    if file_size > LOG_FILE_SIZE_THRESHOLD:
+                        logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved', start_ts=start_ts)
