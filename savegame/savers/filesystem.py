@@ -63,7 +63,7 @@ class FilesystemSaver(BaseSaver):
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
-        self.save_ref.init_files(src)
+        self.save_ref.reset_files(src)
         file_compare_callable = self._get_file_compare_callable()
         for src_file in sorted(src_files):
             self._check_dst_volume()

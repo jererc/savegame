@@ -181,13 +181,13 @@ class SaveReference:
             json.dump(data, fd, sort_keys=True, indent=4)
         self._load(data)
 
-    def init_files(self, src):
+    def reset_files(self, src):
         self.files[src] = {}
 
     def set_file(self, src, rel_path, ref_val):
         self.files[src][rel_path] = ref_val
 
-    def get_src_files(self, src):
+    def get_files(self, src):
         return self.files.get(src, {})
 
     def get_dst_files(self, src=None):
@@ -271,7 +271,8 @@ class SaveReport(BaseReport):
         for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src_file'] or x['dst_file'])):
             if codes and item['code'] not in codes:
                 continue
-            rows.append(self._get_row(item | {'rel_path': get_relpath(item['src_file'], item['src']) or get_relpath(item['dst_file'], item['dst'])}))
+            rel_path = get_relpath(item['src_file'], item['src']) or get_relpath(item['dst_file'], item['dst'])
+            rows.append(self._get_row(item | {'rel_path': rel_path}))
         if rows:
             data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration')})] + rows)
             logger.info(f'report:\n{data}')

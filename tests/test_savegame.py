@@ -247,15 +247,15 @@ class SaveReferenceTestCase(BaseTestCase):
         self.assertEqual(s1, s2)
         self.assertNotEqual(s1, s3)
 
-        s1.init_files(src1)
+        s1.reset_files(src1)
         self._create_file(os.path.join(dst1, 'file1'), 'content1')
         s1.set_file(src1, 'file1', 'hash1')
         s1.save()
-        s2.init_files(src2)
+        s2.reset_files(src2)
         self._create_file(os.path.join(dst1, 'file2'), 'content2')
         s2.set_file(src2, 'file2', 'hash2')
         s2.save()
-        s3.init_files(src1)
+        s3.reset_files(src1)
         self._create_file(os.path.join(dst2, 'file3'), 'content3')
         s3.set_file(src1, 'file3', 'hash3')
         s3.save()
@@ -448,7 +448,7 @@ class SavegameTestCase(BaseTestCase):
             print('dst data:')
             pprint(set(walk_paths(data['dst'])))
 
-    def _get_ref(self):
+    def _get_save_refs(self):
         print('*' * 80)
         pprint(self.meta.data)
         return {d['src']: module.lib.SaveReference(d['dst']) for s, d in self.meta.data.items()}
@@ -464,7 +464,7 @@ class SavegameTestCase(BaseTestCase):
             },
         ]
         self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].get_src_files(src1)
+        ref_files = self._get_save_refs()[src1].get_files(src1)
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
         self.assertTrue(ref_files.get('dir1/file2'))
@@ -482,7 +482,7 @@ class SavegameTestCase(BaseTestCase):
 
         with patch.object(module.savers.filesystem.shutil, 'copy2', side_effect=side_copy):
             self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].get_src_files(src1)
+        ref_files = self._get_save_refs()[src1].get_files(src1)
         pprint(ref_files)
         self.assertFalse('dir1/file1' in ref_files)
         self.assertTrue(ref_files.get('dir1/file2'))
@@ -490,7 +490,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertTrue(ref_files.get('dir2/file2'))
 
         self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].get_src_files(src1)
+        ref_files = self._get_save_refs()[src1].get_files(src1)
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
         self.assertTrue(ref_files.get('dir1/file2'))
@@ -505,7 +505,7 @@ class SavegameTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*file2*'))
 
         self._savegame(saves=saves)
-        ref_files = self._get_ref()[src1].get_src_files(src1)
+        ref_files = self._get_save_refs()[src1].get_files(src1)
         pprint(ref_files)
         self.assertTrue(ref_files.get('dir1/file1'))
         self.assertTrue(ref_files.get('dir2/file1'))
