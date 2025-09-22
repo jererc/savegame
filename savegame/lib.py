@@ -160,7 +160,7 @@ class SaveReference:
                 assert 'src' not in self.data, f'deprecated ref file {self.file}'
             except Exception as e:
                 os.remove(self.file)
-                logger.exception(f'removed invalid ref file {self.file}: {e}')
+                logger.error(f'removed invalid ref file {self.file}: {e}')
                 self.data = {}
         self.files = defaultdict(dict, deepcopy(self.data.get('files', {})))
 
