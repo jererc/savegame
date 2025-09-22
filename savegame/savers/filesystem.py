@@ -38,9 +38,7 @@ class FilesystemSaver(BaseSaver):
         files = {f for f in raw_files if self._is_file_valid(f)}
         duration = time.time() - start_ts
         if duration > LIST_DURATION_THRESHOLD:
-            logger.warning(f'listed {len(files)} files from {self.src} '
-                           f'(include: {self.include}, exclude: {self.exclude}) '
-                           f'in {duration:.02f} seconds')
+            logger.warning(f'listed {len(files)} files for {self.src=} {self.include=} {self.exclude=} in {duration:.1f} seconds')
         return src, files
 
     def _check_dst_volume(self):

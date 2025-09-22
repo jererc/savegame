@@ -12,7 +12,6 @@ from savegame import NAME
 from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, SaveReference, SaveReport,
                           coalesce, get_file_mtime, get_hash, remove_path, validate_path)
 
-SAVE_DURATION_THRESHOLD = 30
 MTIME_DRIFT_TOLERANCE = 10
 
 logger = logging.getLogger(__name__)
@@ -173,9 +172,6 @@ class BaseSaver:
             self.success = False
         self.end_ts = time.time()
         self._update_meta()
-        duration = self.end_ts - self.start_ts
-        if duration > SAVE_DURATION_THRESHOLD:
-            logger.warning(f'saved {self.src} to {self.dst} in {duration:.02f} seconds')
 
 
 def iterate_saver_classes(package='savegame.savers'):
@@ -188,8 +184,8 @@ def iterate_saver_classes(package='savegame.savers'):
                 for name, obj in inspect.getmembers(module, inspect.isclass):
                     if issubclass(obj, BaseSaver) and obj.id:
                         yield obj
-            except ImportError as exc:
-                logger.error(f'failed to import {module_name}: {exc}')
+            except ImportError as e:
+                logger.error(f'failed to import {module_name}: {e}')
 
 
 def get_saver_class(saver_id, package='savegame.savers'):
