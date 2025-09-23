@@ -39,7 +39,7 @@ class FilesystemSaver(BaseSaver):
         files = {f for f in raw_files if self._is_file_valid(f)}
         duration = time.time() - start_ts
         if duration > LOG_LIST_DURATION_THRESHOLD:
-            logger.warning(f'listed {len(files)} files for {self.src=} {self.include=} {self.exclude=} in {duration:.1f} seconds')
+            logger.warning(f'listed {len(files)} files for {self.src=} {self.include=} {self.exclude=} in {duration:.1f}s')
         return src, files
 
     def _check_dst_volume(self):
@@ -60,16 +60,22 @@ class FilesystemSaver(BaseSaver):
             'shallow': self._compare_files_using_filecmp,
         }[coalesce(self.save_item.file_compare_method, self.file_compare_method)]
 
+    def _set_ref_file(self, src, rel_path, ref_val):
+        if ref_val:
+            self.save_ref.set_file(src, rel_path, ref_val)
+
     def do_run(self):
         src, src_files = self._get_src_and_files()
+        ref_files = self.save_ref.get_files(src)
         self.save_ref.reset_files(src)
         file_compare_callable = self._get_file_compare_callable()
         for src_file in sorted(src_files):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
+            ref_val = ref_files.get(rel_path)
             dst_file = os.path.join(self.dst, rel_path)
             try:
-                match, ref_val = file_compare_callable(src_file, dst_file)
+                match, new_ref_val = file_compare_callable(src_file, dst_file)
                 if not match and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
@@ -77,11 +83,12 @@ class FilesystemSaver(BaseSaver):
                         logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
+                    ref_val = new_ref_val
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
-                self.save_ref.set_file(src, rel_path, ref_val)
             except Exception:
-                self.report.add(self, rel_path=rel_path, code='failed')
                 logger.exception(f'failed to save {src_file}')
+                self.report.add(self, rel_path=rel_path, code='failed')
+            self._set_ref_file(src, rel_path, ref_val)
 
 
 class FilesystemMirrorSaver(FilesystemSaver):

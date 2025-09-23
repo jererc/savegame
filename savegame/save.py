@@ -185,7 +185,7 @@ class SaveHandler:
                    body=', '.join(sorted(volume_labels)),
                    app_name=NAME,
                    replace_key='saved-volumes')
-        logger.info(f'completed {len(runnable_savers)}/{len(savers)} saves in {time.time() - start_ts:.02f} seconds')
+        logger.info(f'completed {len(runnable_savers)}/{len(savers)} saves in {time.time() - start_ts:.02f}s')
 
 
 class SaveMonitor:
@@ -290,7 +290,7 @@ class SaveMonitor:
         report = self._generate_report()
         notify(title='status', body=report['message'], app_name=NAME, replace_key='status')
         self.run_file.touch()
-        logger.info(f'completed save monitor in {time.time() - start_ts:.02f} seconds')
+        logger.info(f'completed save monitor in {time.time() - start_ts:.02f}s')
 
     def get_status(self, order_by='hostname,modified'):
         report = self._generate_report()

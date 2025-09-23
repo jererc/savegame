@@ -67,42 +67,41 @@ class VirtualboxSaver(BaseSaver):
     retry_delta = 30
 
     def do_run(self):
+        ref_files = self.save_ref.get_files(self.src)
+        self.save_ref.reset_files(self.src)
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
-        errors = []
         for vm in vb.list_vms():
             notif_key = f'{self.id}-{vm}'
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
                 continue
             rel_path = f'{vm}.ova'
+            ref_val = ref_files.get(rel_path)
             dst_file = os.path.join(self.dst, rel_path)
             if vm in running_vms:
-                errors.append(f'{vm} is running')
-                continue
-            tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
-            remove_path(tmp_file)
-            logger.debug(f'exporting {vm=} to {dst_file=}')
-            notify(title=f'exporting vm {vm}',
-                   body=f'file: {dst_file}',
-                   app_name=NAME,
-                   replace_key=notif_key)
-            start_ts = time.time()
-            try:
-                vb.export_vm(vm, tmp_file)
-            except Exception as e:
-                logger.exception(f'failed to export {vm=}')
-                errors.append(f'{vm}: {e}')
-                self.report.add(self, rel_path=rel_path, code='failed')
-                continue
-            remove_path(dst_file)
-            os.rename(tmp_file, dst_file)
-            self.save_ref.set_file(self.src, rel_path, get_file_mtime(dst_file))
-            self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
-            duration = time.time() - start_ts
-            notify(title=f'exported vm {vm}',
-                   body=f'file: {dst_file}, size: {os.path.getsize(dst_file) / 1024 / 1024:.02f} MB, duration: {duration:.02f} seconds',
-                   app_name=NAME,
-                   replace_key=notif_key)
-        if errors:
-            raise Exception(f'{", ".join(errors)}')
+                notify(title=f'cannot export vm {vm}', body=f'{vm} is running', app_name=NAME, replace_key=notif_key)
+            else:
+                tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
+                remove_path(tmp_file)
+                logger.info(f'exporting {vm=} to {dst_file=}')
+                notify(title=f'exporting vm {vm}', body=f'file: {dst_file}', app_name=NAME, replace_key=notif_key)
+                start_ts = time.time()
+                try:
+                    vb.export_vm(vm, tmp_file)
+                except Exception as e:
+                    logger.exception(f'failed to export {vm=}')
+                    self.report.add(self, rel_path=rel_path, code='failed')
+                    notify(title=f'failed to export vm {vm}', body=str(e), app_name=NAME, replace_key=notif_key)
+                else:
+                    remove_path(dst_file)
+                    os.rename(tmp_file, dst_file)
+                    ref_val = get_file_mtime(dst_file)
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
+                    notify(
+                        title=f'exported vm {vm}',
+                        body=f'file: {dst_file}, size: {os.path.getsize(dst_file) / 1024 / 1024:.02f} MB, duration: {time.time() - start_ts:.02f}s',
+                        app_name=NAME,
+                        replace_key=notif_key,
+                    )
+            self.save_ref.set_file(self.src, rel_path, ref_val)
