@@ -227,8 +227,15 @@ class BaseReport:
             f'{row["duration"]:>8}',
         ])
 
-    def print_table(self):
-        raise NotImplementedError()
+    def print_table(self, codes=None):
+        rows = []
+        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'])):
+            if codes and item['code'] not in codes:
+                continue
+            rows.append(self._get_row(item))
+        if rows:
+            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration')})] + rows)
+            logger.info(f'report:\n{data}')
 
     def print_summary_table(self):
         agg = defaultdict(lambda: defaultdict(int))
@@ -252,32 +259,15 @@ class BaseReport:
 
 
 class SaveReport(BaseReport):
-    def add(self, saver, src_file, dst_file, code, start_ts=None):
+    def add(self, saver, rel_path, code, start_ts=None):
         self.data.append({
             'id': saver.id,
             'src': saver.src,
             'dst': saver.dst,
-            'src_file': src_file,
-            'dst_file': dst_file,
+            'rel_path': rel_path,
             'code': code,
             'duration': f'{time.time() - start_ts:.1f}' if start_ts else '',
         })
-
-    def print_table(self, codes=None):
-        def get_relpath(file, dir):
-            if dir and file and (dir.startswith('/') or dir[1:3] == ':\\'):
-                return os.path.relpath(file, dir)
-            return file or ''
-
-        rows = []
-        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['src_file'] or x['dst_file'])):
-            if codes and item['code'] not in codes:
-                continue
-            rel_path = get_relpath(item['src_file'], item['src']) or get_relpath(item['dst_file'], item['dst'])
-            rows.append(self._get_row(item | {'rel_path': rel_path}))
-        if rows:
-            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration')})] + rows)
-            logger.info(f'report:\n{data}')
 
 
 class LoadReport(BaseReport):
@@ -288,15 +278,5 @@ class LoadReport(BaseReport):
             'dst': save_ref.dst,
             'rel_path': rel_path,
             'code': code,
-            'duration': float(f'{time.time() - start_ts:.1f}') if start_ts else '',
+            'duration': f'{time.time() - start_ts:.1f}' if start_ts else '',
         })
-
-    def print_table(self, codes=None):
-        rows = []
-        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'])):
-            if codes and item['code'] not in codes:
-                continue
-            rows.append(self._get_row(item))
-        if rows:
-            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'rel_path', 'dst', 'duration')})] + rows)
-            logger.info(f'report:\n{data}')

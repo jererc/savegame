@@ -76,7 +76,6 @@ class GitSaver(BaseSaver):
             name = os.path.basename(src_path)
             rel_path = f'{name}.bundle'
             dst_file = os.path.join(self.dst, rel_path)
-
             ref_val = git.get_last_update_ts()
             try:
                 if ref_val > ref_files.get(rel_path, 0):   # avoids overwriting after a vm restore
@@ -85,13 +84,13 @@ class GitSaver(BaseSaver):
                     os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
                     start_ts = time.time()
                     git.create_bundle(tmp_file)
-                    self.report.add(self, src_file=src_path, dst_file=dst_file, code='saved', start_ts=start_ts)
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
                 self.save_ref.set_file(self.src, rel_path, ref_val)
             except Exception:
                 logger.exception(f'failed to create bundle for {src_path}')
-                self.report.add(self, src_file=src_path, dst_file=dst_file, code='failed')
+                self.report.add(self, rel_path=rel_path, code='failed')
 
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
@@ -101,5 +100,5 @@ class GitSaver(BaseSaver):
                 if dst_hash != src_hash and self._check_src_file(src_file, dst_file):
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
-                    self.report.add(self, src_file=src_file, dst_file=dst_file, code='saved')
+                    self.report.add(self, rel_path=rel_path, code='saved')
                 self.save_ref.set_file(self.src, rel_path, src_hash)

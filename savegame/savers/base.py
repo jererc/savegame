@@ -125,7 +125,7 @@ class BaseSaver:
         dst_mtime = get_file_mtime(dst_file)
         if src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:
             logger.warning(f'{dst_file=} is newer than {src_file=}')
-            self.report.add(self, src_file=src_file, dst_file=dst_file, code='failed')
+            self.report.add(self, rel_path=os.path.relpath(src_file, self.src), code='failed')
             return False
         return True
 
@@ -151,7 +151,7 @@ class BaseSaver:
         for path in walk_paths(self.dst):
             if self._requires_purge(path, dst_files, cufoff_ts):
                 remove_path(path)
-                self.report.add(self, src_file=None, dst_file=path, code='removed')
+                self.report.add(self, rel_path=os.path.relpath(path, self.dst), code='removed')
 
     def do_run(self):
         raise NotImplementedError()
