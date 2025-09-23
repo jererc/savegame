@@ -243,11 +243,7 @@ class BaseReport:
             agg[item['code']][item['id']] += 1
 
         def get_row(row):
-            return ' '.join([
-                f'{row["code"]:20}',
-                f'{row["id"]:20}',
-                f'{row["count"]:>6}',
-            ])
+            return ' '.join([f'{row["code"]:20}', f'{row["id"]:20}', f'{row["count"]:>6}'])
 
         rows = []
         for code, v in agg.items():

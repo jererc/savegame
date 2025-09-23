@@ -36,7 +36,6 @@ class LoadHandler:
                 logger.exception(f'failed to load {loader.id=} {loader.root_dst_path=}')
             report.update(loader.report)
         report.print_table()
-        report.print_summary_table()
 
 
 def loadgame(config, **kwargs):
