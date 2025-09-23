@@ -168,7 +168,7 @@ class GoogleCloud:
         done = False
         while not done:
             status, done = downloader.next_chunk()
-            logger.debug(f'Download progress: {int(status.progress() * 100)}%')
+            logger.debug(f'{path} download progress: {int(status.progress() * 100)}%')
 
     def _get_people_service(self):
         if not self.oauth_creds:
