@@ -1209,6 +1209,156 @@ class LoadgameTestCase(BaseTestCase):
         self._loadgame()
 
 
+class FilesystemTestCase(BaseTestCase):
+    def test_1(self):
+        self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
+        src = os.path.join(self.src_root, 'src1')
+        dst = os.path.join(self.dst_root, 'dst1')
+        saves = [
+            {
+                'saver_id': 'filesystem',
+                'src_paths': [src],
+                'dst_path': dst,
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*src1*dir1*file1*'))
+        rf = list(self._list_ref_files(dst_paths).values())[0][src]
+        self.assertEqual(rf.keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2'})
+
+        with open(os.path.join(self.src_root, 'src1', 'dir1', 'file4'), 'w') as fd:
+            fd.write('data4')
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*src1*dir1*file4*'))
+        rf = list(self._list_ref_files(dst_paths).values())[0][src]
+        self.assertEqual(rf.keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2', 'dir1/file4'})
+
+        os.remove(os.path.join(self.src_root, 'src1', 'dir1', 'file1'))
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*src1*dir1*file4*'))
+        rf = list(self._list_ref_files(dst_paths).values())[0][src]
+        self.assertEqual(rf.keys(), {'dir1/file2', 'dir2/file1', 'dir2/file2', 'dir1/file4'})
+
+        shutil.rmtree(src)
+        self._loadgame()
+        src_paths = self._list_src_root_paths()
+        self.assertFalse(any_str_matches(src_paths, '*src1*dir1*file1*'))
+        self.assertTrue(any_str_matches(src_paths, '*src1*dir1*file2*'))
+        self.assertTrue(any_str_matches(src_paths, '*src1*dir1*file4*'))
+        self._loadgame()
+
+
+class GitTestCase(BaseTestCase):
+    def _create_file(self, file, content):
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+        with open(file, 'w') as fd:
+            fd.write(content)
+
+    def _create_repo(self, repo_dirname):
+        repo_dir = os.path.join(self.src_root, repo_dirname)
+        subprocess.run(['git', 'init', repo_dir], check=True)
+        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
+        subprocess.run(['git', 'add', 'dir1'], cwd=repo_dir, check=True)
+        subprocess.run(['git', 'commit', '-m', 'initial commit'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'new data1')
+        self._create_file(os.path.join(repo_dir, 'dir2', 'file2.txt'), 'data2')
+        subprocess.run(['git', 'add', 'dir2'], cwd=repo_dir, check=True)
+        self._create_file(os.path.join(repo_dir, 'dir3', 'file3.txt'), 'data3')
+        return repo_dir
+
+    def test_1(self):
+        self._create_repo('repo1')
+        self._create_repo('repo2')
+        saves = [
+            {
+                'saver_id': 'git',
+                'src_paths': [self.src_root],
+                'dst_path': self.dst_root,
+            },
+        ]
+        self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        rf = list(self._list_ref_files(dst_paths).values())[0][self.src_root]
+        self.assertEqual(rf.keys(), {
+            'repo1.bundle',
+            'repo1/dir1/file1.txt',
+            'repo1/dir2/file2.txt',
+            'repo1/dir3/file3.txt',
+            'repo2.bundle',
+            'repo2/dir1/file1.txt',
+            'repo2/dir2/file2.txt',
+            'repo2/dir3/file3.txt',
+        })
+
+        shutil.rmtree(self.src_root)
+        self._loadgame()
+        src_paths = self._list_src_root_paths()
+        self.assertTrue(any_str_matches(src_paths, '*repo1*.git/*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*dir1*file1*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*dir2*file2*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo1*dir3*file3*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*.git/*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*dir1*file1*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*dir2*file2*'))
+        self.assertTrue(any_str_matches(src_paths, '*repo2*dir3*file3*'))
+        self._loadgame()
+
+
+class VirtualboxTestCase(BaseTestCase):
+    def _run(self, saves, running_vms, vms):
+        def side_export_vm(vm, file):
+            with open(file, 'w') as fd:
+                fd.write(f'{vm} data')
+
+        with patch.object(virtualbox.Virtualbox, 'list_running_vms', return_value=running_vms), \
+                patch.object(virtualbox.Virtualbox, 'list_vms', return_value=vms), \
+                patch.object(virtualbox.Virtualbox, 'export_vm', side_effect=side_export_vm), \
+                patch.object(virtualbox, 'notify') as mock_notify:
+            self._savegame(saves=saves)
+            pprint(mock_notify.call_args_list)
+
+    def test_1(self):
+        dst = os.path.join(self.dst_root, 'dst1')
+        saves = [
+            {
+                'saver_id': 'virtualbox',
+                'dst_path': dst,
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+
+        self._run(saves, ['ub1'], ['ub1', 'ub2', 'win3', 'test_fed4'])
+        dst_paths = self._list_dst_root_paths()
+        self.assertFalse(any_str_matches(dst_paths, '*ub1.ova'))
+        self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
+        self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
+        self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
+        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
+        self.assertEqual(set(rf.keys()), {'ub2.ova', 'win3.ova'})
+
+        self._run(saves, ['win3'], ['ub1', 'ub2', 'win3', 'test_fed4'])
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*ub1.ova'))
+        self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
+        self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
+        self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
+        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
+        self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova', 'win3.ova'})
+
+        self._run(saves, ['ub2'], ['ub1', 'ub2', 'test_fed4'])
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*ub1.ova'))
+        self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
+        self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
+        self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
+        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
+        self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova'})
+
+
 class WorkflowTestCase(BaseTestCase):
     def test_1(self):
         self._generate_src_data(index_start=1, nb_srcs=4, nb_dirs=3, nb_files=2)
@@ -1353,100 +1503,3 @@ class ReportTestCase(BaseTestCase):
         self._loadgame()
         self._list_src_root_paths()
         self._loadgame()
-
-
-class GitTestCase(BaseTestCase):
-    def _create_file(self, file, content):
-        os.makedirs(os.path.dirname(file), exist_ok=True)
-        with open(file, 'w') as fd:
-            fd.write(content)
-
-    def _create_repo(self, repo_dirname):
-        repo_dir = os.path.join(self.src_root, repo_dirname)
-        subprocess.run(['git', 'init', repo_dir], check=True)
-        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'data1')
-        subprocess.run(['git', 'add', 'dir1'], cwd=repo_dir, check=True)
-        subprocess.run(['git', 'commit', '-m', 'initial commit'], cwd=repo_dir, check=True)
-        self._create_file(os.path.join(repo_dir, 'dir1', 'file1.txt'), 'new data1')
-        self._create_file(os.path.join(repo_dir, 'dir2', 'file2.txt'), 'data2')
-        subprocess.run(['git', 'add', 'dir2'], cwd=repo_dir, check=True)
-        self._create_file(os.path.join(repo_dir, 'dir3', 'file3.txt'), 'data3')
-        return repo_dir
-
-    def test_1(self):
-        repo_dir1 = self._create_repo('repo1')
-        repo_dir2 = self._create_repo('repo2')
-        saves = [
-            {
-                'saver_id': 'git',
-                'src_paths': [self.src_root],
-                'dst_path': self.dst_root,
-            },
-        ]
-        self._savegame(saves)
-        dst_paths = self._list_dst_root_paths()
-        self._list_ref_files(dst_paths)
-
-        shutil.rmtree(repo_dir1)
-        self._loadgame()
-        src_paths = self._list_src_root_paths()
-        self.assertTrue(any_str_matches(src_paths, '*repo1*.git/*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo1*dir1*file1*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo1*dir2*file2*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo1*dir3*file3*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo2*.git/*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo2*dir1*file1*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo2*dir2*file2*'))
-        self.assertTrue(any_str_matches(src_paths, '*repo2*dir3*file3*'))
-        self._loadgame()
-
-
-class VirtualboxTestCase(BaseTestCase):
-    def _run(self, saves, running_vms, vms):
-        def side_export_vm(vm, file):
-            with open(file, 'w') as fd:
-                fd.write(f'{vm} data')
-
-        with patch.object(virtualbox.Virtualbox, 'list_running_vms', return_value=running_vms), \
-                patch.object(virtualbox.Virtualbox, 'list_vms', return_value=vms), \
-                patch.object(virtualbox.Virtualbox, 'export_vm', side_effect=side_export_vm), \
-                patch.object(virtualbox, 'notify') as mock_notify:
-            self._savegame(saves=saves)
-            pprint(mock_notify.call_args_list)
-
-    def test_1(self):
-        dst = os.path.join(self.dst_root, 'dst1')
-        saves = [
-            {
-                'saver_id': 'virtualbox',
-                'dst_path': dst,
-            },
-        ]
-        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
-
-        self._run(saves, ['ub1'], ['ub1', 'ub2', 'win3', 'test_fed4'])
-        dst_paths = self._list_dst_root_paths()
-        self.assertFalse(any_str_matches(dst_paths, '*ub1.ova'))
-        self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
-        self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
-        self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
-        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
-        self.assertEqual(set(rf.keys()), {'ub2.ova', 'win3.ova'})
-
-        self._run(saves, ['win3'], ['ub1', 'ub2', 'win3', 'test_fed4'])
-        dst_paths = self._list_dst_root_paths()
-        self.assertTrue(any_str_matches(dst_paths, '*ub1.ova'))
-        self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
-        self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
-        self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
-        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
-        self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova', 'win3.ova'})
-
-        self._run(saves, ['ub2'], ['ub1', 'ub2', 'test_fed4'])
-        dst_paths = self._list_dst_root_paths()
-        self.assertTrue(any_str_matches(dst_paths, '*ub1.ova'))
-        self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
-        self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
-        self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
-        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
-        self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova'})

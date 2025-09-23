@@ -182,7 +182,9 @@ class SaveReference:
         self._load(data)
 
     def reset_files(self, src):
+        files = self.get_files(src)
         self.files[src] = {}
+        return files
 
     def set_file(self, src, rel_path, ref_val):
         if ref_val:

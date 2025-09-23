@@ -65,8 +65,7 @@ class GitSaver(BaseSaver):
     enable_purge = True
 
     def do_run(self):
-        ref_files = self.save_ref.get_files(self.src)
-        self.save_ref.reset_files(self.src)
+        ref_files = self.save_ref.reset_files(self.src)
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
                 continue

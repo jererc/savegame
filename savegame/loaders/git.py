@@ -18,6 +18,7 @@ class GitLoader(FilesystemLoader):
                 if self.dry_run:
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loadable')
                     continue
+                os.makedirs(os.path.dirname(repo_dir), exist_ok=True)
                 Git(repo_dir).clone_bundle(os.path.join(save_ref.dst, rel_path))
 
         super()._load_from_save_ref(save_ref)

@@ -67,8 +67,7 @@ class VirtualboxSaver(BaseSaver):
     retry_delta = 30
 
     def do_run(self):
-        ref_files = self.save_ref.get_files(self.src)
-        self.save_ref.reset_files(self.src)
+        ref_files = self.save_ref.reset_files(self.src)
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
         for vm in vb.list_vms():
