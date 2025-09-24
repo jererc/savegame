@@ -9,8 +9,8 @@ class GitLoader(FilesystemLoader):
 
     def _load_from_save_ref(self, save_ref):
         for src, files in save_ref.files.items():
-            for rel_path, ref_val in files.items():
-                if not (rel_path.endswith('.bundle') and isinstance(ref_val, (int, float))):
+            for rel_path, ref in files.items():
+                if not (rel_path.endswith('.bundle') and isinstance(ref, (int, float))):
                     continue
                 repo_dir = os.path.join(src, os.path.splitext(rel_path)[0])
                 if os.path.exists(repo_dir):

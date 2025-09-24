@@ -173,7 +173,7 @@ class SaveHandler:
                    replace_key='failed-savers')
         Metadata().save()
 
-        report.print_table(codes={'saved', 'removed', 'failed'})
+        report.print_table()
         failed_files = [r for r in report.data if r['code'] == 'failed']
         if failed_files:
             notify(title='failed files',

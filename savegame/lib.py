@@ -19,6 +19,7 @@ USERNAME = os.getlogin()
 REF_FILENAME = f'.{NAME}'
 METADATA_MAX_AGE = 3600 * 24 * 90
 INVALID_PATH_SEP = {'linux': '\\', 'win32': '/'}[sys.platform]
+MTIME_DRIFT_TOLERANCE = 10
 
 logger = logging.getLogger(__name__)
 
@@ -181,17 +182,17 @@ class SaveReference:
             json.dump(data, fd, sort_keys=True, indent=4)
         self._load(data)
 
+    def get_files(self, src):
+        return self.files.get(src, {})
+
     def reset_files(self, src):
         files = self.get_files(src)
         self.files[src] = {}
         return files
 
-    def set_file(self, src, rel_path, ref_val):
-        if ref_val:
-            self.files[src][rel_path] = ref_val
-
-    def get_files(self, src):
-        return self.files.get(src, {})
+    def set_file(self, src, rel_path, ref):
+        if ref:
+            self.files[src][rel_path] = ref
 
     def get_dst_files(self, src=None):
         if src:

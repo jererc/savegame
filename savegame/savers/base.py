@@ -1,3 +1,4 @@
+import filecmp
 import importlib
 import inspect
 import json
@@ -9,10 +10,8 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (HOSTNAME, REF_FILENAME, Metadata, SaveReference, SaveReport,
-                          coalesce, get_file_mtime, get_hash, remove_path, validate_path)
-
-MTIME_DRIFT_TOLERANCE = 10
+from savegame.lib import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, Metadata, SaveReference, SaveReport,
+                          coalesce, get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
 
 logger = logging.getLogger(__name__)
 
@@ -117,17 +116,30 @@ class BaseSaver:
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
-    def _check_src_file(self, src_file, dst_file):
-        """
-        Makes sure we do not overwrite a newer file, useful after a vm restore.
-        """
+    def must_copy_file(self, src_file, dst_file, current_ref):
         src_mtime = get_file_mtime(src_file)
         dst_mtime = get_file_mtime(dst_file)
-        if src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:
+        must_copy = False
+        default_ref = current_ref
+
+        if coalesce(self.save_item.file_compare_method, self.file_compare_method) == 'hash':
+            src_hash = get_file_hash(src_file)
+            dst_hash = get_file_hash(dst_file)
+            must_copy = src_hash != dst_hash
+            new_ref = src_hash
+        else:
+            must_copy = not filecmp.cmp(src_file, dst_file, shallow=True) if os.path.exists(dst_file) else True
+            new_ref = src_mtime
+
+        if src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:   # never overwrite newer files, useful after a vm restore
             logger.warning(f'{dst_file=} is newer than {src_file=}')
-            self.report.add(self, rel_path=os.path.relpath(src_file, self.src), code='failed')
-            return False
-        return True
+            self.report.add(self, rel_path=os.path.relpath(src_file, self.src), code='failed_dst_newer')
+            must_copy = False
+
+        if not must_copy and os.path.exists(dst_file) and not default_ref:   # never purge orphaned files
+            default_ref = 'NULL'
+
+        return must_copy, new_ref, default_ref
 
     def _requires_purge(self, path, dst_files, cutoff_ts):
         if os.path.isfile(path):

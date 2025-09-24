@@ -6,7 +6,7 @@ import subprocess
 import shutil
 import time
 
-from savegame.lib import get_file_hash, remove_path
+from savegame.lib import remove_path
 from savegame.savers.base import BaseSaver
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class GitSaver(BaseSaver):
     enable_purge = True
 
     def do_run(self):
-        ref_files = self.save_ref.reset_files(self.src)
+        files_ref = self.save_ref.reset_files(self.src)
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
                 continue
@@ -75,33 +75,32 @@ class GitSaver(BaseSaver):
             name = os.path.basename(src_path)
             rel_path = f'{name}.bundle'
             dst_file = os.path.join(self.dst, rel_path)
-            ref_val = ref_files.get(rel_path, 0)
-            new_ref_val = git.get_last_update_ts()
+            ref = files_ref.get(rel_path, 0)
+            new_ref = git.get_last_update_ts()
             try:
-                if new_ref_val > ref_val:   # avoids overwriting after a vm restore
+                if new_ref > ref:   # never overwrite newer files, useful after a vm restore
                     tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
                     remove_path(tmp_file)
                     os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
                     start_ts = time.time()
                     git.create_bundle(tmp_file)
-                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
-                    ref_val = new_ref_val
+                    ref = new_ref
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
             except Exception:
                 logger.exception(f'failed to create bundle for {src_path}')
                 self.report.add(self, rel_path=rel_path, code='failed')
-            self.save_ref.set_file(self.src, rel_path, ref_val)
+            self.save_ref.set_file(self.src, rel_path, ref)
 
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
-                ref_val = ref_files.get(rel_path)
                 dst_file = os.path.join(self.dst, rel_path)
-                src_hash = get_file_hash(src_file)
-                dst_hash = get_file_hash(dst_file)
-                if dst_hash != src_hash and self._check_src_file(src_file, dst_file):
+                must_copy, new_ref, default_ref = self.must_copy_file(src_file, dst_file, files_ref.get(rel_path))
+                ref = default_ref
+                if must_copy:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
-                    ref_val = src_hash
                     self.report.add(self, rel_path=rel_path, code='saved')
-                self.save_ref.set_file(self.src, rel_path, ref_val)
+                    ref = new_ref
+                self.save_ref.set_file(self.src, rel_path, ref)

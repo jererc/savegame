@@ -69,11 +69,11 @@ class FilesystemLoader(BaseLoader):
                 is_src_valid = True
             except UnhandledPath:
                 is_src_valid = False
-            for rel_path, ref_val in files.items():
+            for rel_path, ref in files.items():
                 if is_src_valid:
                     dst_file = os.path.join(save_ref.dst, rel_path)
-                    if isinstance(ref_val, str):
-                        is_valid = get_file_hash(dst_file) == ref_val
+                    if isinstance(ref, str):
+                        is_valid = get_file_hash(dst_file) == ref
                     else:
                         is_valid = True
                 else:
