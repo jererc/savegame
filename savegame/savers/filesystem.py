@@ -47,25 +47,24 @@ class FilesystemSaver(BaseSaver):
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
-        files_ref = self.save_ref.reset_files(src)
+        file_refs = self.save_ref.reset_files(src)
         for src_file in sorted(src_files):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
             dst_file = os.path.join(self.dst, rel_path)
-            must_copy, new_ref, default_ref = self.must_copy_file(src_file, dst_file, files_ref.get(rel_path))
-            ref = default_ref
+            must_copy, new_ref, ref = self.must_copy_file(src_file, dst_file, file_refs.get(rel_path))
             try:
                 if must_copy:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     file_size = get_file_size(src_file)
                     if file_size > LOG_FILE_SIZE_THRESHOLD:
-                        logger.info(f'copying {src_file} to {dst_file} ({file_size / 1024 / 1024:.02f} MB)')
+                        logger.info(f'copying {src_file=} to {dst_file=} ({file_size / 1024 / 1024:.02f} MB)')
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     ref = new_ref
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
             except Exception:
-                logger.exception(f'failed to save {src_file}')
+                logger.exception(f'failed to copy {src_file=} to {dst_file=}')
                 self.report.add(self, rel_path=rel_path, code='failed')
             self.save_ref.set_file(src, rel_path, ref)
 

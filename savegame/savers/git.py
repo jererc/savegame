@@ -65,7 +65,7 @@ class GitSaver(BaseSaver):
     enable_purge = True
 
     def do_run(self):
-        files_ref = self.save_ref.reset_files(self.src)
+        file_refs = self.save_ref.reset_files(self.src)
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
                 continue
@@ -75,7 +75,7 @@ class GitSaver(BaseSaver):
             name = os.path.basename(src_path)
             rel_path = f'{name}.bundle'
             dst_file = os.path.join(self.dst, rel_path)
-            ref = files_ref.get(rel_path, 0)
+            ref = file_refs.get(rel_path, 0)
             new_ref = git.get_last_update_ts()
             try:
                 if new_ref > ref:   # never overwrite newer files, useful after a vm restore
@@ -96,8 +96,7 @@ class GitSaver(BaseSaver):
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
                 dst_file = os.path.join(self.dst, rel_path)
-                must_copy, new_ref, default_ref = self.must_copy_file(src_file, dst_file, files_ref.get(rel_path))
-                ref = default_ref
+                must_copy, new_ref, ref = self.must_copy_file(src_file, dst_file, file_refs.get(rel_path))
                 if must_copy:
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)

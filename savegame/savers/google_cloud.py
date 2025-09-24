@@ -25,13 +25,13 @@ class GoogleDriveSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
-        files_ref = self.save_ref.reset_files(self.src)
+        file_refs = self.save_ref.reset_files(self.src)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 logger.debug(f'skipping not exportable file {file_meta["path"]}')
                 continue
             rel_path = file_meta['path']
-            ref = files_ref.get(rel_path)
+            ref = file_refs.get(rel_path)
             dst_file = os.path.join(self.dst, rel_path)
             dst_dt = get_file_mtime_dt(dst_file)
             if not dst_dt or dst_dt < file_meta['modified_time']:
@@ -53,12 +53,12 @@ class GoogleContactsSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
-        files_ref = self.save_ref.reset_files(self.src)
+        file_refs = self.save_ref.reset_files(self.src)
         start_ts = time.time()
         contacts = gc.list_contacts()
         data = to_json(contacts)
         rel_path = 'contacts.json'
-        ref = files_ref.get(rel_path)
+        ref = file_refs.get(rel_path)
         dst_file = os.path.join(self.dst, rel_path)
         dst_hash = get_hash(data)
         if not os.path.exists(dst_file) or dst_hash != ref:

@@ -46,7 +46,7 @@ class FilesystemLoader(BaseLoader):
                 if save_ref.files:
                     yield save_ref
 
-    def _is_file_loadable(self, dst_file, src_file):
+    def _must_copy_file(self, dst_file, src_file):
         if not check_patterns(src_file, self.include, self.exclude):
             return False, None
         if not os.path.exists(src_file):
@@ -54,10 +54,7 @@ class FilesystemLoader(BaseLoader):
         if get_file_hash(src_file) == get_file_hash(dst_file):
             return False, 'match'
         if not self.force:
-            if get_file_mtime(src_file, 0) > get_file_mtime(dst_file, 0):
-                return False, 'mismatch_src_newer'
-            else:
-                return False, 'mismatch_dst_newer'
+            return False, 'mismatch_src_newer' if get_file_mtime(src_file, 0) > get_file_mtime(dst_file, 0) else 'mismatch_dst_newer'
         return True, None
 
     def _get_src_and_rel_paths(self, save_ref):
@@ -97,8 +94,8 @@ class FilesystemLoader(BaseLoader):
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='mismatch_username')
                 continue
             dst_file = os.path.join(save_ref.dst, rel_path)
-            loadable, message = self._is_file_loadable(dst_file, src_file)
-            if not loadable:
+            must_copy, message = self._must_copy_file(dst_file, src_file)
+            if not must_copy:
                 if message:
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code=message)
                 continue
@@ -110,15 +107,15 @@ class FilesystemLoader(BaseLoader):
                     src_file_bak = f'{src_file}.{NAME}bak'
                     if not os.path.exists(src_file_bak):
                         os.rename(src_file, src_file_bak)
-                        logger.warning(f'renamed existing src file {src_file} to {src_file_bak}')
+                        logger.warning(f'renamed existing {src_file=} to {src_file_bak=}')
                 os.makedirs(os.path.dirname(src_file), exist_ok=True)
                 start_ts = time.time()
-                logger.info(f'copying {dst_file} to {src_file} ({get_file_size(dst_file) / 1024 / 1024:.02f} MB)')
+                logger.info(f'copying {dst_file=} to {src_file=} ({get_file_size(dst_file) / 1024 / 1024:.02f} MB)')
                 shutil.copy2(dst_file, src_file)
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded', start_ts=start_ts)
             except Exception:
+                logger.exception(f'failed to copy {dst_file=} to {src_file=}')
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')
-                logger.exception(f'failed to load {src_file} from {dst_file}')
 
     def run(self):
         for save_ref in self._iterate_save_refs():

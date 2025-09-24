@@ -67,7 +67,7 @@ class VirtualboxSaver(BaseSaver):
     retry_delta = 30
 
     def do_run(self):
-        files_ref = self.save_ref.reset_files(self.src)
+        file_refs = self.save_ref.reset_files(self.src)
         vb = Virtualbox()
         running_vms = vb.list_running_vms()
         for vm in vb.list_vms():
@@ -76,7 +76,7 @@ class VirtualboxSaver(BaseSaver):
                 logger.debug(f'skipping {vm=}')
                 continue
             rel_path = f'{vm}.ova'
-            ref = files_ref.get(rel_path)
+            ref = file_refs.get(rel_path)
             dst_file = os.path.join(self.dst, rel_path)
             if vm in running_vms:
                 notify(title=f'cannot export vm {vm}', body=f'{vm} is running', app_name=NAME, replace_key=notif_key)
