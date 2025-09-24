@@ -1414,7 +1414,7 @@ class GitTestCase(BaseTestCase):
             'repo2/dir3/file3.txt',
         })
 
-        shutil.rmtree(self.src_root)
+        shutil.rmtree(os.path.join(self.src_root, 'repo1'))
         self._loadgame()
         src_paths = self._list_src_root_paths()
         self.assertTrue(any_str_matches(src_paths, '*repo1*.git/*'))

@@ -86,8 +86,10 @@ class FilesystemLoader(BaseLoader):
             self.report.add(self, save_ref=save_ref, src=None, rel_path=None, code='no_files')
         return src_rel_paths
 
-    def _load_from_save_ref(self, save_ref):
+    def _load_from_save_ref(self, save_ref, exclude_rel_paths=None):
         for src, rel_path in self._get_src_and_rel_paths(save_ref):
+            if exclude_rel_paths and rel_path in exclude_rel_paths:
+                continue
             raw_src_file = os.path.join(src, rel_path)
             src_file = self._get_src_file_for_user(raw_src_file)
             if not src_file:
