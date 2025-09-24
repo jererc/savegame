@@ -262,8 +262,8 @@ class SaveReport(BaseReport):
     def add(self, saver, rel_path, code, start_ts=None):
         self.data.append({
             'id': saver.id,
-            'src': saver.src,
-            'dst': saver.dst,
+            'src': f'{saver.src} ({saver.save_item.src_volume_label})' if saver.save_item.src_volume_label else saver.src,
+            'dst': f'{saver.dst} ({saver.save_item.dst_volume_label})' if saver.save_item.dst_volume_label else saver.dst,
             'rel_path': rel_path,
             'code': code,
             'duration': f'{time.time() - start_ts:.1f}' if start_ts else '',
