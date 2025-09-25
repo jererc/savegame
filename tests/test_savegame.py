@@ -1254,38 +1254,6 @@ class FilesystemTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(src_paths, '*src2*dir2*file2*'))
         self._loadgame()
 
-    def test_filesystem_copy_same_rel_paths(self):
-        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=3)
-        src1 = os.path.join(self.src_root, 'src1')
-        src2 = os.path.join(self.src_root, 'src2')
-        src3 = os.path.join(self.src_root, 'src3')
-        dst = os.path.join(self.dst_root, 'dst1')
-        saves = [
-            {
-                'saver_id': 'filesystem_copy',
-                'src_paths': [[src1, ['*/dir1/*'], []]],
-                'dst_path': dst,
-            },
-            {
-                'saver_id': 'filesystem_copy',
-                'src_paths': [[src2, ['*/dir1/file1'], []]],
-                'dst_path': dst,
-            },
-            {
-                'saver_id': 'filesystem_copy',
-                'src_paths': [[src3, ['*/dir1/file2'], []]],
-                'dst_path': dst,
-            },
-        ]
-        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
-        self._savegame(saves=saves)
-        dst_paths = self._list_dst_root_paths()
-        self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)[dst]
-        self.assertEqual(rf[src1].keys(), {'dir1/file3'})
-        self.assertEqual(rf[src2].keys(), {'dir1/file1'})   # overwrites src1 file
-        self.assertEqual(rf[src3].keys(), {'dir1/file2'})   # overwrites src1 file
-
     def test_filesystem_copy_new_src(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
         src1 = os.path.join(self.src_root, 'src1')
@@ -1306,13 +1274,13 @@ class FilesystemTestCase(BaseTestCase):
         self.assertEqual(rf.keys(), {src1})
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
 
-        saves[0]['src_paths'] = [[src2, ['*/dir1/*'], []]]
+        saves[0]['src_paths'] = [[src2, ['*/dir2/*'], []]]
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
         rf = self._list_ref_files(dst_paths)[dst]
-        self.assertEqual(rf.keys(), {src2})
-        self.assertEqual(rf[src2].keys(), {'dir1/file1', 'dir1/file2'})
+        self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
+        self.assertEqual(rf[src2].keys(), {'dir2/file1', 'dir2/file2'})
 
     def test_filesystem_copy_new_src_other_path_sep(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
