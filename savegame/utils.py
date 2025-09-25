@@ -193,6 +193,9 @@ class SaveReference:
     def set_file(self, src, rel_path, ref):
         if ref:
             self.files[src][rel_path] = ref
+            for k, v in self.files.items():
+                if k != src:
+                    v.pop(rel_path, None)
 
     def get_dst_files(self, src=None):
         if src:
