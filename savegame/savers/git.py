@@ -98,8 +98,9 @@ class GitSaver(BaseSaver):
                 dst_file = os.path.join(self.dst, rel_path)
                 must_copy, new_ref, ref = self.must_copy_file(src_file, dst_file, file_refs.get(rel_path))
                 if must_copy:
+                    start_ts = time.time()
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
-                    self.report.add(self, rel_path=rel_path, code='saved')
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
                     ref = new_ref
                 self.save_ref.set_file(self.src, rel_path, ref)
