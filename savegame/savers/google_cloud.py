@@ -3,9 +3,9 @@ import logging
 import os
 import time
 
-from savegame.lib import get_file_hash, get_file_mtime, get_hash, to_json
 from savegame.savers.base import BaseSaver
 from savegame.savers.google_api import GoogleCloud
+from savegame.utils import get_file_hash, get_file_mtime, get_hash, to_json
 
 logger = logging.getLogger(__name__)
 

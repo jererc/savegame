@@ -15,7 +15,7 @@ from unittest.mock import patch
 from svcutils.service import Config
 
 from tests import WORK_DIR, module
-from savegame import load, save, savers, lib
+from savegame import load, save, savers, utils
 from savegame.loaders.filesystem import FilesystemLoader
 from savegame.savers import virtualbox
 
@@ -65,9 +65,9 @@ def count_matches(strings, pattern):
 
 class CoalesceTestCase(unittest.TestCase):
     def test_1(self):
-        self.assertEqual(lib.coalesce(0, None, 1), 0)
-        self.assertEqual(lib.coalesce(1, 2, None), 1)
-        self.assertEqual(lib.coalesce(None, 1, None), 1)
+        self.assertEqual(utils.coalesce(0, None, 1), 0)
+        self.assertEqual(utils.coalesce(1, 2, None), 1)
+        self.assertEqual(utils.coalesce(None, 1, None), 1)
 
 
 class PatternTestCase(unittest.TestCase):
@@ -75,16 +75,16 @@ class PatternTestCase(unittest.TestCase):
         self.file = os.path.join(os.path.expanduser('~'), 'first_dir', 'second_dir', 'savegame.py')
 
     def test_ko(self):
-        self.assertFalse(module.lib.check_patterns(self.file, include=['*third_dir*']))
-        self.assertFalse(module.lib.check_patterns(self.file, include=['*.bin']))
-        self.assertFalse(module.lib.check_patterns(self.file, exclude=['*dir*']))
-        self.assertFalse(module.lib.check_patterns(self.file, exclude=['*.py']))
+        self.assertFalse(utils.check_patterns(self.file, include=['*third_dir*']))
+        self.assertFalse(utils.check_patterns(self.file, include=['*.bin']))
+        self.assertFalse(utils.check_patterns(self.file, exclude=['*dir*']))
+        self.assertFalse(utils.check_patterns(self.file, exclude=['*.py']))
 
     def test_ok(self):
-        self.assertTrue(module.lib.check_patterns(self.file, include=['*game*']))
-        self.assertTrue(module.lib.check_patterns(self.file, include=['*.py']))
-        self.assertTrue(module.lib.check_patterns(self.file, exclude=['*third*']))
-        self.assertTrue(module.lib.check_patterns(self.file, exclude=['*.bin']))
+        self.assertTrue(utils.check_patterns(self.file, include=['*game*']))
+        self.assertTrue(utils.check_patterns(self.file, include=['*.py']))
+        self.assertTrue(utils.check_patterns(self.file, exclude=['*third*']))
+        self.assertTrue(utils.check_patterns(self.file, exclude=['*.bin']))
 
 
 class BaseTestCase(unittest.TestCase):
@@ -99,8 +99,8 @@ class BaseTestCase(unittest.TestCase):
         self.dst_root = os.path.join(module.WORK_DIR, DST_DIR)
         os.makedirs(self.dst_root, exist_ok=True)
 
-        module.lib.SaveReference._instances = {}
-        self.meta = module.lib.Metadata()
+        utils.SaveReference._instances = {}
+        self.meta = utils.Metadata()
         self.meta.data = {}
         self.config = self._get_config(
             SAVES=[],
@@ -147,9 +147,9 @@ class BaseTestCase(unittest.TestCase):
 
     def _list_ref_files(self, dst_paths):
         res = {}
-        ref_files = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME]
+        ref_files = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME]
         for ref_file in sorted(ref_files):
-            save_ref = module.lib.SaveReference(os.path.dirname(ref_file))
+            save_ref = utils.SaveReference(os.path.dirname(ref_file))
             res[save_ref.dst] = dict(save_ref.files)
         print(f'save ref files:\n{pformat(res)}')
         return res
@@ -157,7 +157,7 @@ class BaseTestCase(unittest.TestCase):
     def _get_save_refs(self):
         print('*' * 80)
         pprint(self.meta.data)
-        return {d['src']: module.lib.SaveReference(d['dst']) for s, d in self.meta.data.items()}
+        return {d['src']: utils.SaveReference(d['dst']) for s, d in self.meta.data.items()}
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         for base_dir in os.listdir(os.path.join(self.dst_root)):
@@ -171,7 +171,7 @@ class BaseTestCase(unittest.TestCase):
     def _switch_dst_data_username(self, from_username, to_username):
 
         def switch_ref_path(file):
-            ref = module.lib.SaveReference(os.path.dirname(file))
+            ref = utils.SaveReference(os.path.dirname(file))
             username_str = f'{os.sep}{from_username}{os.sep}'
             src = list(ref.files.keys())[0]
             if username_str not in src:
@@ -181,7 +181,7 @@ class BaseTestCase(unittest.TestCase):
             ref.save()
 
         for path in walk_paths(self.dst_root):
-            if os.path.basename(path) == module.lib.REF_FILENAME:
+            if os.path.basename(path) == utils.REF_FILENAME:
                 switch_ref_path(path)
 
     def _get_config(self, **kwargs):
@@ -210,8 +210,8 @@ class BaseTestCase(unittest.TestCase):
 
 class MetadataTestCase(BaseTestCase):
     def test_1(self):
-        m1 = module.lib.Metadata()
-        m2 = module.lib.Metadata()
+        m1 = utils.Metadata()
+        m2 = utils.Metadata()
         self.assertEqual(m1, m2)
 
         now = time.time()
@@ -253,9 +253,9 @@ class SaveReferenceTestCase(BaseTestCase):
         dst2 = os.path.join(self.dst_root, 'dst2')
         os.makedirs(dst1, exist_ok=True)
         os.makedirs(dst2, exist_ok=True)
-        s1 = module.lib.SaveReference(dst1)
-        s2 = module.lib.SaveReference(dst1)
-        s3 = module.lib.SaveReference(dst2)
+        s1 = utils.SaveReference(dst1)
+        s2 = utils.SaveReference(dst1)
+        s3 = utils.SaveReference(dst2)
         self.assertEqual(s1, s2)
         self.assertNotEqual(s1, s3)
 
@@ -295,7 +295,7 @@ class SaveItemTestCase(BaseTestCase):
             dst_path = '/home/jererc/data'
         else:
             dst_path = r'C:\Users\jerer\data'
-        self.assertRaises(module.lib.UnhandledPath, save.SaveItem, self.config, src_paths=src_paths, dst_path=dst_path)
+        self.assertRaises(utils.UnhandledPath, save.SaveItem, self.config, src_paths=src_paths, dst_path=dst_path)
 
 
 class LoadgamePathUsernameTestCase(BaseTestCase):
@@ -692,7 +692,7 @@ class SavegameTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         self.assertFalse(any_str_matches(dst_paths, '*dir*file*'))
 
-        self.meta = module.lib.Metadata()
+        self.meta = utils.Metadata()
         self.assertFalse(self.meta.data)
 
     def test_volume_label_purge(self):
@@ -1156,8 +1156,8 @@ class LoadgameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
-        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
-        ref = module.lib.SaveReference(os.path.dirname(ref_file))
+        ref_file = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME][0]
+        ref = utils.SaveReference(os.path.dirname(ref_file))
         pprint(ref.data)
 
         shutil.rmtree(src_path)
@@ -1216,10 +1216,10 @@ class FilesystemTestCase(BaseTestCase):
             if os.path.basename(f) == 'file1':
                 with open(f, 'w') as fd:
                     fd.write(f'new dst data for {f}')
-        hashes = {f: lib.get_file_hash(f) for f in dst_paths if os.path.basename(f) == 'file1'}
+        hashes = {f: utils.get_file_hash(f) for f in dst_paths if os.path.basename(f) == 'file1'}
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
-        hashes2 = {f: lib.get_file_hash(f) for f in dst_paths if os.path.basename(f) == 'file1'}
+        hashes2 = {f: utils.get_file_hash(f) for f in dst_paths if os.path.basename(f) == 'file1'}
         self.assertEqual(hashes2, hashes)
 
     def test_filesystem(self):

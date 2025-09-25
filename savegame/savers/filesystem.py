@@ -3,8 +3,8 @@ import os
 import shutil
 import time
 
-from savegame.lib import REF_FILENAME, check_patterns, get_file_size
 from savegame.savers.base import BaseSaver
+from savegame.utils import REF_FILENAME, check_patterns, get_file_size
 
 LOG_LIST_DURATION_THRESHOLD = 30
 LOG_FILE_SIZE_THRESHOLD = 10 * 1024 * 1024

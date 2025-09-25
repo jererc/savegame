@@ -7,8 +7,9 @@ import sys
 import time
 
 from savegame import NAME
-from savegame.lib import SaveReference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, get_file_size, validate_path
 from savegame.loaders.base import BaseLoader
+from savegame.utils import (SaveReference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime,
+                            get_file_size, validate_path)
 
 HOME_DIR = os.path.expanduser('~')
 SHARED_USERNAMES = {'linux': {'shared'}, 'win32': {'Public'}}.get(sys.platform, set())

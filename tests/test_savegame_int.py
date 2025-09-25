@@ -104,6 +104,6 @@ class GitSaverTestCase(BaseTestCase):
         for i in range(2):
             self._savegame(saves, force=True)
             dst_paths = self._list_dst_root_paths()
-        ref_file = [f for f in dst_paths if os.path.basename(f) == module.lib.REF_FILENAME][0]
-        ref = module.lib.SaveReference(os.path.dirname(ref_file))
+        ref_file = [f for f in dst_paths if os.path.basename(f) == module.utils.REF_FILENAME][0]
+        ref = module.utils.SaveReference(os.path.dirname(ref_file))
         pprint(ref.data)

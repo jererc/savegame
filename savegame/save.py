@@ -9,13 +9,12 @@ from svcutils.notifier import notify
 from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
-from savegame.lib import (HOSTNAME, INVALID_PATH_SEP, Metadata, SaveReference, InvalidPath, UnhandledPath,
-                          coalesce, get_file_hash, get_file_mtime, get_file_size, list_label_mountpoints,
-                          validate_path)
 from savegame.report import SaveReport
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.filesystem import FilesystemSaver
+from savegame.utils import (HOSTNAME, INVALID_PATH_SEP, Metadata, SaveReference, InvalidPath, UnhandledPath,
+                            coalesce, get_file_hash, get_file_mtime, get_file_size, list_label_mountpoints, validate_path)
 
 logger = logging.getLogger(__name__)
 

@@ -6,8 +6,8 @@ import subprocess
 import shutil
 import time
 
-from savegame.lib import remove_path
 from savegame.savers.base import BaseSaver
+from savegame.utils import remove_path
 
 logger = logging.getLogger(__name__)
 

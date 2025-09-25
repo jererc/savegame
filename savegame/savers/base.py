@@ -10,9 +10,9 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, Metadata, SaveReference, coalesce,
-                          get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
 from savegame.report import SaveReport
+from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, Metadata, SaveReference, coalesce,
+                            get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
 
 logger = logging.getLogger(__name__)
 

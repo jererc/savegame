@@ -8,8 +8,8 @@ import time
 from svcutils.notifier import notify
 
 from savegame import NAME
-from savegame.lib import get_file_mtime, remove_path
 from savegame.savers.base import BaseSaver
+from savegame.utils import get_file_mtime, remove_path
 
 logger = logging.getLogger(__name__)
 
