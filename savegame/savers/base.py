@@ -139,7 +139,7 @@ class BaseSaver:
 
         return must_copy, new_ref, default_ref
 
-    def _requires_purge(self, path, dst_files, cutoff_ts):
+    def _must_purge_dst_path(self, path, dst_files, cutoff_ts):
         if os.path.isfile(path):
             if path in dst_files:
                 return False
@@ -159,7 +159,7 @@ class BaseSaver:
             return
         cufoff_ts = time.time() - coalesce(self.save_item.purge_delta, self.purge_delta)
         for path in walk_paths(self.dst):
-            if self._requires_purge(path, dst_files, cufoff_ts):
+            if self._must_purge_dst_path(path, dst_files, cufoff_ts):
                 remove_path(path)
                 self.report.add(self, rel_path=os.path.relpath(path, self.dst), code='removed')
 
