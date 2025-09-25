@@ -28,12 +28,10 @@ def get_local_path(path):
 
 
 class SaveItem:
-    def __init__(self, config, src_paths=None, saver_id=FilesystemSaver.id,
-                 dst_path=None, run_delta=None, purge_delta=None,
-                 enable_purge=True, loadable=True, platform=None,
-                 hostname=None, src_volume_label=None, dst_volume_label=None,
-                 trigger_volume_labels=None, retry_delta=None, file_compare_method=None,
-                 due_warning_delta=7 * 24 * 3600):
+    def __init__(self, config, src_paths=None, saver_id=FilesystemSaver.id, dst_path=None,
+                 run_delta=None, purge_delta=None, enable_purge=True, loadable=True, platform=None,
+                 hostname=None, src_volume_label=None, dst_volume_label=None, trigger_volume_labels=None,
+                 retry_delta=None, file_compare_method=None, due_warning_delta=7 * 24 * 3600):
         self.config = config
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label

@@ -1,4 +1,3 @@
-from collections import defaultdict
 import logging
 import time
 
@@ -41,22 +40,6 @@ class BaseReport:
         if rows:
             data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration')})] + rows)
             logger.info(f'report:\n{data}')
-
-    def print_summary_table(self):
-        agg = defaultdict(lambda: defaultdict(int))
-        for item in self.data:
-            agg[item['code']][item['id']] += 1
-
-        def get_row(row):
-            return ' '.join([f'{row["code"]:20}', f'{row["id"]:20}', f'{row["count"]:>6}'])
-
-        rows = []
-        for code, v in agg.items():
-            for id, count in sorted(v.items()):
-                rows.append(get_row({'code': code, 'id': id, 'count': count}))
-        if rows:
-            data = '\n'.join([get_row({'code': 'code', 'id': 'id', 'count': 'count'})] + rows)
-            logger.info(f'summary:\n{data}')
 
 
 class SaveReport(BaseReport):
