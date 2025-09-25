@@ -1301,17 +1301,20 @@ class FilesystemTestCase(BaseTestCase):
         self.assertEqual(rf.keys(), {src})
         self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
 
-        data = {'files': {'D:\\data\\src1': {'dir1\\file1': 123, 'dir1\\file2': 123}}}
+        other_src = 'D:\\data\\src1'
+        other_files = {'dir1\\file1': 123, 'dir1\\file2': 123}
+        other_data = {'files': {other_src: other_files}}
         save_ref = utils.SaveReference(dst)
-        save_ref._load(data)
+        save_ref._load(other_data)
         self._list_ref_files(dst_paths)[dst]
 
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
         rf = self._list_ref_files(dst_paths)[dst]
-        self.assertEqual(rf.keys(), {src})
+        self.assertEqual(rf.keys(), {src, other_src})
         self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
+        self.assertEqual(rf[other_src].keys(), other_files.keys())
 
     def test_filesystem_mirror(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)

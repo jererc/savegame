@@ -14,7 +14,7 @@ from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.filesystem import FilesystemSaver
 from savegame.utils import (HOSTNAME, Metadata, SaveReference, InvalidPath, UnhandledPath, coalesce, get_file_hash,
-                            get_file_mtime, get_file_size, get_local_path, list_label_mountpoints, validate_path)
+                            get_file_mtime, get_file_size, normalize_path, list_label_mountpoints, validate_path)
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +209,7 @@ class SaveMonitor:
 
     def _get_size(self, save_ref, files):
         try:
-            sizes = [get_file_size(os.path.join(save_ref.dst, get_local_path(r)), default=0) for r in files.keys()]
+            sizes = [get_file_size(os.path.join(save_ref.dst, normalize_path(r)), default=0) for r in files.keys()]
             return float(f'{sum(sizes) / 1024 / 1024:.02f}')
         except Exception:
             logger.exception(f'failed to get {save_ref.dst} size')
@@ -218,7 +218,7 @@ class SaveMonitor:
     def _check_file(self, hostname, save_ref, src, rel_path, ref_hash):
         if not isinstance(ref_hash, str):
             return
-        rel_path = get_local_path(rel_path)
+        rel_path = normalize_path(rel_path)
         dst_file = os.path.join(save_ref.dst, rel_path)
         if not os.path.exists(dst_file):
             return f'missing dst file {dst_file}'
@@ -250,7 +250,7 @@ class SaveMonitor:
             desynced = []
             for src, files in save_ref.files.items():
                 for rel_path, ref_hash in files.items():
-                    dst_file = os.path.join(save_ref.dst, get_local_path(rel_path))
+                    dst_file = os.path.join(save_ref.dst, normalize_path(rel_path))
                     if os.path.exists(dst_file):
                         mtimes.append(get_file_mtime(dst_file))
                     error = self._check_file(hostname, save_ref, src, rel_path, ref_hash)

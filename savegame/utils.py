@@ -44,7 +44,7 @@ def validate_path(path):
         raise UnhandledPath(f'invalid path {path} on {sys.platform=}')
 
 
-def get_local_path(path):
+def normalize_path(path):
     return path.replace(INVALID_PATH_SEP, os.path.sep)
 
 
@@ -171,7 +171,7 @@ class SaveReference:
 
     def _purge_files(self):
         for src, files in self.files.items():
-            self.files[src] = {k: v for k, v in files.items() if os.path.exists(os.path.join(self.dst, k))}
+            self.files[src] = {k: v for k, v in files.items() if os.path.exists(os.path.join(self.dst, normalize_path(k)))}
         self.files = {k: v for k, v in self.files.items() if v}
 
     def save(self, force=False):
