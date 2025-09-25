@@ -1,7 +1,7 @@
 import logging
 
-from savegame.lib import LoadReport
 from savegame.loaders.base import NotFound, get_loader_class
+from savegame.report import LoadReport
 from savegame.save import iterate_save_items
 
 logger = logging.getLogger(__name__)

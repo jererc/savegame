@@ -3,7 +3,8 @@ import inspect
 import logging
 import os
 
-from savegame.lib import HOSTNAME, USERNAME, LoadReport
+from savegame.lib import HOSTNAME, USERNAME
+from savegame.report import LoadReport
 
 logger = logging.getLogger(__name__)
 
