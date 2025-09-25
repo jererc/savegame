@@ -129,9 +129,8 @@ class BaseSaver:
             equal = filecmp.cmp(src_file, dst_file, shallow=True) if os.path.exists(dst_file) else False
             new_ref = src_mtime
         must_copy = not equal
-
-        if not default_ref:   # never purge orphaned files
-            default_ref = new_ref if equal else 'NULL'
+        if equal:
+            default_ref = new_ref
 
         if must_copy and src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:   # never overwrite newer files, useful after a vm restore
             logger.warning(f'{dst_file=} is newer than {src_file=}')

@@ -195,8 +195,7 @@ class SaveReference:
         return files
 
     def set_file(self, src, rel_path, ref):
-        if ref:
-            self.files[src][rel_path] = ref
+        self.files[src][rel_path] = ref or 'NULL'
 
     def get_dst_files(self, src=None):
         if src:
