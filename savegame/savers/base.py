@@ -117,28 +117,26 @@ class BaseSaver:
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
-    def must_copy_file(self, src_file, dst_file, current_ref):
+    def must_copy_file(self, src_file, dst_file, default_ref):
         src_mtime = get_file_mtime(src_file)
         dst_mtime = get_file_mtime(dst_file)
-        must_copy = False
-        default_ref = current_ref
 
         if coalesce(self.save_item.file_compare_method, self.file_compare_method) == 'hash':
             src_hash = get_file_hash(src_file)
-            dst_hash = get_file_hash(dst_file)
-            must_copy = src_hash != dst_hash
+            equal = src_hash == get_file_hash(dst_file)
             new_ref = src_hash
         else:
-            must_copy = not filecmp.cmp(src_file, dst_file, shallow=True) if os.path.exists(dst_file) else True
+            equal = filecmp.cmp(src_file, dst_file, shallow=True) if os.path.exists(dst_file) else False
             new_ref = src_mtime
+        must_copy = not equal
 
-        if src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:   # never overwrite newer files, useful after a vm restore
+        if not default_ref:   # never purge orphaned files
+            default_ref = new_ref if equal else 'NULL'
+
+        if must_copy and src_mtime and dst_mtime and src_mtime < dst_mtime - MTIME_DRIFT_TOLERANCE:   # never overwrite newer files, useful after a vm restore
             logger.warning(f'{dst_file=} is newer than {src_file=}')
             self.report.add(self, rel_path=os.path.relpath(src_file, self.src), code='failed_dst_newer')
             must_copy = False
-
-        if not must_copy and os.path.exists(dst_file) and not default_ref:   # never purge orphaned files
-            default_ref = 'NULL'
 
         return must_copy, new_ref, default_ref
 

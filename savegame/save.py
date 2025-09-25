@@ -13,18 +13,14 @@ from savegame.report import SaveReport
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.filesystem import FilesystemSaver
-from savegame.utils import (HOSTNAME, INVALID_PATH_SEP, Metadata, SaveReference, InvalidPath, UnhandledPath,
-                            coalesce, get_file_hash, get_file_mtime, get_file_size, list_label_mountpoints, validate_path)
+from savegame.utils import (HOSTNAME, Metadata, SaveReference, InvalidPath, UnhandledPath, coalesce, get_file_hash,
+                            get_file_mtime, get_file_size, get_local_path, list_label_mountpoints, validate_path)
 
 logger = logging.getLogger(__name__)
 
 
 def ts_to_str(ts):
     return datetime.fromtimestamp(int(ts)).isoformat(' ')
-
-
-def get_local_path(path):
-    return path.replace(INVALID_PATH_SEP, os.path.sep)
 
 
 class SaveItem:

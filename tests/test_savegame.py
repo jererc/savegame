@@ -1119,16 +1119,17 @@ class FilesystemTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
         rf = list(self._list_ref_files(dst_paths).values())[0][self.src_root]
-        self.assertEqual(rf, {
-            'src1/dir1/file1': 'NULL',
-            'src1/dir1/file2': 'NULL',
-            'src1/dir2/file1': 'NULL',
-            'src1/dir2/file2': 'NULL',
-            'src2/dir1/file1': 'NULL',
-            'src2/dir1/file2': 'NULL',
-            'src2/dir2/file1': 'NULL',
-            'src2/dir2/file2': 'NULL',
+        self.assertEqual(rf.keys(), {
+            'src1/dir1/file1',
+            'src1/dir1/file2',
+            'src1/dir2/file1',
+            'src1/dir2/file2',
+            'src2/dir1/file1',
+            'src2/dir1/file2',
+            'src2/dir2/file1',
+            'src2/dir2/file2',
         })
+        self.assertTrue(all(isinstance(v, float) for v in rf.values()))
 
     def test_dst_files_are_newer(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
@@ -1284,6 +1285,65 @@ class FilesystemTestCase(BaseTestCase):
         self.assertEqual(rf[src1].keys(), {'dir1/file3'})
         self.assertEqual(rf[src2].keys(), {'dir1/file1'})   # overwrites src1 file
         self.assertEqual(rf[src3].keys(), {'dir1/file2'})   # overwrites src1 file
+
+    def test_filesystem_copy_new_src(self):
+        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
+        src1 = os.path.join(self.src_root, 'src1')
+        src2 = os.path.join(self.src_root, 'src2')
+        dst = os.path.join(self.dst_root, 'dst1')
+        os.makedirs(dst, exist_ok=True)
+        saves = [
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [[src1, ['*/dir1/*'], []]],
+                'dst_path': dst,
+            },
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
+        rf = self._list_ref_files(dst_paths)[dst]
+        self.assertEqual(rf.keys(), {src1})
+        self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
+
+        saves[0]['src_paths'] = [[src2, ['*/dir1/*'], []]]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
+        rf = self._list_ref_files(dst_paths)[dst]
+        self.assertEqual(rf.keys(), {src2})
+        self.assertEqual(rf[src2].keys(), {'dir1/file1', 'dir1/file2'})
+
+    def test_filesystem_copy_new_src_other_path_sep(self):
+        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
+        src = os.path.join(self.src_root, 'src1')
+        dst = os.path.join(self.dst_root, 'dst1')
+        os.makedirs(dst, exist_ok=True)
+        saves = [
+            {
+                'saver_id': 'filesystem_copy',
+                'src_paths': [[src, ['*/dir1/*'], []]],
+                'dst_path': dst,
+            },
+        ]
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
+        rf = self._list_ref_files(dst_paths)[dst]
+        self.assertEqual(rf.keys(), {src})
+        self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
+
+        data = {'files': {'D:\\data\\src1': {'dir1\\file1': 123, 'dir1\\file2': 123}}}
+        save_ref = utils.SaveReference(dst)
+        save_ref._load(data)
+        self._list_ref_files(dst_paths)[dst]
+
+        self._savegame(saves=saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
+        rf = self._list_ref_files(dst_paths)[dst]
+        self.assertEqual(rf.keys(), {src})
+        self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
 
     def test_filesystem_mirror(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)

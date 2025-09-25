@@ -44,6 +44,10 @@ def validate_path(path):
         raise UnhandledPath(f'invalid path {path} on {sys.platform=}')
 
 
+def get_local_path(path):
+    return path.replace(INVALID_PATH_SEP, os.path.sep)
+
+
 def to_json(path):
     return json.dumps(path, sort_keys=True, indent=4)
 
@@ -167,6 +171,7 @@ class SaveReference:
 
     def _purge_files(self):
         for src, files in self.files.items():
+            print(f'{src=} {files=}')
             self.files[src] = {k: v for k, v in files.items() if os.path.exists(os.path.join(self.dst, k))}
         self.files = {k: v for k, v in self.files.items() if v}
 
