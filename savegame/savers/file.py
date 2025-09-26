@@ -18,8 +18,8 @@ def walk_files(path):
             yield os.path.join(root, file)
 
 
-class FilesystemSaver(BaseSaver):
-    id = 'filesystem'
+class FileSaver(BaseSaver):
+    id = 'file'
     in_place = False
     enable_purge = True
     file_compare_method = 'hash'
@@ -69,16 +69,16 @@ class FilesystemSaver(BaseSaver):
             self.save_ref.set_file(src, rel_path, ref)
 
 
-class FilesystemMirrorSaver(FilesystemSaver):
-    id = 'filesystem_mirror'
+class FileMirrorSaver(FileSaver):
+    id = 'file_mirror'
     in_place = True
     enable_purge = True
     purge_delta = 0
     file_compare_method = 'shallow'
 
 
-class FilesystemCopySaver(FilesystemSaver):
-    id = 'filesystem_copy'
+class FileCopySaver(FileSaver):
+    id = 'file_copy'
     in_place = True
     enable_purge = False
     file_compare_method = 'shallow'

@@ -17,8 +17,8 @@ SHARED_USERNAMES = {'linux': {'shared'}, 'win32': {'Public'}}.get(sys.platform, 
 logger = logging.getLogger(__name__)
 
 
-class FilesystemLoader(BaseLoader):
-    id = 'filesystem'
+class FileLoader(BaseLoader):
+    id = 'file'
 
     def _get_src_file_for_user(self, path):
         pp = PurePath(path)
@@ -125,9 +125,9 @@ class FilesystemLoader(BaseLoader):
             self._load_from_save_ref(save_ref)
 
 
-class FilesystemMirrorLoader(FilesystemLoader):
-    id = 'filesystem_mirror'
+class FileMirrorLoader(FileLoader):
+    id = 'file_mirror'
 
 
-class FilesystemCopyLoader(FilesystemLoader):
-    id = 'filesystem_copy'
+class FileCopyLoader(FileLoader):
+    id = 'file_copy'

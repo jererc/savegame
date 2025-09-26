@@ -1,11 +1,11 @@
 import os
 import time
 
-from savegame.loaders.filesystem import FilesystemLoader
+from savegame.loaders.file import FileLoader
 from savegame.savers.git import Git
 
 
-class GitLoader(FilesystemLoader):
+class GitLoader(FileLoader):
     id = 'git'
 
     def _load_from_save_ref(self, save_ref):

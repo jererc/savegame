@@ -12,7 +12,7 @@ from savegame import NAME, WORK_DIR
 from savegame.report import SaveReport
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
-from savegame.savers.filesystem import FilesystemSaver
+from savegame.savers.file import FileSaver
 from savegame.utils import (HOSTNAME, Metadata, SaveReference, InvalidPath, UnhandledPath, coalesce, get_file_hash,
                             get_file_mtime, get_file_size, normalize_path, list_label_mountpoints, validate_path)
 
@@ -24,7 +24,7 @@ def ts_to_str(ts):
 
 
 class SaveItem:
-    def __init__(self, config, src_paths=None, saver_id=FilesystemSaver.id, dst_path=None,
+    def __init__(self, config, src_paths=None, saver_id=FileSaver.id, dst_path=None,
                  run_delta=None, purge_delta=None, enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None, trigger_volume_labels=None,
                  retry_delta=None, file_compare_method=None, due_warning_delta=7 * 24 * 3600):

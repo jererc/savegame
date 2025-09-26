@@ -16,7 +16,7 @@ from svcutils.service import Config
 
 from tests import WORK_DIR, module
 from savegame import load, save, savers, utils
-from savegame.loaders.filesystem import FilesystemLoader
+from savegame.loaders.file import FileLoader
 from savegame.savers import virtualbox
 
 GOOGLE_CREDS = os.path.join(os.path.expanduser('~'), 'gcs-savegame.json')
@@ -309,7 +309,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls)
+        obj = FileLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -322,7 +322,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls)
+        obj = FileLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -335,7 +335,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'win32', 'not windows')
     def test_win_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls, username=self.username2)
+        obj = FileLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls, username=self.username2)
 
         path = 'C:\\Program Files\\name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -350,7 +350,7 @@ class LoadgamePathUsernameTestCase(BaseTestCase):
 
     @unittest.skipIf(sys.platform != 'linux', 'not linux')
     def test_linux_other_username(self):
-        obj = FilesystemLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls, username=self.username2)
+        obj = FileLoader(self.config, self.save_item.root_dst_path, self.save_item.saver_cls, username=self.username2)
 
         path = '/var/name'
         self.assertEqual(obj._get_src_file_for_user(path), path)
@@ -491,7 +491,7 @@ class SavegameTestCase(BaseTestCase):
         def side_copy(*args, **kwargs):
             raise Exception('copy failed')
 
-        with patch.object(module.savers.filesystem.shutil, 'copy2', side_effect=side_copy):
+        with patch.object(module.savers.file.shutil, 'copy2', side_effect=side_copy):
             self._savegame(saves=saves)
         rf2 = self._get_save_refs()[src1].get_files(src1)
         pprint(rf2)
@@ -551,7 +551,7 @@ class SavegameTestCase(BaseTestCase):
             raise Exception('do_run failed')
 
         with patch.object(module.savers.base, 'notify'), \
-                patch.object(module.savers.filesystem.FilesystemSaver, 'do_run', side_effect=side_do_run):
+                patch.object(module.savers.file.FileSaver, 'do_run', side_effect=side_do_run):
             self._savegame(saves=saves)
         pprint(self.meta.data)
         self.assertEqual(sorted(r['src'] for r in self.meta.data.values()), sorted([src1, src2, src3]))
@@ -680,7 +680,7 @@ class SavegameTestCase(BaseTestCase):
         os.makedirs(dst_path, exist_ok=True)
         saves = [
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'not_found',
@@ -704,7 +704,7 @@ class SavegameTestCase(BaseTestCase):
             fd.write('data')
         saves = [
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
@@ -722,7 +722,7 @@ class SavegameTestCase(BaseTestCase):
 
         saves = [
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
@@ -748,14 +748,14 @@ class SavegameTestCase(BaseTestCase):
 
         saves = [
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': ['src1'],
                 'dst_path': 'src1',
                 'src_volume_label': 'volume1',
                 'dst_volume_label': 'volume2',
             },
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': ['src2'],
                 'dst_path': 'src2',
                 'src_volume_label': 'volume2',
@@ -1062,7 +1062,7 @@ class LoadgameTestCase(BaseTestCase):
         src_paths2 = self._list_src_root_paths()
         self.assertFalse(src_paths2)
 
-    def test_filesystem(self):
+    def test_file(self):
         self._savegame_with_data(index_start=1, nb_files=2)
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
@@ -1079,14 +1079,14 @@ class LoadgameTestCase(BaseTestCase):
         self._loadgame(exclude=['*dir1*'])
         src_paths2 = self._list_src_root_paths()
 
-    def test_filesystem_mirror(self):
+    def test_file_mirror(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         src_path = os.path.join(self.src_root, 'src1')
         dst_path = os.path.join(self.dst_root, 'src1')
         os.makedirs(dst_path, exist_ok=True)
         saves = [
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [src_path],
                 'dst_path': dst_path,
             },
@@ -1104,13 +1104,13 @@ class LoadgameTestCase(BaseTestCase):
         self._loadgame()
 
 
-class FilesystemTestCase(BaseTestCase):
+class FileTestCase(BaseTestCase):
     def test_existing_dst_files_without_save_ref(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         self._generate_dst_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         saves = [
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [self.src_root],
                 'dst_path': self.dst_root,
             },
@@ -1135,7 +1135,7 @@ class FilesystemTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         saves = [
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [self.src_root],
                 'dst_path': self.dst_root,
             },
@@ -1160,13 +1160,13 @@ class FilesystemTestCase(BaseTestCase):
         hashes2 = {f: utils.get_file_hash(f) for f in dst_paths if os.path.basename(f) == 'file1'}
         self.assertEqual(hashes2, hashes)
 
-    def test_filesystem(self):
+    def test_file(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         src = os.path.join(self.src_root, 'src1')
         dst = os.path.join(self.dst_root, 'dst1')
         saves = [
             {
-                'saver_id': 'filesystem',
+                'saver_id': 'file',
                 'src_paths': [src],
                 'dst_path': dst,
             },
@@ -1201,19 +1201,19 @@ class FilesystemTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(src_paths, '*src1*dir1*file4*'))
         self._loadgame()
 
-    def test_filesystem_copy(self):
+    def test_file_copy(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         src1 = os.path.join(self.src_root, 'src1')
         src2 = os.path.join(self.src_root, 'src2')
         dst = os.path.join(self.dst_root, 'dst1')
         saves = [
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [[src1, ['*/dir1/*'], []]],
                 'dst_path': dst,
             },
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [[src2, ['*/dir2/*'], []]],
                 'dst_path': dst,
             },
@@ -1254,7 +1254,7 @@ class FilesystemTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(src_paths, '*src2*dir2*file2*'))
         self._loadgame()
 
-    def test_filesystem_copy_new_src(self):
+    def test_file_copy_new_src(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
         src1 = os.path.join(self.src_root, 'src1')
         src2 = os.path.join(self.src_root, 'src2')
@@ -1262,7 +1262,7 @@ class FilesystemTestCase(BaseTestCase):
         os.makedirs(dst, exist_ok=True)
         saves = [
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [[src1, ['*/dir1/*'], []]],
                 'dst_path': dst,
             },
@@ -1282,14 +1282,14 @@ class FilesystemTestCase(BaseTestCase):
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
         self.assertEqual(rf[src2].keys(), {'dir2/file1', 'dir2/file2'})
 
-    def test_filesystem_copy_new_src_other_path_sep(self):
+    def test_file_copy_new_src_other_path_sep(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
         src = os.path.join(self.src_root, 'src1')
         dst = os.path.join(self.dst_root, 'dst1')
         os.makedirs(dst, exist_ok=True)
         saves = [
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [[src, ['*/dir1/*'], []]],
                 'dst_path': dst,
             },
@@ -1316,7 +1316,7 @@ class FilesystemTestCase(BaseTestCase):
         self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
         self.assertEqual(rf[other_src].keys(), other_files.keys())
 
-    def test_filesystem_mirror(self):
+    def test_file_mirror(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
         src1 = os.path.join(self.src_root, 'src1')
         src2 = os.path.join(self.src_root, 'src2')
@@ -1324,12 +1324,12 @@ class FilesystemTestCase(BaseTestCase):
         dst2 = os.path.join(self.dst_root, 'dst2')
         saves = [
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [src1],
                 'dst_path': dst1,
             },
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [src2],
                 'dst_path': dst2,
             },
@@ -1484,7 +1484,7 @@ class ManySourcesTestCase(BaseTestCase):
         self._generate_src_data(index_start=1, nb_srcs=4, nb_dirs=3, nb_files=2)
         saves = [
             {
-                'saver_id': 'filesystem',
+                'saver_id': 'file',
                 'src_paths': [
                     [
                         os.path.join(self.src_root, 'src1'),
@@ -1495,7 +1495,7 @@ class ManySourcesTestCase(BaseTestCase):
                 'dst_path': os.path.join(self.dst_root, 'dst1'),
             },
             {
-                'saver_id': 'filesystem',
+                'saver_id': 'file',
                 'src_paths': [
                     [
                         os.path.join(self.src_root, 'src2'),
@@ -1506,14 +1506,14 @@ class ManySourcesTestCase(BaseTestCase):
                 'dst_path': os.path.join(self.dst_root, 'dst1'),
             },
             {
-                'saver_id': 'filesystem',
+                'saver_id': 'file',
                 'src_paths': [
                     os.path.join(self.src_root, 'src4', 'dir1', 'file1'),
                 ],
                 'dst_path': os.path.join(self.dst_root, 'dst1'),
             },
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [
                     [
                         os.path.join(self.src_root, 'src1'),
@@ -1524,7 +1524,7 @@ class ManySourcesTestCase(BaseTestCase):
                 'dst_path': os.path.join(self.dst_root, 'dst2'),
             },
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [
                     [
                         os.path.join(self.src_root, 'src2'),
@@ -1535,7 +1535,7 @@ class ManySourcesTestCase(BaseTestCase):
                 'dst_path': os.path.join(self.dst_root, 'dst2'),
             },
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [
                     [
                         os.path.join(self.src_root, 'src3'),
@@ -1546,7 +1546,7 @@ class ManySourcesTestCase(BaseTestCase):
                 'dst_path': os.path.join(self.dst_root, 'dst3'),
             },
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [
                     [
                         os.path.join(self.src_root, 'src3'),
@@ -1600,17 +1600,17 @@ class ReportTestCase(BaseTestCase):
             os.makedirs(os.path.join(self.dst_root, dirname), exist_ok=True)
         saves = [
             {
-                'saver_id': 'filesystem',
+                'saver_id': 'file',
                 'src_paths': [os.path.join(self.src_root, 'src1')],
                 'dst_path': os.path.join(self.dst_root, 'dst1'),
             },
             {
-                'saver_id': 'filesystem_mirror',
+                'saver_id': 'file_mirror',
                 'src_paths': [os.path.join(self.src_root, 'src2')],
                 'dst_path': os.path.join(self.dst_root, 'dst2'),
             },
             {
-                'saver_id': 'filesystem_copy',
+                'saver_id': 'file_copy',
                 'src_paths': [os.path.join(self.src_root, 'src3')],
                 'dst_path': os.path.join(self.dst_root, 'dst3'),
             },
