@@ -13,8 +13,8 @@ from savegame.report import SaveReport
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.file import FileSaver
-from savegame.utils import (HOSTNAME, Metadata, SaveReference, InvalidPath, UnhandledPath, coalesce, get_file_hash,
-                            get_file_mtime, get_file_size, normalize_path, list_label_mountpoints, validate_path)
+from savegame.utils import (HOSTNAME, Metadata, InvalidPath, UnhandledPath, coalesce, get_file_hash, get_file_mtime,
+                            get_file_size, iterate_save_refs, normalize_path, list_label_mountpoints, validate_path)
 
 logger = logging.getLogger(__name__)
 
@@ -192,20 +192,11 @@ class SaveMonitor:
         dt = datetime.fromtimestamp(self.run_file.get_ts())
         return date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS)
 
-    def _iterate_hostname_save_refs(self):
+    def _iterate_save_refs(self):
         root_dst_paths = {s.root_dst_path for s in iterate_save_items(self.config)
-                          if s.saver_cls.dst_type == 'local' and not s.saver_cls.in_place and s.root_dst_path and os.path.exists(s.root_dst_path)}
+                          if s.saver_cls.dst_type == 'local' and s.root_dst_path and os.path.exists(s.root_dst_path)}
         for root_dst_path in root_dst_paths:
-            if not os.path.exists(root_dst_path):
-                logger.warning(f'missing dst path {root_dst_path}')
-                continue
-            for hostname in sorted(os.listdir(root_dst_path)):
-                for dst in glob(os.path.join(root_dst_path, hostname, '*')):
-                    save_ref = SaveReference(dst)
-                    if not os.path.exists(save_ref.file):
-                        logger.error(f'missing save ref file {save_ref.file}')
-                        continue
-                    yield hostname, save_ref
+            yield from iterate_save_refs(root_dst_path)
 
     def _get_size(self, save_ref, files):
         try:
@@ -245,26 +236,27 @@ class SaveMonitor:
 
     def _generate_report(self):
         saves = []
-        for hostname, save_ref in self._iterate_hostname_save_refs():
-            mtimes = []
-            desynced = []
-            for src, files in save_ref.files.items():
-                for rel_path, ref_hash in files.items():
-                    dst_file = os.path.join(save_ref.dst, normalize_path(rel_path))
-                    if os.path.exists(dst_file):
-                        mtimes.append(get_file_mtime(dst_file))
-                    error = self._check_file(hostname, save_ref, src, rel_path, ref_hash)
-                    if error:
-                        desynced.append(rel_path)
-                        logger.error(f'inconsistency in {save_ref.dst}: {error}')
-                saves.append({
-                    'hostname': hostname,
-                    'src': f'{src} ({list(files.keys())[0]})' if len(files) == 1 else src,
-                    'modified': max(mtimes) if mtimes else 0,
-                    'size_MB': self._get_size(save_ref, files),
-                    'files': len(files),
-                    'desynced': len(desynced),
-                })
+        for save_ref in self._iterate_save_refs():
+            for hostname, files in save_ref.files.items():
+                mtimes = []
+                desynced = []
+                for src, file_refs in files.items():
+                    for rel_path, ref in file_refs.items():
+                        dst_file = os.path.join(save_ref.dst, normalize_path(rel_path))
+                        if os.path.exists(dst_file):
+                            mtimes.append(get_file_mtime(dst_file))
+                        error = self._check_file(hostname, save_ref, src, rel_path, ref)
+                        if error:
+                            desynced.append(rel_path)
+                            logger.error(f'inconsistency in {save_ref.dst}: {error}')
+                    saves.append({
+                        'hostname': hostname,
+                        'src': f'{src} ({list(file_refs.keys())[0]})' if len(file_refs) == 1 else src,
+                        'modified': max(mtimes) if mtimes else 0,
+                        'size_MB': self._get_size(save_ref, file_refs),
+                        'files': len(file_refs),
+                        'desynced': len(desynced),
+                    })
         orphan_dsts = sorted(self._get_orphan_dsts())
         for orphan_dst in orphan_dsts:
             logger.warning(f'no matching save: {orphan_dst}')

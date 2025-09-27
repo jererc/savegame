@@ -25,15 +25,15 @@ class BaseReport:
         return ' '.join([
             f'{row["code"]:20}',
             f'{row["id"]:20}',
-            truncate_middle(row["src"], 50),
-            truncate_middle(row["rel_path"], 40),
-            truncate_middle(row["dst"], 50),
+            truncate_middle(row["src"] or '', 50),
+            truncate_middle(row["rel_path"] or '', 40),
+            truncate_middle(row["dst"] or '', 50),
             f'{row["duration"]:>8}',
         ])
 
     def print_table(self, codes=None):
         rows = []
-        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'])):
+        for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'], x['dst'])):
             if codes and item['code'] not in codes:
                 continue
             rows.append(self._get_row(item))

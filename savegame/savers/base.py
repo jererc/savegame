@@ -117,6 +117,12 @@ class BaseSaver:
     def must_run(self):
         return time.time() > self.meta.get(self.key).get('next_ts', 0)
 
+    def reset_files(self, src):
+        return self.save_ref.reset_files(src, hostname=self.hostname)
+
+    def set_file(self, src, rel_path, ref):
+        self.save_ref.set_file(src, rel_path, ref, hostname=self.hostname)
+
     def must_copy_file(self, src_file, dst_file, default_ref):
         src_mtime = get_file_mtime(src_file)
         dst_mtime = get_file_mtime(dst_file)
@@ -153,7 +159,7 @@ class BaseSaver:
         return True
 
     def _purge_dst(self):
-        dst_files = self.save_ref.get_dst_files()
+        dst_files = self.save_ref.get_dst_files(hostname=self.hostname)
         if not dst_files and not self.in_place:
             remove_path(self.dst)
             return
@@ -174,10 +180,10 @@ class BaseSaver:
             if self.enable_purge and self.save_item.enable_purge:
                 self._purge_dst()
             if os.path.exists(self.save_ref.dst):
-                self.save_ref.save(force=self.config.ALWAYS_UPDATE_REF)
+                self.save_ref.save(hostname=self.hostname, force=self.config.ALWAYS_UPDATE_REF)
             self.success = True
         except Exception as e:
-            logger.exception(f'failed to save {self.src}')
+            logger.exception(f'failed to save {self.src=}')
             notify(title='error', body=f'failed to save {self.src}: {e}', app_name=NAME)
             self.success = False
         self.end_ts = time.time()

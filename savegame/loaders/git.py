@@ -10,7 +10,7 @@ class GitLoader(FileLoader):
 
     def _load_from_save_ref(self, save_ref):
         bundle_rel_paths = set()
-        for src, files in save_ref.files.items():
+        for src, files in save_ref.get_files().items():
             for rel_path, ref in files.items():
                 if not (rel_path.endswith('.bundle') and isinstance(ref, (int, float))):
                     continue

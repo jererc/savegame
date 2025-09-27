@@ -65,7 +65,7 @@ class GitSaver(BaseSaver):
     enable_purge = True
 
     def do_run(self):
-        file_refs = self.save_ref.reset_files(self.src)
+        file_refs = self.reset_files(self.src)
         for src_path in sorted(glob(os.path.join(self.src, '*'))):
             if not os.path.isdir(src_path):
                 continue
@@ -91,7 +91,7 @@ class GitSaver(BaseSaver):
             except Exception:
                 logger.exception(f'failed to create bundle for {src_path}')
                 self.report.add(self, rel_path=rel_path, code='failed')
-            self.save_ref.set_file(self.src, rel_path, ref)
+            self.set_file(self.src, rel_path, ref)
 
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
@@ -103,4 +103,4 @@ class GitSaver(BaseSaver):
                     shutil.copy2(src_file, dst_file)
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
                     ref = new_ref
-                self.save_ref.set_file(self.src, rel_path, ref)
+                self.set_file(self.src, rel_path, ref)

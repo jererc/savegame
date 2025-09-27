@@ -145,12 +145,20 @@ class BaseTestCase(unittest.TestCase):
         print(f'files at {self.dst_root}:\n{pformat(res)}')
         return res
 
-    def _list_ref_files(self, dst_paths):
+    def _list_save_refs(self, dst_paths):
         res = {}
         ref_files = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME]
         for ref_file in sorted(ref_files):
             save_ref = utils.SaveReference(os.path.dirname(ref_file))
-            res[save_ref.dst] = dict(save_ref.files)
+            res[save_ref.dst] = save_ref
+        return res
+
+    def _list_save_ref_files(self, dst_paths):
+        res = {}
+        ref_files = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME]
+        for ref_file in sorted(ref_files):
+            save_ref = utils.SaveReference(os.path.dirname(ref_file))
+            res[save_ref.dst] = save_ref.get_files()
         print(f'save ref files:\n{pformat(res)}')
         return res
 
@@ -160,6 +168,12 @@ class BaseTestCase(unittest.TestCase):
         return {d['src']: utils.SaveReference(d['dst']) for s, d in self.meta.data.items()}
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
+        def switch_hostname(file):
+            save_ref = utils.SaveReference(os.path.dirname(file))
+            save_ref.files[to_hostname] = save_ref.get_files(hostname=from_hostname)
+            save_ref.files[from_hostname].clear()
+            save_ref.save()
+
         for base_dir in os.listdir(os.path.join(self.dst_root)):
             for saver_id in os.listdir(os.path.join(self.dst_root, base_dir)):
                 for hostname in os.listdir(os.path.join(self.dst_root, base_dir, saver_id)):
@@ -168,17 +182,21 @@ class BaseTestCase(unittest.TestCase):
                     os.rename(os.path.join(self.dst_root, base_dir, saver_id, hostname),
                               os.path.join(self.dst_root, base_dir, saver_id, to_hostname))
 
-    def _switch_dst_data_username(self, from_username, to_username):
+        for path in walk_paths(self.dst_root):
+            if os.path.basename(path) == utils.REF_FILENAME:
+                switch_hostname(path)
 
+    def _switch_dst_data_username(self, from_username, to_username):
         def switch_ref_path(file):
-            ref = utils.SaveReference(os.path.dirname(file))
+            save_ref = utils.SaveReference(os.path.dirname(file))
             username_str = f'{os.sep}{from_username}{os.sep}'
-            src = list(ref.files.keys())[0]
+            files = save_ref.get_files()
+            src = list(files.keys())[0]
             if username_str not in src:
                 return
             new_src = src.replace(username_str, f'{os.sep}{to_username}{os.sep}')
-            ref.files = {new_src: ref.files[src]}
-            ref.save()
+            save_ref.files = {HOSTNAME: {new_src: files[src]}}
+            save_ref.save()
 
         for path in walk_paths(self.dst_root):
             if os.path.basename(path) == utils.REF_FILENAME:
@@ -255,32 +273,68 @@ class SaveReferenceTestCase(BaseTestCase):
         os.makedirs(dst2, exist_ok=True)
         s1 = utils.SaveReference(dst1)
         s2 = utils.SaveReference(dst1)
-        s3 = utils.SaveReference(dst2)
         self.assertEqual(s1, s2)
-        self.assertNotEqual(s1, s3)
 
-        s1.reset_files(src1)
+        files = s1.reset_files(src1)
+        self.assertEqual(files, {})
         self._create_file(os.path.join(dst1, 'file1'), 'content1')
         s1.set_file(src1, 'file1', 'hash1')
         self.assertEqual(s1.get_files(src1), {'file1': 'hash1'})
         s1.save()
-        s2.reset_files(src2)
+        ts1 = s1.get_ts()
+        self.assertTrue(s1.get_ts() > 0)
+
+        s1.set_file(src1, 'file1', 'hash1')
+        s1.save()
+        ts2 = s1.get_ts()
+        self.assertEqual(ts2, ts1)
+
+        files = s2.reset_files(src2)
+        self.assertEqual(files, {})
         self._create_file(os.path.join(dst1, 'file2'), 'content2')
         s2.set_file(src2, 'file2', 'hash2')
         self.assertEqual(s2.get_files(src2), {'file2': 'hash2'})
+        self._create_file(os.path.join(dst1, 'file3'), 'content3')
+        s2.set_file(src2, 'file3', 'hash3')
+        self.assertEqual(s2.get_files(src2), {'file2': 'hash2', 'file3': 'hash3'})
+        self.assertEqual(s2.get_files(), {src1: {'file1': 'hash1'}, src2: {'file2': 'hash2', 'file3': 'hash3'}})
         s2.save()
-        s3.reset_files(src1)
-        self._create_file(os.path.join(dst2, 'file3'), 'content3')
-        s3.set_file(src1, 'file3', 'hash3')
-        self.assertEqual(s3.get_files(src1), {'file3': 'hash3'})
-        s3.save()
-        self.assertEqual(s1.files, s2.files)
-        self.assertNotEqual(s1.files, s3.files)
+        self.assertEqual(s2.get_files(), {src1: {'file1': 'hash1'}, src2: {'file2': 'hash2', 'file3': 'hash3'}})
+        ts3 = s2.get_ts()
+        self.assertTrue(ts3 > ts2)
 
-        file_refs = s1.get_files(src1)
-        s1.reset_files(src1)
+        self.assertEqual(s1.get_dst_files(), {os.path.join(dst1, 'file1'), os.path.join(dst1, 'file2'), os.path.join(dst1, 'file3')})
+        self.assertEqual(s2.get_files(src2), {'file2': 'hash2', 'file3': 'hash3'})
+
+        hostname2 = 'other_hostname'
+        files = s2.reset_files(src1, hostname=hostname2)
+        self.assertEqual(files, {})
+        s2.set_file(src1, 'file4', 'hash4', hostname=hostname2)
+        self.assertEqual(s2.get_files(src1, hostname=hostname2), {'file4': 'hash4'})
+        s2.save(hostname=hostname2)
+        self.assertEqual(s2.get_files(hostname=hostname2), {src1: {'file4': 'hash4'}})
+
+        files = s1.reset_files(src1)
         self.assertEqual(s1.get_files(src1), {})
-        self.assertEqual(file_refs['file1'], 'hash1')
+        self.assertEqual(files, {'file1': 'hash1'})
+        self.assertEqual(s2.get_files(hostname=hostname2), {src1: {'file4': 'hash4'}})
+
+        s1.set_file(src1, 'file1', 'hash1')
+        s1.set_file(src1, 'file2', 'hash2')
+        self._create_file(os.path.join(dst1, 'file4'), 'content4')
+        s1.set_file(src1, 'file4', 'hash4')
+        s1.save()
+        self.assertEqual(s1.get_files(src1), {'file1': 'hash1', 'file2': 'hash2', 'file4': 'hash4'})
+        os.remove(os.path.join(dst1, 'file1'))
+        s1.save()
+        self.assertEqual(s1.get_files(src1), {'file2': 'hash2', 'file4': 'hash4'})
+        data1 = deepcopy(s1.data)
+        pprint(data1)
+
+        utils.SaveReference._instances = {}
+        s3 = utils.SaveReference(dst1)
+        self.assertNotEqual(s3, s1)
+        self.assertEqual(s3.data, data1)
 
 
 class SaveItemTestCase(BaseTestCase):
@@ -570,34 +624,6 @@ class SavegameTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         pprint(self.meta.data)
-
-    def test_monitor(self):
-        self._generate_src_data(index_start=1, nb_srcs=4, nb_dirs=2, nb_files=2)
-        saves = [
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src1'),
-                    os.path.join(self.src_root, 'src2'),
-                ],
-                'dst_path': self.dst_root,
-            },
-            {
-                'src_paths': [
-                    os.path.join(self.src_root, 'src3'),
-                    os.path.join(self.src_root, 'src4'),
-                ],
-                'dst_path': self.dst_root,
-            },
-        ]
-        self._savegame(saves=saves)
-        self.assertFalse(save.SaveMonitor(self.config)._must_run())
-
-        with patch.object(save.SaveMonitor, '_must_run', return_value=True), \
-                patch.object(save, 'notify') as mock_notify:
-            sc = save.SaveMonitor(self.config)
-            sc.run()
-        print(mock_notify.call_args_list)
-        self.assertTrue(mock_notify.call_args_list)
 
     def test_purge(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=4, nb_files=4)
@@ -1062,7 +1088,7 @@ class LoadgameTestCase(BaseTestCase):
         src_paths2 = self._list_src_root_paths()
         self.assertFalse(src_paths2)
 
-    def test_file(self):
+    def test_filesystem(self):
         self._savegame_with_data(index_start=1, nb_files=2)
         src_paths = self._list_src_root_paths()
         remove_path(self.src_root)
@@ -1118,7 +1144,7 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertEqual(count_matches(dst_paths, '*src*dir*file*'), 8)
-        rf = list(self._list_ref_files(dst_paths).values())[0][self.src_root]
+        rf = list(self._list_save_ref_files(dst_paths).values())[0][self.src_root]
         self.assertEqual(rf.keys(), {
             'src1/dir1/file1',
             'src1/dir1/file2',
@@ -1175,7 +1201,7 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*src1*dir1*file1*'))
-        rf = list(self._list_ref_files(dst_paths).values())[0][src]
+        rf = list(self._list_save_ref_files(dst_paths).values())[0][src]
         self.assertEqual(rf.keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2'})
 
         with open(os.path.join(self.src_root, 'src1', 'dir1', 'file4'), 'w') as fd:
@@ -1183,14 +1209,14 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*src1*dir1*file4*'))
-        rf = list(self._list_ref_files(dst_paths).values())[0][src]
+        rf = list(self._list_save_ref_files(dst_paths).values())[0][src]
         self.assertEqual(rf.keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2', 'dir1/file4'})
 
         os.remove(os.path.join(self.src_root, 'src1', 'dir1', 'file1'))
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*src1*dir1*file4*'))
-        rf = list(self._list_ref_files(dst_paths).values())[0][src]
+        rf = list(self._list_save_ref_files(dst_paths).values())[0][src]
         self.assertEqual(rf.keys(), {'dir1/file2', 'dir2/file1', 'dir2/file2', 'dir1/file4'})
 
         shutil.rmtree(src)
@@ -1222,7 +1248,7 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)[dst]
+        rf = self._list_save_ref_files(dst_paths)[dst]
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
         self.assertEqual(rf[src2].keys(), {'dir2/file1', 'dir2/file2'})
 
@@ -1231,7 +1257,7 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file3*'))
-        rf = self._list_ref_files(dst_paths)[dst]
+        rf = self._list_save_ref_files(dst_paths)[dst]
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2', 'dir1/file3'})
         self.assertEqual(rf[src2].keys(), {'dir2/file1', 'dir2/file2'})
 
@@ -1240,7 +1266,7 @@ class FileTestCase(BaseTestCase):
         self._list_src_root_paths()
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir2*file1*'))   # no purge
-        rf = self._list_ref_files(dst_paths)[dst]
+        rf = self._list_save_ref_files(dst_paths)[dst]
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2', 'dir1/file3'})
         self.assertEqual(rf[src2].keys(), {'dir2/file2'})
 
@@ -1270,7 +1296,7 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)[dst]
+        rf = self._list_save_ref_files(dst_paths)[dst]
         self.assertEqual(rf.keys(), {src1})
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
 
@@ -1278,11 +1304,11 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)[dst]
+        rf = self._list_save_ref_files(dst_paths)[dst]
         self.assertEqual(rf[src1].keys(), {'dir1/file1', 'dir1/file2'})
         self.assertEqual(rf[src2].keys(), {'dir2/file1', 'dir2/file2'})
 
-    def test_file_copy_new_src_other_path_sep(self):
+    def test_filesystem_copy_new_src_other_path_sep(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
         src = os.path.join(self.src_root, 'src1')
         dst = os.path.join(self.dst_root, 'dst1')
@@ -1297,24 +1323,23 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)[dst]
+        rf = self._list_save_ref_files(dst_paths)[dst]
         self.assertEqual(rf.keys(), {src})
         self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
 
         other_src = 'D:\\data\\src1'
         other_files = {'dir1\\file1': 123, 'dir1\\file2': 123}
-        other_data = {'files': {other_src: other_files}}
+        other_data = {'files': {'other_hostname': {other_src: other_files}}, 'ts': {'other_hostname': 123}}
         save_ref = utils.SaveReference(dst)
         save_ref._load(other_data)
-        self._list_ref_files(dst_paths)[dst]
+        self._list_save_ref_files(dst_paths)[dst]
 
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)[dst]
-        self.assertEqual(rf.keys(), {src, other_src})
-        self.assertEqual(rf[src].keys(), {'dir1/file1', 'dir1/file2'})
-        self.assertEqual(rf[other_src].keys(), other_files.keys())
+        save_ref = self._list_save_refs(dst_paths)[dst]
+        self.assertEqual(save_ref.get_files()[src].keys(), {'dir1/file1', 'dir1/file2'})
+        self.assertEqual(save_ref.get_files(hostname='other_hostname')[other_src].keys(), other_files.keys())
 
     def test_file_mirror(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
@@ -1339,7 +1364,7 @@ class FileTestCase(BaseTestCase):
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dst1*dir1*file1*'))
         self.assertTrue(any_str_matches(dst_paths, '*dst2*dir1*file1*'))
-        rf = self._list_ref_files(dst_paths)
+        rf = self._list_save_ref_files(dst_paths)
         self.assertEqual(rf[dst1][src1].keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2'})
         self.assertEqual(rf[dst2][src2].keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2'})
 
@@ -1348,7 +1373,7 @@ class FileTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         self.assertTrue(any_str_matches(dst_paths, '*dir1*file3*'))
-        rf = self._list_ref_files(dst_paths)
+        rf = self._list_save_ref_files(dst_paths)
         self.assertEqual(rf[dst1][src1].keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2', 'dir1/file3'})
         self.assertEqual(rf[dst2][src2].keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2'})
 
@@ -1357,7 +1382,7 @@ class FileTestCase(BaseTestCase):
         self._list_src_root_paths()
         dst_paths = self._list_dst_root_paths()
         self.assertFalse(any_str_matches(dst_paths, '*src2*dir2*file1*'))
-        rf = self._list_ref_files(dst_paths)
+        rf = self._list_save_ref_files(dst_paths)
         self.assertEqual(rf[dst1][src1].keys(), {'dir1/file1', 'dir1/file2', 'dir2/file1', 'dir2/file2', 'dir1/file3'})
         self.assertEqual(rf[dst2][src2].keys(), {'dir1/file1', 'dir1/file2', 'dir2/file2'})
 
@@ -1402,7 +1427,7 @@ class GitTestCase(BaseTestCase):
         ]
         self._savegame(saves)
         dst_paths = self._list_dst_root_paths()
-        rf = list(self._list_ref_files(dst_paths).values())[0][self.src_root]
+        rf = list(self._list_save_ref_files(dst_paths).values())[0][self.src_root]
         self.assertEqual(rf.keys(), {
             'repo1.bundle',
             'repo1/dir1/file1.txt',
@@ -1457,8 +1482,10 @@ class VirtualboxTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
         self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
         self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
-        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
+        rf = self._list_save_ref_files(dst_paths)[dst]['virtualbox']
         self.assertEqual(set(rf.keys()), {'ub2.ova', 'win3.ova'})
+        self.assertIsInstance(rf['ub2.ova'], float)
+        self.assertIsInstance(rf['win3.ova'], float)
 
         self._run(saves, ['win3'], ['ub1', 'ub2', 'win3', 'test_fed4'])
         dst_paths = self._list_dst_root_paths()
@@ -1466,7 +1493,7 @@ class VirtualboxTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
         self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
         self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
-        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
+        rf = self._list_save_ref_files(dst_paths)[dst]['virtualbox']
         self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova', 'win3.ova'})
 
         self._run(saves, ['ub2'], ['ub1', 'ub2', 'test_fed4'])
@@ -1475,7 +1502,7 @@ class VirtualboxTestCase(BaseTestCase):
         self.assertTrue(any_str_matches(dst_paths, '*ub2.ova'))
         self.assertTrue(any_str_matches(dst_paths, '*win3.ova'))
         self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
-        rf = self._list_ref_files(dst_paths)[dst]['virtualbox']
+        rf = self._list_save_ref_files(dst_paths)[dst]['virtualbox']
         self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova'})
 
 
@@ -1560,7 +1587,7 @@ class ManySourcesTestCase(BaseTestCase):
         [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
-        self._list_ref_files(dst_paths)
+        self._list_save_ref_files(dst_paths)
 
         saves[0]['src_paths'] = [
             [
@@ -1571,7 +1598,7 @@ class ManySourcesTestCase(BaseTestCase):
         ]
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
-        self._list_ref_files(dst_paths)
+        self._list_save_ref_files(dst_paths)
 
         shutil.rmtree(self.src_root)
         self._loadgame()
@@ -1591,6 +1618,95 @@ class ManySourcesTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(src_paths, '*src3*dir3*file*'))
 
         self._loadgame()
+
+
+class SaveMonitorTestCase(BaseTestCase):
+    def test_1(self):
+        self._generate_src_data(index_start=1, nb_srcs=4, nb_dirs=3, nb_files=2)
+        saves = [
+            {
+                'saver_id': 'file',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src1'),
+                        ['*/dir1/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'file',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src2'),
+                        ['*/dir2/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'file',
+                'src_paths': [
+                    os.path.join(self.src_root, 'src4', 'dir1', 'file1'),
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst1'),
+            },
+            {
+                'saver_id': 'file_copy',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src1'),
+                        ['*/dir1/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+            },
+            {
+                'saver_id': 'file_copy',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src2'),
+                        ['*/dir3/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst2'),
+            },
+            {
+                'saver_id': 'file_mirror',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src3'),
+                        ['*/dir1/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst3'),
+            },
+            {
+                'saver_id': 'file_mirror',
+                'src_paths': [
+                    [
+                        os.path.join(self.src_root, 'src3'),
+                        ['*/dir2/*'],
+                        [],
+                    ],
+                ],
+                'dst_path': os.path.join(self.dst_root, 'dst3'),
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+        self._savegame(saves=saves)
+
+        with patch.object(save.SaveMonitor, '_must_run', return_value=True), \
+                patch.object(save, 'notify') as mock_notify:
+            sc = save.SaveMonitor(self.config)
+            sc.run()
+        print(mock_notify.call_args_list)
+        self.assertTrue('saves: 6' in mock_notify.call_args_list[0][1]['body'].split(', '))
 
 
 class ReportTestCase(BaseTestCase):

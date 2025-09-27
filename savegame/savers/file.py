@@ -4,18 +4,12 @@ import shutil
 import time
 
 from savegame.savers.base import BaseSaver
-from savegame.utils import REF_FILENAME, check_patterns, get_file_size
+from savegame.utils import REF_FILENAME, check_patterns, get_file_size, walk_files
 
 LOG_LIST_DURATION_THRESHOLD = 30
 LOG_FILE_SIZE_THRESHOLD = 10 * 1024 * 1024
 
 logger = logging.getLogger(__name__)
-
-
-def walk_files(path):
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            yield os.path.join(root, file)
 
 
 class FileSaver(BaseSaver):
@@ -47,7 +41,7 @@ class FileSaver(BaseSaver):
 
     def do_run(self):
         src, src_files = self._get_src_and_files()
-        file_refs = self.save_ref.reset_files(src)
+        file_refs = self.reset_files(src)
         for src_file in sorted(src_files):
             self._check_dst_volume()
             rel_path = os.path.relpath(src_file, src)
@@ -66,7 +60,7 @@ class FileSaver(BaseSaver):
             except Exception:
                 logger.exception(f'failed to copy {src_file=} to {dst_file=}')
                 self.report.add(self, rel_path=rel_path, code='failed')
-            self.save_ref.set_file(src, rel_path, ref)
+            self.set_file(src, rel_path, ref)
 
 
 class FileMirrorSaver(FileSaver):

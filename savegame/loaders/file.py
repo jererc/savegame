@@ -8,8 +8,8 @@ import time
 
 from savegame import NAME
 from savegame.loaders.base import BaseLoader
-from savegame.utils import (SaveReference, UnhandledPath, check_patterns, get_file_hash, get_file_mtime,
-                            get_file_size, validate_path)
+from savegame.utils import (UnhandledPath, check_patterns, get_file_hash, get_file_mtime, get_file_size,
+                            iterate_save_refs, validate_path)
 
 HOME_DIR = os.path.expanduser('~')
 SHARED_USERNAMES = {'linux': {'shared'}, 'win32': {'Public'}}.get(sys.platform, set())
@@ -36,6 +36,7 @@ class FileLoader(BaseLoader):
         return None
 
     def _iterate_save_refs(self):
+        from savegame.utils import SaveReference
         if self.saver_cls.in_place:
             yield SaveReference(self.root_dst_path)
             return
@@ -44,7 +45,7 @@ class FileLoader(BaseLoader):
                 continue
             for dst in glob(os.path.join(self.root_dst_path, hostname, '*')):
                 save_ref = SaveReference(dst)
-                if save_ref.files:
+                if save_ref.get_files(hostname=self.hostname):
                     yield save_ref
 
     def _must_copy_file(self, dst_file, src_file):
@@ -61,13 +62,13 @@ class FileLoader(BaseLoader):
     def _get_src_and_rel_paths(self, save_ref):
         src_rel_paths = set()
         invalid_files = set()
-        for src, files in save_ref.files.items():
+        for src, file_refs in save_ref.get_files(hostname=self.hostname).items():
             try:
                 validate_path(src)
                 is_src_valid = True
             except UnhandledPath:
                 is_src_valid = False
-            for rel_path, ref in files.items():
+            for rel_path, ref in file_refs.items():
                 if is_src_valid:
                     dst_file = os.path.join(save_ref.dst, rel_path)
                     if isinstance(ref, str):
@@ -84,7 +85,7 @@ class FileLoader(BaseLoader):
         if invalid_files:
             return set()
         if not src_rel_paths:
-            self.report.add(self, save_ref=save_ref, src=None, rel_path=None, code='no_files')
+            self.report.add(self, save_ref=save_ref, src=None, rel_path=None, code='no_matching_files')
         return src_rel_paths
 
     def _load_from_save_ref(self, save_ref, exclude_rel_paths=None):
@@ -121,7 +122,8 @@ class FileLoader(BaseLoader):
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')
 
     def run(self):
-        for save_ref in self._iterate_save_refs():
+        # for save_ref in self._iterate_save_refs():
+        for save_ref in iterate_save_refs(self.root_dst_path):
             self._load_from_save_ref(save_ref)
 
 

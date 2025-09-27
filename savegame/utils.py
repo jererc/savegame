@@ -109,6 +109,18 @@ def coalesce(*values):
     return None
 
 
+def walk_files(path):
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            yield os.path.join(root, file)
+
+
+def iterate_save_refs(path):
+    for file in walk_files(path):
+        if os.path.basename(file) == REF_FILENAME:
+            yield SaveReference(os.path.dirname(file))
+
+
 class Metadata:
     _instance = None
     file = os.path.join(WORK_DIR, '.meta.json')
@@ -140,8 +152,20 @@ class Metadata:
             json.dump(self.data, fd, sort_keys=True, indent=4)
 
 
+def nested_dict():
+    return defaultdict(nested_dict)
+
+
+def dict_to_nested(d):
+    """Recursively cast a dict into a nested defaultdict."""
+    if isinstance(d, dict):
+        return defaultdict(nested_dict, {k: dict_to_nested(v) for k, v in d.items()})
+    return d
+
+
 class SaveReference:
     _instances = {}
+    version = '20250927'
 
     def __new__(cls, dst):
         if dst not in cls._instances:
@@ -153,55 +177,65 @@ class SaveReference:
             cls._instances[dst]._load()
         return cls._instances[dst]
 
-    def _load(self, data=None):
-        if data:
-            self.data = data
-        elif not os.path.exists(self.file):
-            self.data = {}
-        else:
-            try:
-                with open(self.file, 'r', encoding='utf-8') as fd:
-                    self.data = json.load(fd)
-                assert 'src' not in self.data, f'deprecated ref file {self.file}'
-            except Exception as e:
+    def _read_file(self):
+        try:
+            with open(self.file, 'r', encoding='utf-8') as fd:
+                data = json.load(fd)
+            if data.get('version') != self.version:
+                raise Exception('deprecated')
+            return data
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            if os.path.exists(self.file):
                 os.remove(self.file)
                 logger.error(f'removed invalid ref file {self.file}: {e}')
-                self.data = {}
-        self.files = defaultdict(dict, deepcopy(self.data.get('files', {})))
+            else:
+                logger.exception(f'failed to load ref file {self.file}')
+        return {'ts': {}, 'version': self.version}
 
-    def _purge_files(self):
-        for src, files in self.files.items():
-            self.files[src] = {k: v for k, v in files.items() if os.path.exists(os.path.join(self.dst, normalize_path(k)))}
-        self.files = {k: v for k, v in self.files.items() if v}
+    def _load(self, data=None):
+        self.data = data or self._read_file()
+        self.files = dict_to_nested(self.data.get('files', {}))
 
-    def save(self, force=False):
-        self._purge_files()
-        data = {
-            'files': dict(self.files),
-        }
-        if not (force or data != {k: self.data.get(k) for k in data.keys()}):
+    def _purge_files(self, hostname=HOSTNAME):
+        for src, file_refs in self.get_files().items():
+            for rel_path in file_refs.keys():
+                if not os.path.exists(os.path.join(self.dst, normalize_path(rel_path))):
+                    self.files[hostname][src].pop(rel_path, None)
+        for src, file_refs in self.get_files().items():
+            if not file_refs:
+                self.files[hostname].pop(src)
+        if not self.files[hostname]:
+            self.files.pop(hostname)
+
+    def save(self, hostname=HOSTNAME, force=False):
+        self._purge_files(hostname)
+        data_update = {'files': self.files}
+        if not (force or data_update != {k: self.data.get(k) for k in data_update.keys()}):
             return
-        data['ts'] = time.time()
+        self.data.update(data_update)
+        self.data['ts'][hostname] = time.time()
         with open(self.file, 'w', encoding='utf-8') as fd:
-            json.dump(data, fd, sort_keys=True, indent=4)
-        self._load(data)
+            json.dump(self.data, fd, sort_keys=True, indent=4)
+        self._load(self.data)
 
-    def get_files(self, src):
-        return self.files.get(src, {})
+    def get_files(self, src=None, hostname=HOSTNAME):
+        return deepcopy(self.files[hostname][src] if src else self.files[hostname])
 
-    def reset_files(self, src):
-        files = self.get_files(src)
-        self.files[src] = {}
+    def reset_files(self, src, hostname=HOSTNAME):
+        files = self.get_files(src, hostname=hostname)
+        self.files[hostname][src].clear()
         return files
 
-    def set_file(self, src, rel_path, ref):
-        self.files[src][rel_path] = ref or 'NULL'
+    def set_file(self, src, rel_path, ref, hostname=HOSTNAME):
+        self.files[hostname][src][rel_path] = ref or 'NULL'
 
-    def get_dst_files(self, src=None):
+    def get_dst_files(self, src=None, hostname=HOSTNAME):
+        files = self.get_files(hostname=hostname)
         if src:
-            return {os.path.join(self.dst, f) for f in self.files[src].keys()}
-        return {os.path.join(self.dst, f) for files in self.files.values() for f in files.keys()}
+            return {os.path.join(self.dst, r) for r in files[src].keys()}
+        return {os.path.join(self.dst, r) for file_refs in files.values() for r in file_refs.keys()}
 
-    @property
-    def ts(self):
-        return self.data.get('ts', 0)
+    def get_ts(self, hostname=HOSTNAME):
+        return self.data.get('ts', {}).get(hostname, 0)

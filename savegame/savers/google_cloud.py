@@ -25,7 +25,7 @@ class GoogleDriveSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
-        file_refs = self.save_ref.reset_files(self.src)
+        file_refs = self.reset_files(self.src)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
                 logger.debug(f'skipping not exportable file {file_meta["path"]}')
@@ -44,7 +44,7 @@ class GoogleDriveSaver(BaseSaver):
                 except Exception as e:
                     logger.error(f'failed to save google drive file {file_meta["name"]}: {e}')
                     self.report.add(self, rel_path=rel_path, code='failed')
-            self.save_ref.set_file(self.src, rel_path, ref)
+            self.set_file(self.src, rel_path, ref)
 
 
 class GoogleContactsSaver(BaseSaver):
@@ -53,7 +53,7 @@ class GoogleContactsSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
-        file_refs = self.save_ref.reset_files(self.src)
+        file_refs = self.reset_files(self.src)
         start_ts = time.time()
         contacts = gc.list_contacts()
         data = to_json(contacts)
@@ -67,4 +67,4 @@ class GoogleContactsSaver(BaseSaver):
                 fd.write(data)
             ref = dst_hash
             self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
-        self.save_ref.set_file(self.src, rel_path, ref)
+        self.set_file(self.src, rel_path, ref)
