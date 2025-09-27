@@ -24,10 +24,10 @@ class BaseReport:
     def _get_row(self, row):
         return ' '.join([
             f'{row["code"]:20}',
-            f'{row["id"]:20}',
-            truncate_middle(row["src"] or '', 50),
+            f'{row["id"]:15}',
+            truncate_middle(row["src"] or '', 60),
             truncate_middle(row["rel_path"] or '', 40),
-            truncate_middle(row["dst"] or '', 50),
+            truncate_middle(row["dst"] or '', 60),
             f'{row["duration"]:>8}',
         ])
 
