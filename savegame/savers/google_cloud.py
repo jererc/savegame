@@ -44,6 +44,8 @@ class GoogleDriveSaver(BaseSaver):
                 except Exception as e:
                     logger.error(f'failed to save google drive file {file_meta["name"]}: {e}')
                     self.report.add(self, rel_path=rel_path, code='failed')
+            else:
+                ref = get_file_hash(dst_file)
             self.set_file(self.src, rel_path, ref)
 
 
