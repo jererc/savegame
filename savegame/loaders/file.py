@@ -8,7 +8,7 @@ import time
 
 from savegame import NAME
 from savegame.loaders.base import BaseLoader
-from savegame.utils import (UnhandledPath, check_patterns, get_file_hash, get_file_mtime, get_file_size,
+from savegame.utils import (FileRef, UnhandledPath, check_patterns, get_file_hash, get_file_mtime, get_file_size,
                             iterate_save_refs, validate_path)
 
 HOME_DIR = os.path.expanduser('~')
@@ -71,10 +71,7 @@ class FileLoader(BaseLoader):
             for rel_path, ref in file_refs.items():
                 if is_src_valid:
                     dst_file = os.path.join(save_ref.dst, rel_path)
-                    if isinstance(ref, str):
-                        is_valid = get_file_hash(dst_file) == ref
-                    else:
-                        is_valid = True
+                    is_valid = FileRef.from_ref(ref).check_file(dst_file)
                 else:
                     is_valid = False
                 if is_valid:

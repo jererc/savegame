@@ -163,9 +163,53 @@ def dict_to_nested(d):
     return d
 
 
+class FileRef:
+    @classmethod
+    def from_file(cls, file, has_src_file=True):
+        return cls(hash=get_file_hash(file), size=get_file_size(file), mtime=get_file_mtime(file), has_src_file=has_src_file)
+
+    @classmethod
+    def from_ref(cls, ref):
+        parts = (ref or '').split(':')
+        hash = parts[0] or None
+        try:
+            size = int(parts[1])
+        except Exception:
+            size = None
+        try:
+            mtime = float(parts[2])
+        except Exception:
+            mtime = None
+        try:
+            has_src_file = bool(int(parts[3]))
+        except Exception:
+            has_src_file = True
+        return cls(hash=hash, size=size, mtime=mtime, has_src_file=has_src_file)
+
+    def __init__(self, hash=None, size=None, mtime=None, has_src_file=True):
+        self.hash = hash
+        self.size = size
+        self.mtime = mtime
+        self.has_src_file = has_src_file
+
+    @property
+    def ref(self):
+        return ':'.join(map(str, [self.hash or '', self.size or '', self.mtime or '', int(self.has_src_file)]))
+
+    def _check_mtime(self, mtime):
+        return abs(mtime - self.mtime) <= MTIME_DRIFT_TOLERANCE
+
+    def check_file(self, file):
+        if self.hash:
+            return get_file_hash(file) == self.hash
+        if self.size is not None and self.mtime is not None:
+            return get_file_size(file) == self.size and self._check_mtime(get_file_mtime(file))
+        return False
+
+
 class SaveReference:
     _instances = {}
-    version = '20250927'
+    _version = '20250928'
 
     def __new__(cls, dst):
         if dst not in cls._instances:
@@ -181,7 +225,7 @@ class SaveReference:
         try:
             with open(self.file, 'r', encoding='utf-8') as fd:
                 data = json.load(fd)
-            if data.get('version') != self.version:
+            if data.get('version') != self._version:
                 raise Exception('deprecated')
             return data
         except FileNotFoundError:
@@ -192,7 +236,7 @@ class SaveReference:
                 logger.error(f'removed invalid ref file {self.file}: {e}')
             else:
                 logger.exception(f'failed to load ref file {self.file}')
-        return {'ts': {}, 'version': self.version}
+        return {'ts': {}, 'version': self._version}
 
     def _load(self, data=None):
         self.data = data or self._read_file()
@@ -229,7 +273,7 @@ class SaveReference:
         return files
 
     def set_file(self, src, rel_path, ref, hostname=HOSTNAME):
-        self.files[hostname][src][rel_path] = ref or 'NULL'
+        self.files[hostname][src][rel_path] = ref
 
     def get_dst_files(self, src=None, hostname=HOSTNAME):
         files = self.get_files(hostname=hostname)

@@ -3,6 +3,7 @@ import time
 
 from savegame.loaders.file import FileLoader
 from savegame.savers.git import Git
+from savegame.utils import FileRef
 
 
 class GitLoader(FileLoader):
@@ -12,7 +13,10 @@ class GitLoader(FileLoader):
         bundle_rel_paths = set()
         for src, files in save_ref.get_files().items():
             for rel_path, ref in files.items():
-                if not (rel_path.endswith('.bundle') and isinstance(ref, (int, float))):
+                if not rel_path.endswith('.bundle'):
+                    continue
+                if not FileRef.from_ref(ref).check_file(os.path.join(save_ref.dst, rel_path)):
+                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='invalid')
                     continue
                 bundle_rel_paths.add(rel_path)
                 repo_dir = os.path.join(src, os.path.splitext(rel_path)[0])

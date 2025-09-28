@@ -11,7 +11,7 @@ from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.report import SaveReport
-from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, Metadata, SaveReference, coalesce,
+from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, FileRef, Metadata, SaveReference, coalesce,
                             get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
 
 logger = logging.getLogger(__name__)
@@ -130,10 +130,10 @@ class BaseSaver:
         if coalesce(self.save_item.file_compare_method, self.file_compare_method) == 'hash':
             src_hash = get_file_hash(src_file)
             equal = src_hash == get_file_hash(dst_file)
-            new_ref = src_hash
+            new_ref = FileRef(hash=src_hash).ref
         else:
             equal = filecmp.cmp(src_file, dst_file, shallow=True) if os.path.exists(dst_file) else False
-            new_ref = src_mtime
+            new_ref = FileRef(size=os.path.getsize(src_file), mtime=src_mtime).ref
         must_copy = not equal
         if equal:
             default_ref = new_ref

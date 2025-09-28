@@ -13,7 +13,7 @@ from savegame.report import SaveReport
 from savegame.savers.base import get_saver_class, iterate_saver_classes
 from savegame.savers.google_cloud import get_google_cloud
 from savegame.savers.file import FileSaver
-from savegame.utils import (HOSTNAME, Metadata, InvalidPath, UnhandledPath, coalesce, get_file_hash, get_file_mtime,
+from savegame.utils import (HOSTNAME, FileRef, Metadata, InvalidPath, UnhandledPath, coalesce, get_file_mtime,
                             get_file_size, iterate_save_refs, normalize_path, list_label_mountpoints, validate_path)
 
 logger = logging.getLogger(__name__)
@@ -206,21 +206,21 @@ class SaveMonitor:
             logger.exception(f'failed to get {save_ref.dst} size')
             return -1
 
-    def _check_file(self, hostname, save_ref, src, rel_path, ref_hash):
-        if not isinstance(ref_hash, str):
+    def _check_file(self, hostname, save_ref, src, rel_path, ref):
+        if not isinstance(ref, str):
             return
         rel_path = normalize_path(rel_path)
         dst_file = os.path.join(save_ref.dst, rel_path)
         if not os.path.exists(dst_file):
             return f'missing dst file {dst_file}'
-        dst_hash = get_file_hash(dst_file)
-        if dst_hash != ref_hash:
+        file_ref = FileRef.from_ref(ref)
+        if not file_ref.check_file(dst_file):
             return f'conflicting dst file {dst_file}'
-        if hostname == HOSTNAME and os.path.exists(src):
+        if file_ref.has_src_file and hostname == HOSTNAME:
             src_file = os.path.join(src, rel_path)
             if not os.path.exists(src_file):
                 return f'missing src file {src_file}'
-            if get_file_hash(src_file) != ref_hash:
+            if not file_ref.check_file(src_file):
                 return f'conflicting src file {src_file}'
 
     def _generate_savers(self):

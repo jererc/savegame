@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from glob import glob
 import json
@@ -10,7 +11,7 @@ import subprocess
 import sys
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from svcutils.service import Config
 
@@ -256,6 +257,90 @@ class MetadataTestCase(BaseTestCase):
         self.assertFalse('key2' in m2.data)
         self.assertEqual(m2.get('key1')['next_ts'], now)
         self.assertEqual(m2.get('key2'), {})
+
+
+class FileRefTestCase(BaseTestCase):
+    def _create_file(self, name, content):
+        file = os.path.join(self.dst_root, name)
+        with open(file, 'w') as fd:
+            fd.write(content)
+        return file
+
+    def test_from_file(self):
+        file = self._create_file('file1', 'content')
+        fr = utils.FileRef.from_file(file)
+        self.assertEqual(fr.ref, f'{utils.get_file_hash(file)}:{utils.get_file_size(file)}:{utils.get_file_mtime(file)}:1')
+
+    def test_from_attrs(self):
+        fr = utils.FileRef(hash='123')
+        self.assertEqual(fr.ref, '123:::1')
+
+    def test_from_ref(self):
+        fr = utils.FileRef.from_ref(None)
+        self.assertEqual(fr.hash, None)
+        self.assertEqual(fr.size, None)
+        self.assertEqual(fr.mtime, None)
+        self.assertEqual(fr.has_src_file, True)
+        self.assertEqual(fr.ref, ':::1')
+
+        fr = utils.FileRef.from_ref('')
+        self.assertEqual(fr.hash, None)
+        self.assertEqual(fr.size, None)
+        self.assertEqual(fr.mtime, None)
+        self.assertEqual(fr.has_src_file, True)
+        self.assertEqual(fr.ref, ':::1')
+
+        fr = utils.FileRef.from_ref('123:')
+        self.assertEqual(fr.ref, '123:::1')
+        self.assertEqual(fr.hash, '123')
+        self.assertEqual(fr.size, None)
+        self.assertEqual(fr.mtime, None)
+        self.assertEqual(fr.has_src_file, True)
+
+        fr = utils.FileRef.from_ref(':456')
+        self.assertEqual(fr.ref, ':456::1')
+        self.assertEqual(fr.hash, None)
+        self.assertEqual(fr.size, 456)
+        self.assertEqual(fr.mtime, None)
+        self.assertEqual(fr.has_src_file, True)
+
+        fr = utils.FileRef.from_ref('123:456:789.123')
+        self.assertEqual(fr.ref, '123:456:789.123:1')
+        self.assertEqual(fr.hash, '123')
+        self.assertEqual(fr.size, 456)
+        self.assertEqual(fr.mtime, 789.123)
+        self.assertEqual(fr.has_src_file, True)
+
+        fr = utils.FileRef.from_ref('123:456:789.123:0')
+        self.assertEqual(fr.ref, '123:456:789.123:0')
+        self.assertEqual(fr.hash, '123')
+        self.assertEqual(fr.size, 456)
+        self.assertEqual(fr.mtime, 789.123)
+        self.assertEqual(fr.has_src_file, False)
+
+    def test_check_file_ko(self):
+        file1 = self._create_file('file1', 'content1')
+        file2 = self._create_file('file2', 'content2')
+        fr = utils.FileRef.from_file(file1)
+        self.assertFalse(fr.check_file(file2))
+        fr = utils.FileRef(size=utils.get_file_size(file1))
+        self.assertFalse(fr.check_file(file2))
+        fr = utils.FileRef(mtime=utils.get_file_mtime(file1))
+        self.assertFalse(fr.check_file(file2))
+
+    def test_check_file_equal_with_different_content(self):
+        file1 = self._create_file('file1', 'content1')
+        file2 = self._create_file('file2', 'content2')
+        fr = utils.FileRef.from_file(file1)
+        self.assertFalse(fr.check_file(file2))
+        fr = utils.FileRef(size=utils.get_file_size(file1), mtime=utils.get_file_mtime(file1))
+        self.assertTrue(fr.check_file(file2))
+
+    def test_check_file(self):
+        file1 = self._create_file('file1', 'content1')
+        file2 = shutil.copy(file1, os.path.join(self.dst_root, 'file2'))
+        fr = utils.FileRef.from_file(file1)
+        self.assertTrue(fr.check_file(file2))
 
 
 class SaveReferenceTestCase(BaseTestCase):
@@ -1155,7 +1240,7 @@ class FileTestCase(BaseTestCase):
             'src2/dir2/file1',
             'src2/dir2/file2',
         })
-        self.assertTrue(all(isinstance(v, float) for v in rf.values()))
+        self.assertTrue(all(bool(v) for v in rf.values()))
 
     def test_dst_files_are_newer(self):
         self._generate_src_data(index_start=1, nb_srcs=2, nb_dirs=2, nb_files=2)
@@ -1453,6 +1538,103 @@ class GitTestCase(BaseTestCase):
         self._loadgame()
 
 
+class GoogleDriveTestCase(BaseTestCase):
+    def _get_google_cloud(self, dt):
+        def iterate_file_meta():
+            return [
+                {
+                    'id': '123',
+                    'name': 'file1',
+                    'path': 'file1',
+                    'modified_time': dt,
+                    'exportable': True,
+                    'mime_type': 'text/plain',
+                },
+            ]
+
+        def export_file(file_id, path, mime_type):
+            with open(path, 'w') as fd:
+                fd.write(f'{file_id=} {mime_type=} {dt.isoformat()=}')
+
+        return Mock(iterate_file_meta=iterate_file_meta, export_file=export_file)
+
+    def test_1(self):
+        dst = os.path.join(self.dst_root, 'dst1')
+        saves = [
+            {
+                'saver_id': 'google_drive',
+                'dst_path': dst,
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+        dt = datetime.now(timezone.utc) - timedelta(seconds=10)
+        with patch.object(savers.google_cloud, 'get_google_cloud', return_value=self._get_google_cloud(dt)):
+            self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*google_drive/file1*'))
+        save_ref = list(self._list_save_refs(dst_paths).values())[0]
+        fr1 = save_ref.get_files(hostname='google_cloud')['google_drive']
+        pprint(fr1)
+        self.assertEqual(fr1.keys(), {'file1'})
+
+        with patch.object(savers.google_cloud, 'get_google_cloud', return_value=self._get_google_cloud(dt)):
+            self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        fr2 = save_ref.get_files(hostname='google_cloud')['google_drive']
+        pprint(fr2)
+        self.assertEqual(fr2, fr1)
+
+        dt2 = datetime.now(timezone.utc)
+        with patch.object(savers.google_cloud, 'get_google_cloud', return_value=self._get_google_cloud(dt2)):
+            self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        fr3 = save_ref.get_files(hostname='google_cloud')['google_drive']
+        pprint(fr3)
+        self.assertNotEqual(fr3, fr1)
+
+
+class GoogleContactsTestCase(BaseTestCase):
+    def _get_google_cloud(self, nb_contacts=10):
+        def list_contacts():
+            return [{'name': f'contact{i}'} for i in range(nb_contacts)]
+
+        return Mock(list_contacts=list_contacts)
+
+    def test_1(self):
+        dst = os.path.join(self.dst_root, 'dst1')
+        saves = [
+            {
+                'saver_id': 'google_contacts',
+                'dst_path': dst,
+            },
+        ]
+        [os.makedirs(s['dst_path'], exist_ok=True) for s in saves]
+        nb_contacts = 10
+        with patch.object(savers.google_cloud, 'get_google_cloud', return_value=self._get_google_cloud(nb_contacts)):
+            self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        self.assertTrue(any_str_matches(dst_paths, '*google_contacts/contacts.json*'))
+        save_ref = list(self._list_save_refs(dst_paths).values())[0]
+        fr1 = save_ref.get_files(hostname='google_cloud')['google_contacts']
+        pprint(fr1)
+        self.assertEqual(fr1.keys(), {'contacts.json'})
+
+        with patch.object(savers.google_cloud, 'get_google_cloud', return_value=self._get_google_cloud(nb_contacts)):
+            self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        fr2 = save_ref.get_files(hostname='google_cloud')['google_contacts']
+        pprint(fr2)
+        self.assertEqual(fr2, fr1)
+
+        nb_contacts2 = 11
+        with patch.object(savers.google_cloud, 'get_google_cloud', return_value=self._get_google_cloud(nb_contacts2)):
+            self._savegame(saves)
+        dst_paths = self._list_dst_root_paths()
+        fr3 = save_ref.get_files(hostname='google_cloud')['google_contacts']
+        pprint(fr3)
+        self.assertNotEqual(fr3, fr1)
+
+
 class VirtualboxTestCase(BaseTestCase):
     def _run(self, saves, running_vms, vms):
         def side_export_vm(vm, file):
@@ -1484,8 +1666,6 @@ class VirtualboxTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
         rf = self._list_save_ref_files(dst_paths)[dst]['virtualbox']
         self.assertEqual(set(rf.keys()), {'ub2.ova', 'win3.ova'})
-        self.assertIsInstance(rf['ub2.ova'], float)
-        self.assertIsInstance(rf['win3.ova'], float)
 
         self._run(saves, ['win3'], ['ub1', 'ub2', 'win3', 'test_fed4'])
         dst_paths = self._list_dst_root_paths()

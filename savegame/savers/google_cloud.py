@@ -5,14 +5,17 @@ import time
 
 from savegame.savers.base import BaseSaver
 from savegame.savers.google_api import GoogleCloud
-from savegame.utils import get_file_hash, get_file_mtime, get_hash, to_json
+from savegame.utils import FileRef, get_file_mtime, get_hash, to_json
 
 logger = logging.getLogger(__name__)
 
 
+def ts_to_dt(ts):
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+
 def get_file_mtime_dt(x):
-    if os.path.exists(x):
-        return datetime.fromtimestamp(get_file_mtime(x), tz=timezone.utc)
+    return ts_to_dt(get_file_mtime(x)) if os.path.exists(x) else None
 
 
 def get_google_cloud(config, headless=True):
@@ -31,7 +34,7 @@ class GoogleDriveSaver(BaseSaver):
                 logger.debug(f'skipping not exportable file {file_meta["path"]}')
                 continue
             rel_path = file_meta['path']
-            ref = file_refs.get(rel_path)
+            file_ref = FileRef.from_ref(file_refs.get(rel_path))
             dst_file = os.path.join(self.dst, rel_path)
             dst_dt = get_file_mtime_dt(dst_file)
             if not dst_dt or dst_dt < file_meta['modified_time']:
@@ -39,14 +42,14 @@ class GoogleDriveSaver(BaseSaver):
                 start_ts = time.time()
                 try:
                     gc.export_file(file_id=file_meta['id'], path=dst_file, mime_type=file_meta['mime_type'])
-                    ref = get_file_hash(dst_file)
+                    file_ref = FileRef.from_file(dst_file, has_src_file=False)
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
                 except Exception as e:
                     logger.error(f'failed to save google drive file {file_meta["name"]}: {e}')
                     self.report.add(self, rel_path=rel_path, code='failed')
-            else:
-                ref = get_file_hash(dst_file)
-            self.set_file(self.src, rel_path, ref)
+            elif os.path.exists(dst_file):
+                file_ref = FileRef.from_file(dst_file, has_src_file=False)
+            self.set_file(self.src, rel_path, file_ref.ref)
 
 
 class GoogleContactsSaver(BaseSaver):
@@ -60,13 +63,13 @@ class GoogleContactsSaver(BaseSaver):
         contacts = gc.list_contacts()
         data = to_json(contacts)
         rel_path = 'contacts.json'
-        ref = file_refs.get(rel_path)
+        file_ref = FileRef.from_ref(file_refs.get(rel_path))
         dst_file = os.path.join(self.dst, rel_path)
         dst_hash = get_hash(data)
-        if not os.path.exists(dst_file) or dst_hash != ref:
+        if not os.path.exists(dst_file) or dst_hash != file_ref.hash:
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
-            ref = dst_hash
+            file_ref = FileRef(hash=dst_hash, has_src_file=False)
             self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
-        self.set_file(self.src, rel_path, ref)
+        self.set_file(self.src, rel_path, file_ref.ref)

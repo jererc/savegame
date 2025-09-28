@@ -9,7 +9,7 @@ from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.savers.base import BaseSaver
-from savegame.utils import get_file_mtime, remove_path
+from savegame.utils import FileRef, remove_path
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class VirtualboxSaver(BaseSaver):
                 logger.debug(f'skipping {vm=}')
                 continue
             rel_path = f'{vm}.ova'
-            ref = file_refs.get(rel_path)
+            file_ref = FileRef.from_ref(file_refs.get(rel_path))
             dst_file = os.path.join(self.dst, rel_path)
             if vm in running_vms:
                 notify(title=f'cannot export vm {vm}', body=f'{vm} is running', app_name=NAME, replace_key=notif_key)
@@ -95,7 +95,7 @@ class VirtualboxSaver(BaseSaver):
                 else:
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
-                    ref = get_file_mtime(dst_file)
+                    file_ref = FileRef.from_file(dst_file, has_src_file=False)
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
                     notify(
                         title=f'exported vm {vm}',
@@ -103,4 +103,4 @@ class VirtualboxSaver(BaseSaver):
                         app_name=NAME,
                         replace_key=notif_key,
                     )
-            self.set_file(self.src, rel_path, ref)
+            self.set_file(self.src, rel_path, file_ref.ref)

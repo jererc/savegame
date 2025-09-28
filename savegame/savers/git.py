@@ -7,7 +7,7 @@ import shutil
 import time
 
 from savegame.savers.base import BaseSaver
-from savegame.utils import remove_path
+from savegame.utils import FileRef, remove_path
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +75,9 @@ class GitSaver(BaseSaver):
             name = os.path.basename(src_path)
             rel_path = f'{name}.bundle'
             dst_file = os.path.join(self.dst, rel_path)
-            ref = file_refs.get(rel_path, 0)
-            new_ref = git.get_last_update_ts()
+            file_ref = FileRef.from_ref(file_refs.get(rel_path))
             try:
-                if new_ref > ref:   # never overwrite newer files, useful after a vm restore
+                if not file_ref.mtime or git.get_last_update_ts() > file_ref.mtime:   # never overwrite newer files, useful after a vm restore
                     tmp_file = os.path.join(self.dst, f'{name}_tmp.bundle')
                     remove_path(tmp_file)
                     os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
@@ -86,12 +85,12 @@ class GitSaver(BaseSaver):
                     git.create_bundle(tmp_file)
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
-                    ref = new_ref
+                    file_ref = FileRef.from_file(dst_file, has_src_file=False)
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
             except Exception:
                 logger.exception(f'failed to create bundle for {src_path}')
                 self.report.add(self, rel_path=rel_path, code='failed')
-            self.set_file(self.src, rel_path, ref)
+            self.set_file(self.src, rel_path, file_ref.ref)
 
             for src_file in sorted(git.list_non_committed_files()):
                 rel_path = os.path.relpath(src_file, self.src)
