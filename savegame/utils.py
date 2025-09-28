@@ -32,6 +32,10 @@ class InvalidPath(Exception):
     pass
 
 
+class DeprecatedSaveReference(Exception):
+    pass
+
+
 def get_file_mtime(path, default=None):
     try:
         return os.path.getmtime(path)
@@ -226,16 +230,17 @@ class SaveReference:
             with open(self.file, 'r', encoding='utf-8') as fd:
                 data = json.load(fd)
             if data.get('version') != self._version:
-                raise Exception('deprecated')
+                raise DeprecatedSaveReference()
             return data
         except FileNotFoundError:
             pass
-        except Exception as e:
+        except DeprecatedSaveReference:
+            os.remove(self.file)
+            logger.info(f'removed deprecated save reference {self.file}')
+        except Exception:
             if os.path.exists(self.file):
                 os.remove(self.file)
-                logger.error(f'removed invalid ref file {self.file}: {e}')
-            else:
-                logger.exception(f'failed to load ref file {self.file}')
+            logger.exception(f'failed to load ref file {self.file}')
         return {'ts': {}, 'version': self._version}
 
     def _load(self, data=None):
