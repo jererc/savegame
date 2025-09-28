@@ -13,13 +13,14 @@ class GitLoader(FileLoader):
         bundle_rel_paths = set()
         for src, file_refs in save_ref.get_files(hostname=self.hostname).items():
             for rel_path, ref in file_refs.items():
-                if not rel_path.endswith('.bundle'):
+                filename, ext = os.path.splitext(rel_path)
+                if ext != '.bundle':
                     continue
                 if not FileRef.from_ref(ref).check_file(os.path.join(save_ref.dst, rel_path)):
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='invalid')
                     continue
                 bundle_rel_paths.add(rel_path)
-                repo_dir = os.path.join(src, os.path.splitext(rel_path)[0])
+                repo_dir = os.path.join(src, filename)
                 if os.path.exists(repo_dir):
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='match')
                     continue
