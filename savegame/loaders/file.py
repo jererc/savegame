@@ -67,8 +67,6 @@ class FileLoader(BaseLoader):
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='invalid')
         if invalid_files:
             return set()
-        if not src_rel_paths:
-            self.report.add(self, save_ref=save_ref, src=None, rel_path=None, code='no_matching_files')
         return src_rel_paths
 
     def _load_from_save_ref(self, save_ref, exclude_rel_paths=None):

@@ -4,13 +4,9 @@ import logging
 import os
 
 from savegame.report import LoadReport
-from savegame.utils import HOSTNAME, USERNAME
+from savegame.utils import HOSTNAME, USERNAME, NotFound
 
 logger = logging.getLogger(__name__)
-
-
-class NotFound(Exception):
-    pass
 
 
 class BaseLoader:
@@ -27,7 +23,6 @@ class BaseLoader:
         self.exclude = exclude
         self.force = force
         self.dry_run = dry_run
-        self.hostnames = sorted(os.listdir(self.root_dst_path))
         self.report = LoadReport()
 
 

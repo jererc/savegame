@@ -11,8 +11,8 @@ from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.report import SaveReport
-from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, FileRef, Metadata, SaveRef, coalesce,
-                            get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
+from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, FileRef, Metadata, NotFound, SaveRef,
+                            coalesce, get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +27,6 @@ def walk_paths(path):
     for root, dirs, files in os.walk(path, topdown=False):
         for item in files + dirs:
             yield os.path.join(root, item)
-
-
-class NotFound(Exception):
-    pass
 
 
 class BaseSaver:

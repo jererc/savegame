@@ -36,6 +36,10 @@ class DeprecatedSaveRef(Exception):
     pass
 
 
+class NotFound(Exception):
+    pass
+
+
 def get_file_mtime(path, default=None):
     try:
         return os.path.getmtime(path)
