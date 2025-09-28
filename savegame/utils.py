@@ -32,7 +32,7 @@ class InvalidPath(Exception):
     pass
 
 
-class DeprecatedSaveReference(Exception):
+class DeprecatedSaveRef(Exception):
     pass
 
 
@@ -119,12 +119,6 @@ def walk_files(path):
             yield os.path.join(root, file)
 
 
-def iterate_save_refs(path):
-    for file in walk_files(path):
-        if os.path.basename(file) == REF_FILENAME:
-            yield SaveReference(os.path.dirname(file))
-
-
 class Metadata:
     _instance = None
     file = os.path.join(WORK_DIR, '.meta.json')
@@ -165,6 +159,12 @@ def dict_to_nested(d):
     if isinstance(d, dict):
         return defaultdict(nested_dict, {k: dict_to_nested(v) for k, v in d.items()})
     return d
+
+
+def iterate_save_refs(path):
+    for file in walk_files(path):
+        if os.path.basename(file) == REF_FILENAME:
+            yield SaveRef(os.path.dirname(file))
 
 
 class FileRef:
@@ -211,7 +211,7 @@ class FileRef:
         return False
 
 
-class SaveReference:
+class SaveRef:
     _instances = {}
     _version = '20250928'
 
@@ -230,11 +230,11 @@ class SaveReference:
             with open(self.file, 'r', encoding='utf-8') as fd:
                 data = json.load(fd)
             if data.get('version') != self._version:
-                raise DeprecatedSaveReference()
+                raise DeprecatedSaveRef()
             return data
         except FileNotFoundError:
             pass
-        except DeprecatedSaveReference:
+        except DeprecatedSaveRef:
             os.remove(self.file)
             logger.info(f'removed deprecated save reference {self.file}')
         except Exception:

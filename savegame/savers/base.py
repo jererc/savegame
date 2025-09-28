@@ -11,7 +11,7 @@ from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.report import SaveReport
-from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, FileRef, Metadata, SaveReference, coalesce,
+from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, FileRef, Metadata, SaveRef, coalesce,
                             get_file_mtime, get_file_hash, get_hash, remove_path, validate_path)
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class BaseSaver:
         self.include = include
         self.exclude = exclude
         self.dst = self._get_dst()
-        self.save_ref = SaveReference(self.dst)
+        self.save_ref = SaveRef(self.dst)
         self.key = self._get_key()
         self.meta = Metadata()
         self.report = SaveReport()

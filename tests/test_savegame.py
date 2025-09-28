@@ -100,7 +100,7 @@ class BaseTestCase(unittest.TestCase):
         self.dst_root = os.path.join(module.WORK_DIR, DST_DIR)
         os.makedirs(self.dst_root, exist_ok=True)
 
-        utils.SaveReference._instances = {}
+        utils.SaveRef._instances = {}
         self.meta = utils.Metadata()
         self.meta.data = {}
         self.config = self._get_config(
@@ -150,7 +150,7 @@ class BaseTestCase(unittest.TestCase):
         res = {}
         ref_files = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME]
         for ref_file in sorted(ref_files):
-            save_ref = utils.SaveReference(os.path.dirname(ref_file))
+            save_ref = utils.SaveRef(os.path.dirname(ref_file))
             res[save_ref.dst] = save_ref
         return res
 
@@ -158,7 +158,7 @@ class BaseTestCase(unittest.TestCase):
         res = {}
         ref_files = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME]
         for ref_file in sorted(ref_files):
-            save_ref = utils.SaveReference(os.path.dirname(ref_file))
+            save_ref = utils.SaveRef(os.path.dirname(ref_file))
             res[save_ref.dst] = save_ref.get_files()
         print(f'save ref files:\n{pformat(res)}')
         return res
@@ -166,11 +166,11 @@ class BaseTestCase(unittest.TestCase):
     def _get_save_refs(self):
         print('*' * 80)
         pprint(self.meta.data)
-        return {d['src']: utils.SaveReference(d['dst']) for s, d in self.meta.data.items()}
+        return {d['src']: utils.SaveRef(d['dst']) for s, d in self.meta.data.items()}
 
     def _switch_dst_data_hostname(self, from_hostname, to_hostname):
         def switch_hostname(file):
-            save_ref = utils.SaveReference(os.path.dirname(file))
+            save_ref = utils.SaveRef(os.path.dirname(file))
             save_ref.files[to_hostname] = save_ref.get_files(hostname=from_hostname)
             save_ref.files[from_hostname].clear()
             save_ref.save()
@@ -189,7 +189,7 @@ class BaseTestCase(unittest.TestCase):
 
     def _switch_dst_data_username(self, from_username, to_username):
         def switch_ref_path(file):
-            save_ref = utils.SaveReference(os.path.dirname(file))
+            save_ref = utils.SaveRef(os.path.dirname(file))
             username_str = f'{os.sep}{from_username}{os.sep}'
             files = save_ref.get_files()
             src = list(files.keys())[0]
@@ -343,7 +343,7 @@ class FileRefTestCase(BaseTestCase):
         self.assertTrue(fr.check_file(file2))
 
 
-class SaveReferenceTestCase(BaseTestCase):
+class SaveRefTestCase(BaseTestCase):
     def _create_file(self, file, content):
         os.makedirs(os.path.dirname(file), exist_ok=True)
         with open(file, 'w') as fd:
@@ -356,8 +356,8 @@ class SaveReferenceTestCase(BaseTestCase):
         dst2 = os.path.join(self.dst_root, 'dst2')
         os.makedirs(dst1, exist_ok=True)
         os.makedirs(dst2, exist_ok=True)
-        s1 = utils.SaveReference(dst1)
-        s2 = utils.SaveReference(dst1)
+        s1 = utils.SaveRef(dst1)
+        s2 = utils.SaveRef(dst1)
         self.assertEqual(s1, s2)
 
         files = s1.reset_files(src1)
@@ -416,8 +416,8 @@ class SaveReferenceTestCase(BaseTestCase):
         data1 = deepcopy(s1.data)
         pprint(data1)
 
-        utils.SaveReference._instances = {}
-        s3 = utils.SaveReference(dst1)
+        utils.SaveRef._instances = {}
+        s3 = utils.SaveRef(dst1)
         self.assertNotEqual(s3, s1)
         self.assertEqual(s3.data, data1)
 
@@ -1205,7 +1205,7 @@ class LoadgameTestCase(BaseTestCase):
         self._savegame(saves=saves)
         dst_paths = self._list_dst_root_paths()
         ref_file = [f for f in dst_paths if os.path.basename(f) == utils.REF_FILENAME][0]
-        ref = utils.SaveReference(os.path.dirname(ref_file))
+        ref = utils.SaveRef(os.path.dirname(ref_file))
         pprint(ref.data)
 
         shutil.rmtree(src_path)
@@ -1415,7 +1415,7 @@ class FileTestCase(BaseTestCase):
         other_src = 'D:\\data\\src1'
         other_files = {'dir1\\file1': 123, 'dir1\\file2': 123}
         other_data = {'files': {'other_hostname': {other_src: other_files}}, 'ts': {'other_hostname': 123}}
-        save_ref = utils.SaveReference(dst)
+        save_ref = utils.SaveRef(dst)
         save_ref._load(other_data)
         self._list_save_ref_files(dst_paths)[dst]
 

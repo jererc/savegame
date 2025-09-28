@@ -1,4 +1,3 @@
-from glob import glob
 import logging
 import os
 from pathlib import PurePath
@@ -34,19 +33,6 @@ class FileLoader(BaseLoader):
         if username == self.username:
             return path.replace(os.path.join(home_root, username), HOME_DIR, 1)
         return None
-
-    def _iterate_save_refs(self):
-        from savegame.utils import SaveReference
-        if self.saver_cls.in_place:
-            yield SaveReference(self.root_dst_path)
-            return
-        for hostname in self.hostnames:
-            if hostname != self.hostname:
-                continue
-            for dst in glob(os.path.join(self.root_dst_path, hostname, '*')):
-                save_ref = SaveReference(dst)
-                if save_ref.get_files(hostname=self.hostname):
-                    yield save_ref
 
     def _must_copy_file(self, dst_file, src_file):
         if not check_patterns(src_file, self.include, self.exclude):
@@ -119,7 +105,6 @@ class FileLoader(BaseLoader):
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')
 
     def run(self):
-        # for save_ref in self._iterate_save_refs():
         for save_ref in iterate_save_refs(self.root_dst_path):
             self._load_from_save_ref(save_ref)
 

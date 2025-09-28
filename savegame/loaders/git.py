@@ -11,8 +11,8 @@ class GitLoader(FileLoader):
 
     def _load_from_save_ref(self, save_ref):
         bundle_rel_paths = set()
-        for src, files in save_ref.get_files().items():
-            for rel_path, ref in files.items():
+        for src, file_refs in save_ref.get_files(hostname=self.hostname).items():
+            for rel_path, ref in file_refs.items():
                 if not rel_path.endswith('.bundle'):
                     continue
                 if not FileRef.from_ref(ref).check_file(os.path.join(save_ref.dst, rel_path)):
@@ -21,6 +21,7 @@ class GitLoader(FileLoader):
                 bundle_rel_paths.add(rel_path)
                 repo_dir = os.path.join(src, os.path.splitext(rel_path)[0])
                 if os.path.exists(repo_dir):
+                    self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='match')
                     continue
                 if self.dry_run:
                     self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loadable')
