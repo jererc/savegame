@@ -695,6 +695,26 @@ class SavegameTestCase(BaseTestCase):
         pprint(self.meta.data)
         self.assertEqual(sorted(r['src'] for r in self.meta.data.values()), sorted([src1, src2, src3]))
 
+    def test_due_warning(self):
+        self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=2, nb_files=2)
+        src1 = os.path.join(self.src_root, 'src1')
+        saves = [
+            {
+                'src_paths': [src1],
+                'dst_path': self.dst_root,
+                'trigger_volume_labels': ['volume1'],
+                'due_warning_delta': 60,
+            },
+        ]
+        with patch.object(module.save.SaveItem, '_list_label_mountpoints', return_value={'volume1': self.src_root}):
+            self._savegame(saves=saves)
+        key = list(self.meta.data.keys())[0]
+        self.meta.data[key]['next_ts'] = time.time() - 61
+        for i in range(2):
+            self._savegame(saves=saves)
+        self.assertTrue(self.meta.data[key]['next_warning_ts'] > time.time())
+        pprint(self.meta.data)
+
     def test_stats(self):
         self._generate_src_data(index_start=1, nb_srcs=3, nb_dirs=3, nb_files=3)
         saves = [

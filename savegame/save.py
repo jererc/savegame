@@ -27,7 +27,8 @@ class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=FileSaver.id, dst_path=None,
                  run_delta=None, purge_delta=None, enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None, trigger_volume_labels=None,
-                 retry_delta=None, file_compare_method=None, due_warning_delta=7 * 24 * 3600):
+                 retry_delta=None, file_compare_method=None, due_warning_delta=7 * 24 * 3600,
+                 next_warning_delta=24 * 3600):
         self.config = config
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label
@@ -46,6 +47,7 @@ class SaveItem:
         self.retry_delta = retry_delta
         self.file_compare_method = file_compare_method
         self.due_warning_delta = due_warning_delta
+        self.next_warning_delta = next_warning_delta
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple)) else (s, [], []) for s in (src_paths or [])]
@@ -74,12 +76,15 @@ class SaveItem:
         return bool(set(self.trigger_volume_labels).intersection(set(self._list_label_mountpoints().keys())))
 
     def _check_due(self, saver):
+        now = time.time()
         next_ts = saver.meta.get(saver.key).get('next_ts', 0)
-        if next_ts and time.time() > next_ts + self.due_warning_delta:
+        next_warning_ts = saver.meta.get(saver.key).get('next_warning_ts', 0)
+        if next_ts and now > next_ts + self.due_warning_delta and now > next_warning_ts:
             notify(title=f'{saver.id} is due',
                    body=f'next run was scheduled for {datetime.fromtimestamp(next_ts).isoformat()}',
                    app_name=NAME,
                    replace_key=f'{saver.id}-due_warning')
+            saver.meta.set_subkey(saver.key, 'next_warning_ts', now + self.next_warning_delta)
 
     def _generate_src_and_patterns(self):
         if self.src_paths:

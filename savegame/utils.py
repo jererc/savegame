@@ -147,6 +147,9 @@ class Metadata:
     def set(self, key, value: dict):
         self.data[key] = value
 
+    def set_subkey(self, key, subkey, value):
+        self.data[key][subkey] = value
+
     def save(self):
         max_ts = time.time() - METADATA_MAX_AGE
         self.data = {k: v for k, v in self.data.items() if v.get('next_ts') > max_ts}
