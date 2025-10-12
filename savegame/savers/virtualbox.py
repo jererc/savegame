@@ -99,7 +99,6 @@ class VirtualboxSaver(BaseSaver):
             vm_mtime = vb.get_vm_mtime(vm)
             rel_path = f'{vm}.ova'
             file_ref = FileRef.from_ref(file_refs.get(rel_path))
-            logger.debug(f'{vm=} {vm_mtime=} {file_ref.mtime=}')
             dst_file = os.path.join(self.dst, rel_path)
             if vm in running_vms:
                 notify(title=f'cannot export vm {vm}', body=f'{vm} is running', app_name=NAME, replace_key=notif_key)
