@@ -46,6 +46,27 @@ class Virtualbox:
             logger.exception(f'failed to run {cmd=}')
             raise
 
+    def _get_vm_config_file(self, vm):
+        cmd = [self.bin_file, 'showvminfo', vm, '--machinereadable']
+        logger.debug(f'running {cmd=}')
+        result = subprocess.run(cmd, capture_output=True, text=True, creationflags=self.creationflags)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to get VM info: {result.stderr.strip()}")
+        for line in result.stdout.splitlines():
+            if line.startswith('CfgFile='):
+                config_file = line.split('=', 1)[1].strip('"')
+                if not os.path.isfile(config_file):
+                    raise RuntimeError(f'Config for {vm=} does not exist: {config_file=}')
+                return config_file
+        raise RuntimeError(f"Config file not found for VM '{vm}'")
+
+    def get_vm_mtime(self, vm):
+        try:
+            return os.path.getmtime(self._get_vm_config_file(vm))
+        except Exception:
+            logger.exception(f'failed to get config file for {vm=}')
+            return time.time()
+
     def clone_vm(self, vm, name):
         self._run_cmd('clonevm', vm, '--name', name, '--register')
 
@@ -75,12 +96,14 @@ class VirtualboxSaver(BaseSaver):
             if vm.lower().startswith('test'):
                 logger.debug(f'skipping {vm=}')
                 continue
+            vm_mtime = vb.get_vm_mtime(vm)
             rel_path = f'{vm}.ova'
             file_ref = FileRef.from_ref(file_refs.get(rel_path))
+            logger.debug(f'{vm=} {vm_mtime=} {file_ref.mtime=}')
             dst_file = os.path.join(self.dst, rel_path)
             if vm in running_vms:
                 notify(title=f'cannot export vm {vm}', body=f'{vm} is running', app_name=NAME, replace_key=notif_key)
-            else:
+            elif not file_ref.mtime or file_ref.mtime < vm_mtime:
                 tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
                 remove_path(tmp_file)
                 logger.info(f'exporting {vm=} to {dst_file=}')

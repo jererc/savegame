@@ -1656,13 +1656,17 @@ class GoogleContactsTestCase(BaseTestCase):
 
 
 class VirtualboxTestCase(BaseTestCase):
-    def _run(self, saves, running_vms, vms):
+    def _run(self, saves, running_vms, vms, vm_mtime=None):
+        if vm_mtime is None:
+            vm_mtime = time.time()
+
         def side_export_vm(vm, file):
             with open(file, 'w') as fd:
                 fd.write(f'{vm} data')
 
         with patch.object(virtualbox.Virtualbox, 'list_running_vms', return_value=running_vms), \
                 patch.object(virtualbox.Virtualbox, 'list_vms', return_value=vms), \
+                patch.object(virtualbox.Virtualbox, 'get_vm_mtime', return_value=vm_mtime), \
                 patch.object(virtualbox.Virtualbox, 'export_vm', side_effect=side_export_vm), \
                 patch.object(virtualbox, 'notify') as mock_notify:
             self._savegame(saves=saves)
@@ -1704,6 +1708,11 @@ class VirtualboxTestCase(BaseTestCase):
         self.assertFalse(any_str_matches(dst_paths, '*test_fed*'))
         rf = self._list_save_ref_files(dst_paths)[dst]['virtualbox']
         self.assertEqual(set(rf.keys()), {'ub1.ova', 'ub2.ova'})
+
+        self._run(saves, [], ['ub1', 'ub2', 'test_fed4'], vm_mtime=time.time() + 1)
+        rf2 = self._list_save_ref_files(dst_paths)[dst]['virtualbox']
+        self.assertTrue(rf2['ub1.ova'] != rf['ub1.ova'])
+        self.assertTrue(rf2['ub2.ova'] != rf['ub2.ova'])
 
 
 class ManySourcesTestCase(BaseTestCase):
