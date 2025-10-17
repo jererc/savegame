@@ -20,6 +20,7 @@ REF_FILENAME = f'.{NAME}'
 METADATA_MAX_AGE = 3600 * 24 * 90
 INVALID_PATH_SEP = {'linux': '\\', 'win32': '/'}[sys.platform]
 MTIME_DRIFT_TOLERANCE = 10
+MAX_HASH_FILE_SIZE = 1_000_000_000
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +212,7 @@ class FileRef:
         return abs(mtime - self.mtime) <= MTIME_DRIFT_TOLERANCE
 
     def check_file(self, file):
-        if self.hash:
+        if self.hash and os.path.getsize(file) < MAX_HASH_FILE_SIZE:
             return get_file_hash(file) == self.hash
         if self.size is not None and self.mtime is not None:
             return get_file_size(file) == self.size and self._check_mtime(get_file_mtime(file))
