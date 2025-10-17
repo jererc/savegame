@@ -149,7 +149,7 @@ class BaseSaver:
             if name == REF_FILENAME:
                 return False
             if not name.startswith(REF_FILENAME) and get_file_mtime(path) > cutoff_ts:
-                self.report.add(self, rel_path=os.path.relpath(path, self.dst), code='purgeable')
+                # self.report.add(self, rel_path=os.path.relpath(path, self.dst), code='purgeable')
                 return False
         elif os.listdir(path):
             return False
