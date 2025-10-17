@@ -56,7 +56,8 @@ class Git:
         staged = git('diff', '--cached', '--name-only')
         unstaged = git('diff', '--name-only')
         untracked = git('ls-files', '--others', '--exclude-standard')
-        return {os.path.join(self.path, f) for f in staged + unstaged + untracked}
+        files = {os.path.join(self.path, f) for f in staged + unstaged + untracked}
+        return {f for f in files if os.path.exists(f)}   # ignore deleted files
 
 
 class GitSaver(BaseSaver):
