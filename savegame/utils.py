@@ -178,7 +178,12 @@ def iterate_save_refs(path):
 class FileRef:
     @classmethod
     def from_file(cls, file, has_src_file=True):
-        return cls(hash=get_file_hash(file), size=get_file_size(file), mtime=get_file_mtime(file), has_src_file=has_src_file)
+        return cls(
+            hash=get_file_hash(file) if os.path.getsize(file) < MAX_HASH_FILE_SIZE else None,
+            size=get_file_size(file),
+            mtime=get_file_mtime(file),
+            has_src_file=has_src_file,
+        )
 
     @classmethod
     def from_ref(cls, ref):
@@ -212,7 +217,7 @@ class FileRef:
         return abs(mtime - self.mtime) <= MTIME_DRIFT_TOLERANCE
 
     def check_file(self, file):
-        if self.hash and os.path.getsize(file) < MAX_HASH_FILE_SIZE:
+        if self.hash:
             return get_file_hash(file) == self.hash
         if self.size is not None and self.mtime is not None:
             return get_file_size(file) == self.size and self._check_mtime(get_file_mtime(file))
