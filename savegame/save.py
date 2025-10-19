@@ -172,7 +172,7 @@ class SaveHandler:
                    replace_key='failed-savers')
         Metadata().save()
 
-        report.print_table()
+        report.print_table(exclude_codes=None if self.force else {'purgeable'})
         failed_files = [r for r in report.data if r['code'] == 'failed']
         if failed_files:
             notify(title='failed files',

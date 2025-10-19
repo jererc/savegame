@@ -31,10 +31,12 @@ class BaseReport:
             f'{row["duration"]:>8}',
         ])
 
-    def print_table(self, codes=None):
+    def print_table(self, include_codes=None, exclude_codes=None):
         rows = []
         for item in sorted(self.data, key=lambda x: (x['code'], x['id'], x['src'], x['rel_path'], x['dst'])):
-            if codes and item['code'] not in codes:
+            if include_codes and item['code'] not in include_codes:
+                continue
+            if exclude_codes and item['code'] in exclude_codes:
                 continue
             rows.append(self._get_row(item))
         if rows:
