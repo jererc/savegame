@@ -8,7 +8,7 @@ def truncate_middle(s: str, width: int) -> str:
     if len(s) <= width:
         return s.ljust(width)  # pad if shorter
     half = (width - 3) // 2
-    return s[:half] + "..." + s[-(width - half - 3):]
+    return s[:half] + '…' + s[-(width - half - 1):]
 
 
 class BaseReport:
@@ -23,9 +23,9 @@ class BaseReport:
 
     def _get_row(self, row):
         return ' '.join([
-            f'{row["code"]:20}',
-            f'{row["id"]:15}',
-            truncate_middle(row["src"] or '', 40),
+            truncate_middle(row["code"] or '', 12),
+            truncate_middle(row["id"] or '', 12),
+            truncate_middle(row["src"] or '', 50),
             truncate_middle(row["rel_path"] or '', 50),
             truncate_middle(row["dst"] or '', 50),
             f'{row["duration"]:>8}',
