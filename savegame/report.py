@@ -25,9 +25,9 @@ class BaseReport:
         return ' '.join([
             f'{row["code"]:20}',
             f'{row["id"]:15}',
-            truncate_middle(row["src"] or '', 60),
-            truncate_middle(row["rel_path"] or '', 40),
-            truncate_middle(row["dst"] or '', 60),
+            truncate_middle(row["src"] or '', 40),
+            truncate_middle(row["rel_path"] or '', 50),
+            truncate_middle(row["dst"] or '', 50),
             f'{row["duration"]:>8}',
             f'{row["size"]:>8}',
         ])
