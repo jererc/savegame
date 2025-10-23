@@ -29,6 +29,7 @@ class BaseReport:
             truncate_middle(row["rel_path"] or '', 40),
             truncate_middle(row["dst"] or '', 60),
             f'{row["duration"]:>8}',
+            f'{row["size"]:>8}',
         ])
 
     def print_table(self, include_codes=None, exclude_codes=None):
@@ -40,12 +41,12 @@ class BaseReport:
                 continue
             rows.append(self._get_row(item))
         if rows:
-            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration')})] + rows)
+            data = '\n'.join([self._get_row({k: k for k in ('code', 'id', 'src', 'dst', 'rel_path', 'duration', 'size')})] + rows)
             logger.info(f'report:\n{data}')
 
 
 class SaveReport(BaseReport):
-    def add(self, saver, rel_path, code, start_ts=None):
+    def add(self, saver, rel_path, code, start_ts=None, size=None):
         self.data.append({
             'id': saver.id,
             'src': f'{saver.src} ({saver.save_item.src_volume_label})' if saver.save_item.src_volume_label else saver.src,
@@ -53,11 +54,12 @@ class SaveReport(BaseReport):
             'rel_path': rel_path,
             'code': code,
             'duration': f'{time.time() - start_ts:.1f}' if start_ts else '',
+            'size': f'{size / 1024 / 1024:.1f}' if size else '',
         })
 
 
 class LoadReport(BaseReport):
-    def add(self, loader, save_ref, src, rel_path, code, start_ts=None):
+    def add(self, loader, save_ref, src, rel_path, code, start_ts=None, size=None):
         self.data.append({
             'id': loader.id,
             'src': src,
@@ -65,4 +67,5 @@ class LoadReport(BaseReport):
             'rel_path': rel_path,
             'code': code,
             'duration': f'{time.time() - start_ts:.1f}' if start_ts else '',
+            'size': f'{size / 1024 / 1024:.1f}' if size else '',
         })

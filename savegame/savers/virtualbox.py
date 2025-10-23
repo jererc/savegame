@@ -9,7 +9,7 @@ from svcutils.notifier import notify
 
 from savegame import NAME
 from savegame.savers.base import BaseSaver
-from savegame.utils import FileRef, remove_path
+from savegame.utils import FileRef, get_file_size, remove_path
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class VirtualboxSaver(BaseSaver):
                 tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
                 remove_path(tmp_file)
                 logger.info(f'exporting {vm=} to {dst_file=}')
-                notify(title=f'exporting vm {vm}', body=f'file: {dst_file}', app_name=NAME, replace_key=notif_key)
+                notify(title=f'exporting vm {vm}', body=f'to {dst_file}', app_name=NAME, replace_key=notif_key)
                 start_ts = time.time()
                 try:
                     vb.export_vm(vm, tmp_file)
@@ -118,11 +118,6 @@ class VirtualboxSaver(BaseSaver):
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
                     file_ref = FileRef.from_file(dst_file, has_src_file=False)
-                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
-                    notify(
-                        title=f'exported vm {vm}',
-                        body=f'file: {dst_file}, size: {os.path.getsize(dst_file) / 1024 / 1024:.02f} MB, duration: {time.time() - start_ts:.02f}s',
-                        app_name=NAME,
-                        replace_key=notif_key,
-                    )
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=get_file_size(dst_file))
+                    notify(title=f'exported vm {vm}', body=f'to {dst_file}', app_name=NAME, replace_key=notif_key)
             self.set_file(self.src, rel_path, file_ref.ref)

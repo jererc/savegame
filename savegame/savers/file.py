@@ -56,7 +56,7 @@ class FileSaver(BaseSaver):
                     start_ts = time.time()
                     shutil.copy2(src_file, dst_file)
                     ref = new_ref
-                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=file_size)
             except Exception:
                 logger.exception(f'failed to copy {src_file=} to {dst_file=}')
                 self.report.add(self, rel_path=rel_path, code='failed')

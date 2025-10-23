@@ -97,7 +97,8 @@ class FileLoader(BaseLoader):
                 start_ts = time.time()
                 logger.info(f'copying {dst_file=} to {src_file=} ({get_file_size(dst_file) / 1024 / 1024:.02f} MB)')
                 shutil.copy2(dst_file, src_file)
-                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded', start_ts=start_ts)
+                self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='loaded', start_ts=start_ts,
+                                size=get_file_size(dst_file))
             except Exception:
                 logger.exception(f'failed to copy {dst_file=} to {src_file=}')
                 self.report.add(self, save_ref=save_ref, src=src, rel_path=rel_path, code='failed')

@@ -7,7 +7,7 @@ import shutil
 import time
 
 from savegame.savers.base import BaseSaver
-from savegame.utils import FileRef, remove_path
+from savegame.utils import FileRef, get_file_size, remove_path
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class GitSaver(BaseSaver):
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
                     file_ref = FileRef.from_file(dst_file, has_src_file=False)
-                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=get_file_size(dst_file))
             except Exception:
                 logger.exception(f'failed to create bundle for {src_path}')
                 self.report.add(self, rel_path=rel_path, code='failed')
@@ -101,6 +101,6 @@ class GitSaver(BaseSaver):
                     start_ts = time.time()
                     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
                     shutil.copy2(src_file, dst_file)
-                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=get_file_size(src_file))
                     ref = new_ref
                 self.set_file(self.src, rel_path, ref)

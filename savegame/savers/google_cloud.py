@@ -5,7 +5,7 @@ import time
 
 from savegame.savers.base import BaseSaver
 from savegame.savers.google_api import GoogleCloud
-from savegame.utils import FileRef, get_file_mtime, get_hash, to_json
+from savegame.utils import FileRef, get_file_mtime, get_file_size, get_hash, to_json
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class GoogleDriveSaver(BaseSaver):
                 try:
                     gc.export_file(file_id=file_meta['id'], path=dst_file, mime_type=file_meta['mime_type'])
                     file_ref = FileRef.from_file(dst_file, has_src_file=False)
-                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
+                    self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=get_file_size(dst_file))
                 except Exception as e:
                     logger.error(f'failed to save google drive file {file_meta["name"]}: {e}')
                     self.report.add(self, rel_path=rel_path, code='failed')
@@ -71,5 +71,5 @@ class GoogleContactsSaver(BaseSaver):
             with open(dst_file, 'w', encoding='utf-8', newline='\n') as fd:
                 fd.write(data)
             file_ref = FileRef(hash=dst_hash, has_src_file=False)
-            self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts)
+            self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=get_file_size(dst_file))
         self.set_file(self.src, rel_path, file_ref.ref)
