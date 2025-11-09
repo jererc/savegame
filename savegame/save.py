@@ -270,7 +270,7 @@ class SaveMonitor:
             'desynced': [r for r in saves if r['desynced']],
             'orphans': orphan_dsts,
         }
-        report['message'] = ', '.join([f'{k}: {len(report[k])}' for k in ('saves', 'desynced', 'orphans')])
+        report['message'] = ', '.join([f'{len(report[k])} {k}' for k in ('saves', 'desynced', 'orphans')])
         return report
 
     def run(self):
