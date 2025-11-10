@@ -19,10 +19,6 @@ from savegame.utils import (HOSTNAME, FileRef, Metadata, InvalidPath, UnhandledP
 logger = logging.getLogger(__name__)
 
 
-def ts_to_str(ts):
-    return datetime.fromtimestamp(int(ts)).isoformat(' ')
-
-
 class SaveItem:
     def __init__(self, config, src_paths=None, saver_id=FileSaver.id, dst_path=None,
                  run_delta=None, purge_delta=None, enable_purge=True, loadable=True, platform=None,
@@ -290,7 +286,7 @@ class SaveMonitor:
             rows = [headers] + sorted(report['saves'], key=lambda x: [x[k] for k in order_by_cols], reverse=True)
             for i, r in enumerate(rows):
                 if i > 0:
-                    r['modified'] = ts_to_str(r['modified'])
+                    r['modified'] = datetime.fromtimestamp(int(r['modified'])).isoformat(' ')
                     r['desynced'] = r['desynced'] or ''
                 print(f'{r["modified"]:19}  {r["size_MB"]:10}  {r["files"]:8}  {r["desynced"]:10}  {r["hostname"]:20}  {r["src"]}')
         print(report['message'])
