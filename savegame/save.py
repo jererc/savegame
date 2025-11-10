@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from glob import glob
 import logging
 import os
@@ -194,8 +194,7 @@ class SaveMonitor:
         self.saver_hostnames = {r.hostname for r in iterate_saver_classes()}
 
     def _must_run(self):
-        dt = datetime.fromtimestamp(self.run_file.get_ts())
-        return date.today() >= dt.date() + timedelta(days=self.config.MONITOR_DELTA_DAYS)
+        return time.time() >= self.run_file.get_ts() + self.config.MONITOR_RUN_DELTA
 
     def _iterate_save_refs(self):
         root_dst_paths = {s.root_dst_path for s in iterate_save_items(self.config)

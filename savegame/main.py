@@ -45,7 +45,7 @@ def main():
         SAVE_RUN_DELTA=3600,
         ALWAYS_UPDATE_REF=False,
         RUN_DELTA=30 * 60,
-        MONITOR_DELTA_DAYS=1,
+        MONITOR_RUN_DELTA=3 * 24 * 3600,
         GOOGLE_CREDS=os.path.join(WORK_DIR, 'google_creds.json'),
     )
     if args.cmd == 'save':

@@ -207,7 +207,7 @@ class BaseTestCase(unittest.TestCase):
         args = {
             'DST_ROOT_DIRNAME': 'saves',
             'SAVE_RUN_DELTA': 0,
-            'MONITOR_DELTA_DAYS': 1,
+            'MONITOR_RUN_DELTA': 24 * 3600,
             'ALWAYS_UPDATE_REF': False,
         }
         args.update(kwargs)
@@ -1915,7 +1915,7 @@ class SaveMonitorTestCase(BaseTestCase):
             sc = save.SaveMonitor(self.config)
             sc.run()
         print(mock_notify.call_args_list)
-        self.assertTrue('saves: 6' in mock_notify.call_args_list[0][1]['body'].split(', '))
+        self.assertTrue('6 saves' in mock_notify.call_args_list[0][1]['body'].split(', '))
 
 
 class ReportTestCase(BaseTestCase):
