@@ -17,6 +17,10 @@ from savegame.utils import (HOSTNAME, MTIME_DRIFT_TOLERANCE, REF_FILENAME, FileR
 logger = logging.getLogger(__name__)
 
 
+class Skipped(Exception):
+    pass
+
+
 def path_to_dirname(x):
     x = re.sub(r'[<>:"|?*\s]', '_', x)
     x = re.sub(r'[/\\]', '-', x)
@@ -178,6 +182,9 @@ class BaseSaver:
                 self._purge_dst()
             if os.path.exists(self.save_ref.dst):
                 self.save_ref.save(hostname=self.hostname, force=self.config.ALWAYS_UPDATE_REF)
+            self.success = True
+        except Skipped as e:
+            logger.info(f'skipped {self.id=} {self.src=} {self.dst=}: {e}')
             self.success = True
         except Exception as e:
             logger.exception(f'failed to save {self.src=}')
