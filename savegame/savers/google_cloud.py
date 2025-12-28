@@ -19,7 +19,11 @@ def get_file_mtime_dt(x):
 
 
 def get_google_cloud(config, headless=True):
-    return GoogleCloud(oauth_secrets_file=os.path.expanduser(config.GOOGLE_CREDS), headless=headless)
+    oauth_secrets_file = os.path.expanduser(config.GOOGLE_CREDS)
+    if not os.path.exists(oauth_secrets_file):
+        logger.debug(f'{oauth_secrets_file} does not exist')
+        return None
+    return GoogleCloud(oauth_secrets_file=oauth_secrets_file, headless=headless)
 
 
 class GoogleDriveSaver(BaseSaver):
@@ -28,6 +32,8 @@ class GoogleDriveSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
+        if not gc:
+            return
         file_refs = self.reset_files(self.src)
         for file_meta in gc.iterate_file_meta():
             if not file_meta['exportable']:
@@ -58,6 +64,8 @@ class GoogleContactsSaver(BaseSaver):
 
     def do_run(self):
         gc = get_google_cloud(self.config)
+        if not gc:
+            return
         file_refs = self.reset_files(self.src)
         start_ts = time.time()
         contacts = gc.list_contacts()

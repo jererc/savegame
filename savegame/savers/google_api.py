@@ -36,7 +36,7 @@ def get_file(path):
         return None
     if os.path.exists(path):
         return path
-    raise Exception(f'{path} does not exist')
+    raise FileNotFoundError(f'{path} does not exist')
 
 
 class GoogleCloud:
