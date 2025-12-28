@@ -21,7 +21,7 @@ def get_file_mtime_dt(x):
 def get_google_cloud(config, headless=True):
     oauth_secrets_file = os.path.expanduser(config.GOOGLE_CREDS)
     if not os.path.exists(oauth_secrets_file):
-        logger.debug(f'{oauth_secrets_file} does not exist')
+        logger.warning(f'{oauth_secrets_file} does not exist')
         return None
     return GoogleCloud(oauth_secrets_file=oauth_secrets_file, headless=headless)
 
