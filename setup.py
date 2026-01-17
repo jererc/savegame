@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='savegame',
-    version='2025.12.28.065159',
+    version='2026.01.17.071249',
     author='jererc',
     author_email='jererc@gmail.com',
     url='https://github.com/jererc/savegame',
@@ -17,6 +17,8 @@ setup(
         'svcutils @ https://github.com/jererc/svcutils/archive/refs/heads/main.zip',
         # 'goth @ git+https://github.com/jererc/goth.git@main#egg=goth',
         'goth @ https://github.com/jererc/goth/archive/refs/heads/main.zip',
+        # 'vbox @ git+https://github.com/jererc/vbox.git@main#egg=vbox',
+        'vbox @ https://github.com/jererc/vbox/archive/refs/heads/main.zip',
     ],
     extras_require={
         'dev': ['flake8', 'pytest'],
