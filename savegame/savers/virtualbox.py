@@ -19,8 +19,12 @@ class VirtualboxSaver(BaseSaver):
     retry_delta = 30
 
     def do_run(self):
+        try:
+            vb = Virtualbox()
+        except FileNotFoundError as e:
+            logger.debug(f'skipping {self.id} saver: {str(e)}')
+            return
         file_refs = self.reset_files(self.src)
-        vb = Virtualbox()
         running_vms = vb.list_running_vms()
         for vm in vb.list_vms():
             notif_key = f'{self.id}-{vm}'
