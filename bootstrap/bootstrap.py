@@ -20,6 +20,6 @@ Bootstrapper(
         {'name': 'savegame', 'args': ['savegame.main', '-p', os.getcwd(), 'save', '--task']},
     ],
     download_assets=[
-        ('user_settings.py', 'https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/bootstrap/user_settings.py'),
+        {'filename': 'user_settings.py', 'url': 'https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/bootstrap/user_settings.py'},
     ],
 )
