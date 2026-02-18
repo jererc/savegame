@@ -79,7 +79,9 @@ class SaveItem:
             notify(title=f'{saver.id} is due',
                    body=f'next run was scheduled for {datetime.fromtimestamp(next_ts).isoformat()}',
                    app_name=NAME,
-                   replace_key=f'{saver.id}-due_warning')
+                   replace_key=f'{saver.id}-due_warning',
+                   telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN,
+                   telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
             saver.meta.set_subkey(saver.key, 'next_warning_ts', now + self.next_warning_delta)
 
     def _generate_src_and_patterns(self):
@@ -142,6 +144,9 @@ class SaveHandler:
         for si in iterate_save_items(self.config):
             yield from si.generate_savers()
 
+    def _notify(self, *args, **kwargs):
+        notify(*args, app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID, **kwargs)
+
     def run(self):
         logger.info('running save handler')
         start_ts = time.time()
@@ -162,24 +167,15 @@ class SaveHandler:
                 if volume_label:
                     volume_labels.add(volume_label)
         if failed_savers:
-            notify(title='failed savers',
-                   body=', '.join(sorted(r.src for r in failed_savers)),
-                   app_name=NAME,
-                   replace_key='failed-savers')
+            self._notify(title='failed savers', body=', '.join(sorted(r.src for r in failed_savers)), replace_key='failed-savers')
         Metadata().save()
 
         report.print_table(exclude_codes=None if self.force else {'purgeable'})
         failed_files = [r for r in report.data if r['code'] == 'failed']
         if failed_files:
-            notify(title='failed files',
-                   body=f'{len(failed_files)} failed files',
-                   app_name=NAME,
-                   replace_key='failed-files')
+            self._notify(title='failed files', body=f'{len(failed_files)} failed files', replace_key='failed-files')
         if volume_labels:
-            notify(title='saved volumes',
-                   body=', '.join(sorted(volume_labels)),
-                   app_name=NAME,
-                   replace_key='saved-volumes')
+            self._notify(title='saved volumes', body=', '.join(sorted(volume_labels)), replace_key='saved-volumes')
         logger.info(f'completed {len(runnable_savers)}/{len(savers)} saves in {time.time() - start_ts:.02f}s')
 
 
@@ -274,7 +270,8 @@ class SaveMonitor:
         logger.info('running save monitor')
         start_ts = time.time()
         report = self._generate_report()
-        notify(title='status', body=report['message'], app_name=NAME, replace_key='status')
+        notify(title='status', body=report['message'], app_name=NAME, replace_key='status',
+               telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
         self.run_file.touch()
         logger.info(f'completed save monitor in {time.time() - start_ts:.02f}s')
 
@@ -297,12 +294,14 @@ def savegame(config, force=False):
         SaveHandler(config, force=force).run()
     except Exception as e:
         logger.exception('failed to save')
-        notify(title='error', body=str(e), app_name=NAME, replace_key='save-error')
+        notify(title='error', body=str(e), app_name=NAME, replace_key='save-error',
+               telegram_bot_token=config.TELEGRAM_BOT_TOKEN, telegram_chat_id=config.TELEGRAM_CHAT_ID)
     try:
         SaveMonitor(config).run()
     except Exception as e:
         logger.exception('failed to monitor')
-        notify(title='error', body=str(e), app_name=NAME, replace_key='status-error')
+        notify(title='error', body=str(e), app_name=NAME, replace_key='status-error',
+               telegram_bot_token=config.TELEGRAM_BOT_TOKEN, telegram_chat_id=config.TELEGRAM_CHAT_ID)
 
 
 def status(config, **kwargs):

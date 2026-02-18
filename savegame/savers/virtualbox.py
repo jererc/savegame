@@ -2,10 +2,8 @@ import logging
 import os
 import time
 
-from svcutils.notifier import notify
 from vbox.virtualbox import Virtualbox
 
-from savegame import NAME
 from savegame.savers.base import BaseSaver
 from savegame.utils import FileRef, get_file_size, remove_path
 
@@ -36,23 +34,23 @@ class VirtualboxSaver(BaseSaver):
             file_ref = FileRef.from_ref(file_refs.get(rel_path))
             dst_file = os.path.join(self.dst, rel_path)
             if vm in running_vms:
-                notify(title=f'cannot export vm {vm}', body=f'{vm} is running', app_name=NAME, replace_key=notif_key)
+                self._notify(title=f'cannot export vm {vm}', body=f'{vm} is running', replace_key=notif_key)
             elif not file_ref.mtime or file_ref.mtime < vm_mtime:
                 tmp_file = os.path.join(self.dst, f'{vm}_tmp.ova')
                 remove_path(tmp_file)
                 logger.info(f'exporting {vm=} to {dst_file=}')
-                notify(title=f'exporting vm {vm}', body=f'to {dst_file}', app_name=NAME, replace_key=notif_key)
+                self._notify(title=f'exporting vm {vm}', body=f'to {dst_file}', replace_key=notif_key)
                 start_ts = time.time()
                 try:
                     vb.export_vm(vm, tmp_file)
                 except Exception as e:
                     logger.exception(f'failed to export {vm=}')
                     self.report.add(self, rel_path=rel_path, code='failed')
-                    notify(title=f'failed to export vm {vm}', body=str(e), app_name=NAME, replace_key=notif_key)
+                    self._notify(title=f'failed to export vm {vm}', body=str(e), replace_key=notif_key)
                 else:
                     remove_path(dst_file)
                     os.rename(tmp_file, dst_file)
                     file_ref = FileRef.from_file(dst_file, has_src_file=False)
                     self.report.add(self, rel_path=rel_path, code='saved', start_ts=start_ts, size=get_file_size(dst_file))
-                    notify(title=f'exported vm {vm}', body=f'to {dst_file}', app_name=NAME, replace_key=notif_key)
+                    self._notify(title=f'exported vm {vm}', body=f'to {dst_file}', replace_key=notif_key)
             self.set_file(self.src, rel_path, file_ref.ref)

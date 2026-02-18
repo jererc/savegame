@@ -1668,9 +1668,9 @@ class VirtualboxTestCase(BaseTestCase):
                 patch.object(virtualbox.Virtualbox, 'list_vms', return_value=vms), \
                 patch.object(virtualbox.Virtualbox, 'get_vm_mtime', return_value=vm_mtime), \
                 patch.object(virtualbox.Virtualbox, 'export_vm', side_effect=side_export_vm), \
-                patch.object(virtualbox, 'notify') as mock_notify:
+                patch.object(savers.base.BaseSaver, '_notify') as mock__notify:
             self._savegame(saves=saves)
-            pprint(mock_notify.call_args_list)
+            pprint(mock__notify.call_args_list)
 
     def test_1(self):
         dst = os.path.join(self.dst_root, 'dst1')

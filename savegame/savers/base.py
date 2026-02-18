@@ -170,6 +170,9 @@ class BaseSaver:
                 remove_path(path)
                 self.report.add(self, rel_path=os.path.relpath(path, self.dst), code='purged')
 
+    def _notify(self, *args, **kwargs):
+        notify(*args, app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID, **kwargs)
+
     def do_run(self):
         raise NotImplementedError()
 
@@ -188,7 +191,7 @@ class BaseSaver:
             self.success = True
         except Exception as e:
             logger.exception(f'failed to save {self.src=}')
-            notify(title='error', body=f'failed to save {self.src}: {e}', app_name=NAME)
+            self._notify(title='error', body=f'failed to save {self.src}: {e}')
             self.success = False
         self.end_ts = time.time()
         self._update_meta()
