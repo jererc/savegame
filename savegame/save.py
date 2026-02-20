@@ -5,7 +5,7 @@ import os
 import sys
 import time
 
-from svcutils.notifier import notify
+from svcutils.notifier import get_notifier
 from svcutils.service import RunFile
 
 from savegame import NAME, WORK_DIR
@@ -44,6 +44,7 @@ class SaveItem:
         self.file_compare_method = file_compare_method
         self.due_warning_delta = due_warning_delta
         self.next_warning_delta = next_warning_delta
+        self.notifier = get_notifier(app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
 
     def _get_src_paths(self, src_paths):
         return [s if isinstance(s, (list, tuple)) else (s, [], []) for s in (src_paths or [])]
@@ -76,12 +77,9 @@ class SaveItem:
         next_ts = saver.meta.get(saver.key).get('next_ts', 0)
         next_warning_ts = saver.meta.get(saver.key).get('next_warning_ts', 0)
         if next_ts and now > next_ts + self.due_warning_delta and now > next_warning_ts:
-            notify(title=f'{saver.id} is due',
-                   body=f'next run was scheduled for {datetime.fromtimestamp(next_ts).isoformat()}',
-                   app_name=NAME,
-                   replace_key=f'{saver.id}-due_warning',
-                   telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN,
-                   telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
+            self.notifier.send(title=f'{saver.id} is due',
+                               body=f'next run was scheduled for {datetime.fromtimestamp(next_ts).isoformat()}',
+                               replace_key=f'{saver.id}-due_warning')
             saver.meta.set_subkey(saver.key, 'next_warning_ts', now + self.next_warning_delta)
 
     def _generate_src_and_patterns(self):
@@ -139,13 +137,11 @@ class SaveHandler:
     def __init__(self, config, force=False):
         self.config = config
         self.force = force
+        self.notifier = get_notifier(app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
 
     def _generate_savers(self):
         for si in iterate_save_items(self.config):
             yield from si.generate_savers()
-
-    def _notify(self, *args, **kwargs):
-        notify(*args, app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID, **kwargs)
 
     def run(self):
         logger.info('running save handler')
@@ -167,15 +163,15 @@ class SaveHandler:
                 if volume_label:
                     volume_labels.add(volume_label)
         if failed_savers:
-            self._notify(title='failed savers', body=', '.join(sorted(r.src for r in failed_savers)), replace_key='failed-savers')
+            self.notifier.send(title='failed savers', body=', '.join(sorted(r.src for r in failed_savers)), replace_key='failed-savers')
         Metadata().save()
 
         report.print_table(exclude_codes=None if self.force else {'purgeable'})
         failed_files = [r for r in report.data if r['code'] == 'failed']
         if failed_files:
-            self._notify(title='failed files', body=f'{len(failed_files)} failed files', replace_key='failed-files')
+            self.notifier.send(title='failed files', body=f'{len(failed_files)} failed files', replace_key='failed-files')
         if volume_labels:
-            self._notify(title='saved volumes', body=', '.join(sorted(volume_labels)), replace_key='saved-volumes')
+            self.notifier.send(title='saved volumes', body=', '.join(sorted(volume_labels)), replace_key='saved-volumes')
         logger.info(f'completed {len(runnable_savers)}/{len(savers)} saves in {time.time() - start_ts:.02f}s')
 
 
@@ -184,6 +180,7 @@ class SaveMonitor:
         self.config = config
         self.run_file = RunFile(os.path.join(WORK_DIR, '.monitor.run'))
         self.saver_hostnames = {r.hostname for r in iterate_saver_classes()}
+        self.notifier = get_notifier(app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
 
     def _must_run(self):
         return time.time() >= self.run_file.get_ts() + self.config.MONITOR_RUN_DELTA
@@ -270,8 +267,7 @@ class SaveMonitor:
         logger.info('running save monitor')
         start_ts = time.time()
         report = self._generate_report()
-        notify(title='status', body=report['message'], app_name=NAME, replace_key='status',
-               telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
+        self.notifier.send(title='status', body=report['message'], replace_key='status')
         self.run_file.touch()
         logger.info(f'completed save monitor in {time.time() - start_ts:.02f}s')
 
@@ -290,18 +286,20 @@ class SaveMonitor:
 
 
 def savegame(config, force=False):
+    def notify(title, body, replace_key):
+        notifier = get_notifier(app_name=NAME, telegram_bot_token=config.TELEGRAM_BOT_TOKEN, telegram_chat_id=config.TELEGRAM_CHAT_ID)
+        notifier.send(title=title, body=body, replace_key=replace_key)
+
     try:
         SaveHandler(config, force=force).run()
     except Exception as e:
         logger.exception('failed to save')
-        notify(title='error', body=str(e), app_name=NAME, replace_key='save-error',
-               telegram_bot_token=config.TELEGRAM_BOT_TOKEN, telegram_chat_id=config.TELEGRAM_CHAT_ID)
+        notify('error', str(e), 'save-error')
     try:
         SaveMonitor(config).run()
     except Exception as e:
         logger.exception('failed to monitor')
-        notify(title='error', body=str(e), app_name=NAME, replace_key='status-error',
-               telegram_bot_token=config.TELEGRAM_BOT_TOKEN, telegram_chat_id=config.TELEGRAM_CHAT_ID)
+        notify('error', str(e), 'status-error')
 
 
 def status(config, **kwargs):

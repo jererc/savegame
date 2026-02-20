@@ -215,15 +215,15 @@ class BaseTestCase(unittest.TestCase):
 
     def _savegame(self, saves, **kwargs):
         self.config.SAVES = saves
-        with patch.object(save, 'notify') as mock_notify:
+        with patch.object(save, 'get_notifier') as mock_notifier:
             config = self._get_config(SAVES=saves)
             save.savegame(config, **kwargs)
-        if mock_notify.call_args_list:
-            print('notify calls:')
-            pprint(mock_notify.call_args_list)
+        if mock_notifier.return_value.send.call_args_list:
+            print('notifier send calls:')
+            pprint(mock_notifier.return_value.send.call_args_list)
 
     def _loadgame(self, **kwargs):
-        with patch.object(save, 'notify'):
+        with patch.object(save, 'get_notifier'):
             load.loadgame(self.config, **kwargs)
 
 
@@ -689,7 +689,7 @@ class SavegameTestCase(BaseTestCase):
         def side_do_run(*args, **kwargs):
             raise Exception('do_run failed')
 
-        with patch.object(module.savers.base, 'notify'), \
+        with patch.object(module.savers.base, 'get_notifier'), \
                 patch.object(module.savers.file.FileSaver, 'do_run', side_effect=side_do_run):
             self._savegame(saves=saves)
         pprint(self.meta.data)
@@ -1664,13 +1664,14 @@ class VirtualboxTestCase(BaseTestCase):
             with open(file, 'w') as fd:
                 fd.write(f'{vm} data')
 
-        with patch.object(virtualbox.Virtualbox, 'list_running_vms', return_value=running_vms), \
+        with patch.object(virtualbox.Virtualbox, 'bin_file', new=__file__), \
+                patch.object(virtualbox.Virtualbox, 'list_running_vms', return_value=running_vms), \
                 patch.object(virtualbox.Virtualbox, 'list_vms', return_value=vms), \
                 patch.object(virtualbox.Virtualbox, 'get_vm_mtime', return_value=vm_mtime), \
                 patch.object(virtualbox.Virtualbox, 'export_vm', side_effect=side_export_vm), \
-                patch.object(savers.base.BaseSaver, '_notify') as mock__notify:
+                patch.object(savers.base, 'get_notifier') as mock_notifier:
             self._savegame(saves=saves)
-            pprint(mock__notify.call_args_list)
+            pprint(mock_notifier.return_value.send.call_args_list)
 
     def test_1(self):
         dst = os.path.join(self.dst_root, 'dst1')
@@ -1911,11 +1912,11 @@ class SaveMonitorTestCase(BaseTestCase):
         self._savegame(saves=saves)
 
         with patch.object(save.SaveMonitor, '_must_run', return_value=True), \
-                patch.object(save, 'notify') as mock_notify:
+                patch.object(save, 'get_notifier') as mock_notifier:
             sc = save.SaveMonitor(self.config)
             sc.run()
-        print(mock_notify.call_args_list)
-        self.assertTrue('6 saves' in mock_notify.call_args_list[0][1]['body'].split(', '))
+        print(mock_notifier.return_value.send.call_args_list)
+        self.assertTrue('6 saves' in mock_notifier.return_value.send.call_args_list[0][1]['body'].split(', '))
 
 
 class ReportTestCase(BaseTestCase):

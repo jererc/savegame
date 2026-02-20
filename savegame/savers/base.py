@@ -7,7 +7,7 @@ import os
 import re
 import time
 
-from svcutils.notifier import notify
+from svcutils.notifier import get_notifier
 
 from savegame import NAME
 from savegame.report import SaveReport
@@ -57,6 +57,7 @@ class BaseSaver:
         self.start_ts = None
         self.end_ts = None
         self.success = None
+        self.notifier = get_notifier(app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID)
 
     @classmethod
     def get_root_dst_path(cls, dst_path, volume_path, root_dirname):
@@ -170,9 +171,6 @@ class BaseSaver:
                 remove_path(path)
                 self.report.add(self, rel_path=os.path.relpath(path, self.dst), code='purged')
 
-    def _notify(self, *args, **kwargs):
-        notify(*args, app_name=NAME, telegram_bot_token=self.config.TELEGRAM_BOT_TOKEN, telegram_chat_id=self.config.TELEGRAM_CHAT_ID, **kwargs)
-
     def do_run(self):
         raise NotImplementedError()
 
@@ -191,7 +189,7 @@ class BaseSaver:
             self.success = True
         except Exception as e:
             logger.exception(f'failed to save {self.src=}')
-            self._notify(title='error', body=f'failed to save {self.src}: {e}')
+            self.notifier.send(title='error', body=f'failed to save {self.src}: {e}')
             self.success = False
         self.end_ts = time.time()
         self._update_meta()
