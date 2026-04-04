@@ -24,7 +24,7 @@ class SaveItem:
                  run_delta=None, purge_delta=None, enable_purge=True, loadable=True, platform=None,
                  hostname=None, src_volume_label=None, dst_volume_label=None, trigger_volume_labels=None,
                  retry_delta=None, file_compare_method=None, due_warning_delta=7 * 24 * 3600,
-                 next_warning_delta=24 * 3600):
+                 next_warning_delta=48 * 3600):
         self.config = config
         self.src_volume_label = src_volume_label
         self.dst_volume_label = dst_volume_label
@@ -87,9 +87,10 @@ class SaveItem:
         next_ts = saver.meta.get(saver.key).get('next_ts', 0)
         next_warning_ts = saver.meta.get(saver.key).get('next_warning_ts', 0)
         if next_ts and now > next_ts + self.due_warning_delta and now > next_warning_ts:
+            success_ts = saver.meta.get(saver.key).get('success_ts', 0)
             self._notify(
                 title=f'{saver.id} is due',
-                body=f'next run was scheduled for {datetime.fromtimestamp(next_ts).isoformat()}',
+                body=f'last run was {datetime.fromtimestamp(success_ts).isoformat()}',
                 replace_key=f'{saver.id}-due_warning',
             )
             saver.meta.set_subkey(saver.key, 'next_warning_ts', now + self.next_warning_delta)
