@@ -90,7 +90,7 @@ class SaveItem:
             success_ts = saver.meta.get(saver.key).get('success_ts', 0)
             self._notify(
                 title=f'{saver.id} is due',
-                body=f'last run was {datetime.fromtimestamp(success_ts).isoformat()}',
+                body=f'last run on {datetime.fromtimestamp(success_ts).strftime('%Y-%m-%d %H:%M')}',
                 replace_key=f'{saver.id}-due_warning',
             )
             saver.meta.set_subkey(saver.key, 'next_warning_ts', now + self.next_warning_delta)
