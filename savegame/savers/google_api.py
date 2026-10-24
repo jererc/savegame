@@ -11,8 +11,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-from goth.autoauth import Autoauth
-
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
     'https://www.googleapis.com/auth/drive.readonly',
@@ -62,19 +60,20 @@ class GoogleCloud:
             raise Exception('missing service account secrets')
         return service_account.Credentials.from_service_account_file(self.service_secrets_file, scopes=SCOPES)
 
-    def _manual_auth(self):
-        flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
-        try:
-            return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
-        except Exception:
-            raise Exception('failed to auth')
-
-    def _auto_auth(self):
-        return Autoauth(
-            client_secrets_file=self.oauth_secrets_file,
-            scopes=SCOPES,
-            **self.browser_args
-        ).acquire_credentials()
+    def _auth(self):
+        if AUTO_AUTH:
+            from goth.autoauth import Autoauth
+            return Autoauth(
+                client_secrets_file=self.oauth_secrets_file,
+                scopes=SCOPES,
+                **self.browser_args
+            ).acquire_credentials()
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
+            try:
+                return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
+            except Exception:
+                raise Exception('failed to auth')
 
     def get_oauth_creds(self):
         if not self.oauth_secrets_file:
@@ -83,16 +82,15 @@ class GoogleCloud:
         if os.path.exists(self.token_file):
             creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
         if not creds or not creds.valid:
-            auth_callable = self._auto_auth if AUTO_AUTH else self._manual_auth
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
                 except RefreshError as exc:
                     if exc.args[1]['error'] != 'invalid_grant':
                         raise
-                    creds = auth_callable()
+                    creds = self._auth()
             else:
-                creds = auth_callable()
+                creds = self._auth()
             with open(self.token_file, 'w') as fd:
                 fd.write(creds.to_json())
         return creds
