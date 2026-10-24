@@ -7,7 +7,7 @@ from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
-# from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
@@ -25,6 +25,7 @@ MIME_TYPE_MAP = {
     'application/vnd.google-apps.spreadsheet': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                                 '.xlsx'),
 }
+AUTO_AUTH = False
 
 logger = logging.getLogger(__name__)
 logging.getLogger('googleapiclient').setLevel(logging.WARNING)
@@ -61,14 +62,14 @@ class GoogleCloud:
             raise Exception('missing service account secrets')
         return service_account.Credentials.from_service_account_file(self.service_secrets_file, scopes=SCOPES)
 
-    # def _manual_auth(self):
-    #     flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
-    #     try:
-    #         return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
-    #     except Exception:
-    #         raise Exception('failed to auth')
+    def _manual_auth(self):
+        flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
+        try:
+            return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
+        except Exception:
+            raise Exception('failed to auth')
 
-    def _auth(self):
+    def _auto_auth(self):
         return Autoauth(
             client_secrets_file=self.oauth_secrets_file,
             scopes=SCOPES,
@@ -88,7 +89,7 @@ class GoogleCloud:
                 except RefreshError as exc:
                     if exc.args[1]['error'] != 'invalid_grant':
                         raise
-                    creds = self._auth()
+                    creds = self._auto_auth() if AUTO_AUTH else self._manual_auth()
             else:
                 creds = self._auth()
             with open(self.token_file, 'w') as fd:
