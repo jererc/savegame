@@ -83,15 +83,16 @@ class GoogleCloud:
         if os.path.exists(self.token_file):
             creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
         if not creds or not creds.valid:
+            auth_callable = self._auto_auth if AUTO_AUTH else self._manual_auth
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
                 except RefreshError as exc:
                     if exc.args[1]['error'] != 'invalid_grant':
                         raise
-                    creds = self._auto_auth() if AUTO_AUTH else self._manual_auth()
+                    creds = auth_callable()
             else:
-                creds = self._auth()
+                creds = auth_callable()
             with open(self.token_file, 'w') as fd:
                 fd.write(creds.to_json())
         return creds
