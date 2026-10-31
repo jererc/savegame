@@ -1,2 +1,3 @@
 #!/bin/bash
-curl -s "https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/bootstrap/bootstrap.py" | python3
+set -euo pipefail
+curl -fsSL "https://raw.githubusercontent.com/jererc/savegame/refs/heads/main/bootstrap/bootstrap.py" | python3
