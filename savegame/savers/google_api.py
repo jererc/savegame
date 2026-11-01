@@ -23,7 +23,6 @@ MIME_TYPE_MAP = {
     'application/vnd.google-apps.spreadsheet': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                                 '.xlsx'),
 }
-AUTO_AUTH = False
 
 logger = logging.getLogger(__name__)
 logging.getLogger('googleapiclient').setLevel(logging.WARNING)
@@ -39,10 +38,9 @@ def get_file(path):
 
 
 class GoogleCloud:
-    def __init__(self, oauth_secrets_file=None, service_secrets_file=None, **browser_args):
+    def __init__(self, oauth_secrets_file=None, service_secrets_file=None):
         self.oauth_secrets_file = get_file(oauth_secrets_file)
         self.service_secrets_file = get_file(service_secrets_file)
-        self.browser_args = browser_args
         if not (self.oauth_secrets_file or self.service_secrets_file):
             raise Exception('requires a secrets file')
         self.token_file = self._get_token_file()
@@ -61,19 +59,11 @@ class GoogleCloud:
         return service_account.Credentials.from_service_account_file(self.service_secrets_file, scopes=SCOPES)
 
     def _auth(self):
-        if AUTO_AUTH:
-            from goth.autoauth import Autoauth
-            return Autoauth(
-                client_secrets_file=self.oauth_secrets_file,
-                scopes=SCOPES,
-                **self.browser_args
-            ).acquire_credentials()
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
-            try:
-                return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
-            except Exception:
-                raise Exception('failed to auth')
+        flow = InstalledAppFlow.from_client_secrets_file(self.oauth_secrets_file, SCOPES)
+        try:
+            return flow.run_local_server(port=0, open_browser=True, timeout_seconds=60)
+        except Exception:
+            raise Exception('failed to auth')
 
     def get_oauth_creds(self):
         if not self.oauth_secrets_file:

@@ -346,4 +346,4 @@ def status(config, **kwargs):
 
 
 def google_oauth(config, **kwargs):
-    get_google_cloud(config, headless=False).get_oauth_creds()
+    get_google_cloud(config).get_oauth_creds()

@@ -18,11 +18,11 @@ def get_file_mtime_dt(x):
     return ts_to_dt(get_file_mtime(x)) if os.path.exists(x) else None
 
 
-def get_google_cloud(config, headless=True):
+def get_google_cloud(config):
     oauth_secrets_file = os.path.expanduser(config.GOOGLE_CREDS)
     if not os.path.exists(oauth_secrets_file):
         raise Skipped(f'google credentials file {oauth_secrets_file} does not exist')
-    return GoogleCloud(oauth_secrets_file=oauth_secrets_file, headless=headless)
+    return GoogleCloud(oauth_secrets_file=oauth_secrets_file)
 
 
 class GoogleDriveSaver(BaseSaver):
